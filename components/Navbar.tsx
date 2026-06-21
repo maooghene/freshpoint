@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { useSelector } from "react-redux";
+import { CartItem } from "@/lib/features/cartSlice";
 import { useAppSelector } from "@/lib/store"; // FIXED: Uses type-safe custom hook from central store
 import { Button } from "./ui/button";
 import {
@@ -29,7 +31,11 @@ function Navbar() {
   );
 
   // FIXED: No longer uses plain useSelector with broken RootState imports
-  const { totalQuantity } = useAppSelector((state) => state.cart);
+ const { totalQuantity } = useSelector(
+   (state: {
+     cart: { items: CartItem[]; totalQuantity: number; totalAmount: number };
+   }) => state.cart,
+ );
 
   const isLandingPage = pathname === "/";
   const showAppNavbar = user && !isLandingPage;
