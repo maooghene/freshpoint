@@ -2,129 +2,131 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+
 @custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ☕ The Premium Espresso Club - Light Mode (Warm Minimalist Editorial) */
+  --background: #FFFFFF;                  /* Crisp canvas */
+  --foreground: #1D1613;                  /* Deep roasted coffee bean for crisp text */
+  --card: #FDFBF7;                        /* Delicate porcelain cream for containers */
+  --card-foreground: #1D1613;
+  --popover: #FFFFFF;
+  --popover-foreground: #1D1613;
+  
+  --primary: #4A3329;                     /* Premium dark espresso roast */
+  --primary-foreground: #F7F4EE;         /* Creamy foam text over dark backgrounds */
+  --secondary: #8E7060;                   /* Smooth warm latte accent */
+  --secondary-foreground: #FFFFFF;
+  
+  --muted: #F4EDE0;                       /* Soft milk froth overlay tint */
+  --muted-foreground: #70625C;            /* Ground coffee secondary text */
+  --accent: #FDF9F2;                      /* Intentionally light ambient fill */
+  --accent-foreground: #4A3329;
+  --destructive: #A34433;                 /* Elegant terracotta/burnt sienna for errors */
+  --destructive-foreground: #FFFFFF;
+  
+  --border: #EAE3D4;                      /* Warm linen luxury dividing rules */
+  --input: #EAE3D4;
+  --ring: #4A3329;
+
+  /* Custom Structural Surface and Text Extensions */
+  --brand-solid: #5D4037;                 /* High-contrast active components */
+  --surface-warm: #F4EDE0;                /* Soft organic linen canvas block */
+  --surface-warm-muted: #FBF9F4;          /* Ultra-smooth background foam */
+  --surface-warm-border: #E5DAC6;         /* Organic structural border */
+  --foreground-strong: #0D0908;           /* Absolute dark roast text contrast */
+
+  /* Global Layout & Typography Settings */
+  --font-sans: "Playfair Display", serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: JetBrains Mono, monospace;
+  --radius: 0.625rem;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  /* 🌙 Midnight Brew - Dark Mode (Dimly-lit Coffee Lounge Ambiance) */
+  --background: #14110F;                  /* Deep midnight roast backdrop */
+  --foreground: #F4EDE0;                  /* Soft linen foam print to stop eye-strain */
+  --card: #1C1816;                        /* Dark obsidian bean containers */
+  --card-foreground: #F4EDE0;
+  --popover: #14110F;
+  --popover-foreground: #F4EDE0;
+  --primary: #D4B09C;                     /* Luxurious golden caramel branding focus */
+  --primary-foreground: #14110F;          /* Dark contrast text inside golden plates */
+  --secondary: #2D2522;
+  --secondary-foreground: #F4EDE0;
+  --muted: #241F1D;
+  --muted-foreground: #9A8E89;
+  --accent: #241F1D;
+  --accent-foreground: #F4EDE0;
+  --border: #241F1D;
+  --input: #241F1D;
+  --ring: #D4B09C;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  /* Map premium custom brand variables into Tailwind class hooks */
+  --color-brand-solid: var(--brand-solid);
+  --color-surface-warm: var(--surface-warm);
+  --color-surface-warm-muted: var(--surface-warm-muted);
+  --color-surface-warm-border: var(--surface-warm-border);
+  --color-foreground-strong: var(--foreground-strong);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
+    border-style: solid;
+    border-width: 0;
   }
+  
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  html {
-    @apply font-sans;
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Sleek layout rule - Hides native scrollbar blocks entirely */
+  ::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+  }
+  
+  ::selection {
+    background-color: var(--brand-solid);
+    color: var(--primary-foreground);
   }
 }

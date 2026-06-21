@@ -11,3 +11,316 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+
+enum UserRole {
+  CUSTOMER
+  BUSINESS_OWNER
+  STAFF
+  ADMIN
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum ItemType {
+  SERVICE
+  PRODUCT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum LocationType {
+  IN_SHOP
+  MOBILE
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  role      UserRole @default(CUSTOMER)
+  firstName String?
+  lastName  String?
+  email     String   @unique
+  phone     String?
+  image     String?
+
+  // Relationships
+  bookings     Booking[]
+  ratings      Rating[]
+  addresses    Address[]
+  businesses   Business[]     @relation("BusinessOwner")
+  staffProfile StaffProfile?  // Allows staff members to log in
+  carts        Cart[]         // Updated to allow one cart per business
+  orders       Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([clerkId])
+}
+
+model Business {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  email           String
+  phone           String
+  address         String
+  sittingCapacity Int      @default(1) 
+  categories      String[] @default([])
+  description     String?
+  image           String?
+
+  status   String  @default("pending")
+  isActive Boolean @default(false)
+
+  // REMOVED @unique to allow an owner to scale to multiple business tenants
+  ownerId String 
+  owner   User   @relation("BusinessOwner", fields: [ownerId], references: [clerkId])
+
+  items     Item[]     
+  bookings  Booking[]
+  ratings   Rating[]
+  orders    Order[]
+  schedules BusinessSchedule[]
+  staff     StaffProfile[]
+  carts     Cart[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model StaffProfile {
+  id         String   @id @default(cuid())
+  name       String   
+  isActive   Boolean  @default(true)
+  
+  // Connects the staff entity to an actual system login
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings   Booking[] 
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+model BusinessSchedule {
+  id         String @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  day       DayOfWeek
+  openTime  String 
+  closeTime String 
+  isClosed  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, day]) // Prevents duplicate schedule entries for the same day
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float    
+  
+  // Product Inventory
+  stock       Int?     @default(0)    
+  sku         String?  
+  costPrice   Float?   
+  weight      Float?   
+  
+  // Service Booking 
+  duration    Int?     @default(30)   
+  
+  isActive    Boolean  @default(true)
+  type        ItemType @default(SERVICE) 
+  image       String?
+  
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  bookings    Booking[]
+  ratings     Rating[]
+  cartItems   CartItem[]
+  OrderItem   OrderItem[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  startTime       DateTime
+  endTime         DateTime
+  status          BookingStatus @default(CONFIRMED)
+  locationType    LocationType  @default(IN_SHOP)
+  notes           String?
+
+  paymentReference String?      @unique
+  paymentStatus    String?      @default("pending")   
+  totalAmount      Float?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  addressId       String?
+  address         Address?      @relation(fields: [addressId], references: [id])
+  
+  businessId      String        
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  itemId          String        
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  staffId         String?
+  staff           StaffProfile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  ratings         Rating[]
+
+  @@index([businessId, startTime, endTime])
+  @@index([staffId, startTime, endTime]) // New index to quickly check staff availability
+  @@index([userId])
+  @@index([paymentReference])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId  String      
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  items       OrderItem[]
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+
+  addressId   String?     
+  address     Address?    @relation(fields: [addressId], references: [id])
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([businessId])
+  @@index([userId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId    String  
+  item      Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity  Int
+  price     Float   
+
+  @@index([orderId])
+  @@index([itemId])
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  rating    Int      
+  review    String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  itemId    String   
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  businessId String  
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([itemId])
+  @@index([userId])
+}
+
+model Address {
+  id        String    @id @default(cuid())
+  street    String
+  city      String
+  state     String?
+  zipCode   String
+  isDefault Boolean   @default(false)
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Booking   Booking[]
+  Order     Order[]
+
+  @@index([userId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Tied to business so a customer can have distinct baskets per tenant shop
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  items     CartItem[]
+  createdAt DateTime   @default(now()) 
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, businessId]) // One unique cart per user per business
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  itemId     String   
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  priceAtAdd Float?
+  createdAt  DateTime @default(now())
+
+  @@index([cartId])
+}
+

@@ -1,17 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import Navbar from "@/components/Navbar";
+import Providers from "@/components/Providers"; // This already handles Redux + Theme internally
 
 export const metadata: Metadata = {
   title: "Freshpoint | Wellness Platform",
@@ -28,9 +19,18 @@ export default function RootLayout({
     <ClerkProvider>
       <html
         lang="en"
-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+        suppressHydrationWarning
+        className="scroll-smooth antialiased"
       >
-        <body className="min-h-full flex flex-col">{children}</body>
+        <body className="min-h-screen font-sans bg-background text-foreground flex flex-col">
+          {/* Centralized application provider layer */}
+          <Providers>
+            <div className="flex-1 flex flex-col">
+              <Navbar />
+              <main className="flex-1">{children}</main>
+            </div>
+          </Providers>
+        </body>
       </html>
     </ClerkProvider>
   );
