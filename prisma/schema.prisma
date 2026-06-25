@@ -1,17 +1,14 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// ENUMS & CONFIGURATION
+// ==========================================
 
 enum UserRole {
   CUSTOMER
@@ -55,169 +52,211 @@ enum OrderStatus {
   CANCELLED
 }
 
-model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  role      UserRole @default(CUSTOMER)
-  firstName String?
-  lastName  String?
-  email     String   @unique
-  phone     String?
-  image     String?
+// ==========================================
+// CORE USERS & TENANTS
+// ==========================================
 
-  // Relationships
+model User {
+  id           String        @id @default(cuid())
+  clerkId      String        @unique
+  role         UserRole      @default(CUSTOMER)
+  firstName    String?
+  lastName     String?
+  email        String        @unique
+  phone        String?
+  image        String?
+
   bookings     Booking[]
   ratings      Rating[]
   addresses    Address[]
-  businesses   Business[]     @relation("BusinessOwner")
-  staffProfile StaffProfile?  // Allows staff members to log in
-  carts        Cart[]         // Updated to allow one cart per business
+  businesses   Business[]    @relation("BusinessOwner")
+  staffProfile StaffProfile?  
+  carts        Cart[]         
   orders       Order[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([email])
   @@index([clerkId])
 }
 
 model Business {
-  id              String   @id @default(cuid())
+  id              String             @id @default(cuid())
   name            String
-  slug            String   @unique
+  slug            String             @unique // Essential for tenant subdomains or clean URL parameters
   email           String
   phone           String
   address         String
-  sittingCapacity Int      @default(1) 
-  categories      String[] @default([])
+  sittingCapacity Int                @default(1) 
+  categories      String[]           @default([])
   description     String?
   image           String?
+  status          String             @default("pending")
+  isActive        Boolean            @default(false)
 
-  status   String  @default("pending")
-  isActive Boolean @default(false)
+  ownerId         String 
+  owner           User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
-  // REMOVED @unique to allow an owner to scale to multiple business tenants
-  ownerId String 
-  owner   User   @relation("BusinessOwner", fields: [ownerId], references: [clerkId])
+  items           Item[]     
+  bookings        Booking[]
+  ratings         Rating[]
+  orders          Order[]
+  schedules       BusinessSchedule[]
+  staff           StaffProfile[]
+  carts           Cart[]
 
-  items     Item[]     
-  bookings  Booking[]
-  ratings   Rating[]
-  orders    Order[]
-  schedules BusinessSchedule[]
-  staff     StaffProfile[]
-  carts     Cart[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([ownerId])
 }
 
+// ==========================================
+// SALON STAFF & AVAILABILITY
+// ==========================================
+
 model StaffProfile {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   name       String   
-  isActive   Boolean  @default(true)
+  isActive   Boolean         @default(true)
   
-  // Connects the staff entity to an actual system login
-  userId     String?  @unique
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     String?         @unique
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
   bookings   Booking[] 
+  schedules  StaffSchedule[] // Track individual barber shifts/days off
+
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([businessId])
+}
+
+model StaffSchedule {
+  id         String       @id @default(cuid())
+  staffId    String
+  staff      StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  day        DayOfWeek
+  startTime  String       // e.g., "09:00"
+  endTime    String       // e.g., "18:00"
+  isOff      Boolean      @default(false)
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([staffId, day])
+}
+
+model BusinessSchedule {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  day        DayOfWeek
+  openTime   String 
+  closeTime  String 
+  isClosed   Boolean  @default(false)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@index([businessId])
+  @@unique([businessId, day]) 
 }
 
-model BusinessSchedule {
-  id         String @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  day       DayOfWeek
-  openTime  String 
-  closeTime String 
-  isClosed  Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([businessId, day]) // Prevents duplicate schedule entries for the same day
-}
+// ==========================================
+// SALON RETAIL & SERVICES
+// ==========================================
 
 model Item {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
   price       Float    
   
-  // Product Inventory
-  stock       Int?     @default(0)    
+  // Product Inventory (Retail items like pomades, oils)
+  stock       Int?          @default(0)    
   sku         String?  
   costPrice   Float?   
   weight      Float?   
   
-  // Service Booking 
-  duration    Int?     @default(30)   
+  // Service Booking (E.g., Haircut, Color treatments)
+  duration    Int?          @default(30)   
   
-  isActive    Boolean  @default(true)
-  type        ItemType @default(SERVICE) 
+  isActive    Boolean       @default(true)
+  type        ItemType      @default(SERVICE) 
   image       String?
   
   businessId  String
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   
-  bookings    Booking[]
+  bookings    BookingItem[] // Transitioned to support single or multi-service salon slots
   ratings     Rating[]
   cartItems   CartItem[]
-  OrderItem   OrderItem[]
+  orderItems  OrderItem[]
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([businessId])
+  @@index([businessId, type, isActive]) // Speeds up client catalog and scheduling engine checks
 }
 
-model Booking {
-  id              String        @id @default(cuid())
-  startTime       DateTime
-  endTime         DateTime
-  status          BookingStatus @default(CONFIRMED)
-  locationType    LocationType  @default(IN_SHOP)
-  notes           String?
+// ==========================================
+// TRANSACTIONAL BOOKINGS & ORDERS
+// ==========================================
 
-  paymentReference String?      @unique
-  paymentStatus    String?      @default("pending")   
+model Booking {
+  id               String        @id @default(cuid())
+  startTime        DateTime
+  endTime          DateTime
+  status           BookingStatus @default(CONFIRMED) 
+  locationType     LocationType  @default(IN_SHOP)
+  notes            String?
+
+  paymentReference String?       @unique
+  paymentStatus    String?       @default("pending")   
   totalAmount      Float?
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  addressId       String?
-  address         Address?      @relation(fields: [addressId], references: [id])
+  addressId        String?
+  address          Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
   
-  businessId      String        
-  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId       String        
+  business         Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   
-  itemId          String        
-  item            Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  staffId         String?
-  staff           StaffProfile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  staffId          String?
+  staff            StaffProfile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
-  ratings         Rating[]
+  items            BookingItem[] // A booking can now contain multiple bundled services
+  ratings          Rating[]
 
-  @@index([businessId, startTime, endTime])
-  @@index([staffId, startTime, endTime]) // New index to quickly check staff availability
+  // Highly optimized indices for lightning-fast salon dashboard calendar reads
+  @@index([businessId, staffId, startTime, endTime]) 
   @@index([userId])
-  @@index([paymentReference])
+  @@index([addressId])
+}
+
+// Join table to unlock multiple bundled salon services in a single checkout session
+model BookingItem {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  price     Float    // Snapshots the service cost historical accuracy
+
+  @@index([bookingId])
+  @@index([itemId])
 }
 
 model Order {
@@ -232,13 +271,14 @@ model Order {
   status      OrderStatus @default(PENDING)
 
   addressId   String?     
-  address     Address?    @relation(fields: [addressId], references: [id])
+  address     Address?    @relation(fields: [addressId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([businessId])
   @@index([userId])
+  @@index([addressId])
 }
 
 model OrderItem {
@@ -255,28 +295,29 @@ model OrderItem {
 }
 
 model Rating {
-  id        String   @id @default(cuid())
-  rating    Int      
-  review    String?
+  id         String   @id @default(cuid())
+  rating     Int      
+  review     String?
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  itemId    String   
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId     String   
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   businessId String  
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  bookingId String?
-  booking   Booking? @relation(fields: [bookingId], references: [id])
+  bookingId  String?
+  booking    Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([businessId])
   @@index([itemId])
   @@index([userId])
+  @@index([bookingId]) 
 }
 
 model Address {
@@ -286,29 +327,27 @@ model Address {
   state     String?
   zipCode   String
   isDefault Boolean   @default(false)
-
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  Booking   Booking[]
-  Order     Order[]
+  bookings  Booking[]
+  orders    Order[]
 
   @@index([userId])
 }
 
 model Cart {
-  id        String     @id @default(cuid())
-  userId    String     
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String     @id @default(cuid())
+  userId     String     
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Tied to business so a customer can have distinct baskets per tenant shop
   businessId String
-  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business   Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
   
-  items     CartItem[]
-  createdAt DateTime   @default(now()) 
-  updatedAt DateTime   @updatedAt
+  items      CartItem[]
+  createdAt  DateTime   @default(now()) 
+  updatedAt  DateTime   @updatedAt
 
-  @@unique([userId, businessId]) // One unique cart per user per business
+  @@unique([userId, businessId]) 
 }
 
 model CartItem {
@@ -322,5 +361,5 @@ model CartItem {
   createdAt  DateTime @default(now())
 
   @@index([cartId])
+  @@index([itemId]) 
 }
-
