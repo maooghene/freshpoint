@@ -1,9 +1,6 @@
-// src/components/business/dashboard/index.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
-import axios from "axios";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import {
   StarIcon,
@@ -44,7 +41,6 @@ interface BusinessDashboardProps {
 export default function BusinessDashboard({
   businessSlug,
 }: BusinessDashboardProps) {
-  const { getToken } = useAuth();
   const currency = "₦";
 
   const [loading, setLoading] = useState(true);
@@ -56,23 +52,20 @@ export default function BusinessDashboard({
     ratings: [],
   });
 
-  useEffect(() => {
-    if (!businessSlug) return;
-    let mounted = true;
-
-    const fetchDashboard = async () => {
+  const fetchDashboardData = useCallback(
+    async (slug: string, isMounted: boolean) => {
       try {
-        const token = await getToken();
+        const res = await fetch(`/api/businesses/dashboard?slug=${slug}`);
 
-        // Pass businessSlug securely to fetch tenant-isolated metrics
-        const { data } = await axios.get(
-          `/api/business/dashboard?slug=${businessSlug}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
+        if (!res.ok) {
+          const errPayload = await res.json();
+          console.error("Dashboard backend exception payload:", errPayload);
+          throw new Error(errPayload.error || "Failed loading data properties");
+        }
 
-        if (!mounted) return;
+        const data = await res.json();
+
+        if (!isMounted) return;
 
         setDashboardData({
           totalServices: data?.totalServices ?? 0,
@@ -82,17 +75,29 @@ export default function BusinessDashboard({
           ratings: data?.ratings ?? [],
         });
       } catch (err) {
+        console.error("Dashboard client pipeline error:", err);
         toast.error("Failed to load dashboard parameters");
       } finally {
-        if (mounted) setLoading(false);
+        if (isMounted) setLoading(false);
       }
-    };
+    },
+    [],
+  );
 
-    fetchDashboard();
+  useEffect(() => {
+    if (!businessSlug) return;
+    let mounted = true;
+
+    // 🛠️ CRITICAL FIX: Wrap your execution inside a setTimeout to safely break out of the synchronous rendering cycle
+    const timer = setTimeout(() => {
+      fetchDashboardData(businessSlug, mounted);
+    }, 0);
+
     return () => {
       mounted = false;
+      clearTimeout(timer); // Clean up the microtask loop if component unmounts early
     };
-  }, [getToken, businessSlug]);
+  }, [businessSlug, fetchDashboardData]);
 
   if (loading) return <Loading />;
 
@@ -100,7 +105,7 @@ export default function BusinessDashboard({
     {
       title: "Services Offered",
       value: dashboardData.totalServices,
-      icon: SparklesIcon, // Universal industry icon replacing Scissors
+      icon: SparklesIcon,
       color: "text-blue-500",
     },
     {

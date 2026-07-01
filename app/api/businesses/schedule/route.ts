@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
+import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 
 /* ================= COMPLIANT TYPES ================= */
 
-type Day =
+type CompliantDayEnum =
   | "MONDAY"
   | "TUESDAY"
   | "WEDNESDAY"
@@ -13,27 +13,25 @@ type Day =
   | "SATURDAY"
   | "SUNDAY";
 
-interface ScheduleItem {
-  day: Day;
-  openTime: string;
-  closeTime: string;
-  isClosed: boolean;
+interface ScheduleItemPayload {
+  day: CompliantDayEnum; // Matches your model field exactly
+  openTime: string; // Matches your model field exactly
+  closeTime: string; // Matches your model field exactly
+  isClosed: boolean; // Flag used to check if the day is inactive
 }
 
 /* ================= GET: Retrieve Workspace Operating Schedules ================= */
-
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const { userId: clerkId } = await auth();
 
-    if (!userId) {
+    if (!clerkId) {
       return NextResponse.json([], { status: 401 });
     }
 
-    // Resolves structural calendar settings scoped to the logged-in user's business
     const business = await prisma.business.findFirst({
-      where: { ownerId: userId },
-      include: { schedules: true }, // FIXED: Migrated from salon relational parameters
+      where: { owner: { clerkId } },
+      include: { schedules: true },
     });
 
     return NextResponse.json(business?.schedules || [], { status: 200 });
@@ -44,21 +42,20 @@ export async function GET() {
 }
 
 /* ================= POST: Batch Update Operating Calendar Blocks ================= */
-
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId: clerkId } = await auth();
 
-    if (!userId) {
+    if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = (await req.json()) as {
-      schedule: ScheduleItem[];
+      schedule: ScheduleItemPayload[];
     };
 
     const business = await prisma.business.findFirst({
-      where: { ownerId: userId },
+      where: { owner: { clerkId } },
     });
 
     if (!business) {
@@ -68,21 +65,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1️⃣ Clear existing operation schedules to refresh table metrics safely
-    await prisma.businessSchedule.deleteMany({
-      where: { businessId: business.id }, // FIXED: Replaced salonId tracking mapping parameters
-    });
+    // Run atomically inside a transaction loop to protect multi-tenant database states
+    await prisma.$transaction([
+      // 1️⃣ Clear existing operation schedules safely
+      prisma.businessSchedule.deleteMany({
+        where: { businessId: business.id },
+      }),
 
-    // 2️⃣ Batch populate the fresh calendar records matching your database relations
-    await prisma.businessSchedule.createMany({
-      data: body.schedule.map((item) => ({
-        businessId: business.id, // FIXED: Maps directly to your unified multi-tenant columns
-        day: item.day,
-        openTime: item.openTime,
-        closeTime: item.closeTime,
-        isClosed: item.isClosed,
-      })),
-    });
+      // 2️⃣ Batch populate using your true schema names: 'day', 'openTime', and 'closeTime'
+      prisma.businessSchedule.createMany({
+        data: (body.schedule || []).map((item) => ({
+          businessId: business.id,
+          day: item.day, // 🛠️ Aligned with your Prisma Schema type fields
+          openTime: item.openTime, // 🛠️ Aligned with your Prisma Schema type fields
+          closeTime: item.closeTime, // 🛠️ Aligned with your Prisma Schema type fields
+          isClosed: item.isClosed, // 🛠️ Aligned with your Prisma Schema type fields
+        })),
+      }),
+    ]);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: unknown) {

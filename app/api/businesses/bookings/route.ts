@@ -1,32 +1,68 @@
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import authOwner from "@/lib/authOwner"; // FIXED: Points to database-safe utility folder location
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
-import { BookingStatus } from "@prisma/client"; // Safe type-safe enum directly from Prisma
+import authOwner from "@/lib/authOwner";
+import prisma from "@/lib/prisma";
+import { BookingStatus, LocationType } from "@prisma/client";
 
 interface BookingUpdatePayload {
   BookingId: string;
-  status: BookingStatus; // Enforces strict enum limits matching your database constraints
+  status: BookingStatus;
+}
+
+interface NestedItemDetails {
+  name: string;
+  price: number;
+}
+
+interface SchemaBookingItem {
+  id: string;
+  bookingId: string;
+  itemId: string;
+  item: NestedItemDetails | null;
+}
+
+interface SchemaUserRecord {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  image: string | null;
+}
+
+interface BaseBookingWithRelations {
+  id: string;
+  startTime: Date;
+  endTime: Date;
+  status: BookingStatus;
+  locationType: LocationType;
+  totalAmount: number | null;
+  notes: string | null;
+  queueCode: string | null;
+  paymentStatus: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  businessId: string;
+  userId: string;
+  staffId: string | null;
+  user: SchemaUserRecord | null;
+  address: unknown | null;
+  items: SchemaBookingItem[];
 }
 
 // ✅ POST: Allow verified vendor space owners to alter specific booking slots (Confirm/Cancel/Complete)
 export async function POST(request: NextRequest) {
   try {
     const { userId: clerkId } = getAuth(request);
-
-    if (!clerkId) {
+    if (!clerkId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    // Resolves the internal business identifier tied to this owner profile
     const businessId = await authOwner(clerkId);
-
-    if (!businessId) {
+    if (!businessId)
       return NextResponse.json(
-        { error: "Unauthorized: Vendor account mapping required" },
+        { error: "Vendor account mapping required" },
         { status: 401 },
       );
-    }
 
     const body: BookingUpdatePayload = await request.json();
     const { BookingId, status } = body;
@@ -38,12 +74,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Securely mutates status row values isolated strictly to this specific tenant store
     await prisma.booking.update({
-      where: {
-        id: BookingId,
-        businessId: businessId, // FIXED: Enforces strict data multi-tenant isolation guard bounds
-      },
+      where: { id: BookingId, businessId: businessId },
       data: { status },
     });
 
@@ -60,7 +92,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ✅ GET: Fetch all historic and live bookings registered under a specific owner's workspace
+// ✅ GET: Fetch all historic and live bookings formatted explicitly for frontend components
 export async function GET(request: NextRequest) {
   try {
     const { userId: clerkId } = getAuth(request);
@@ -72,9 +104,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const bookings = await prisma.booking.findMany({
-      where: {
-        businessId, // FIXED: Filter isolated to pull data matching this specific workspace ID
-      },
+      where: { businessId },
       include: {
         user: {
           select: {
@@ -82,18 +112,69 @@ export async function GET(request: NextRequest) {
             firstName: true,
             lastName: true,
             email: true,
+            phone: true,
             image: true,
           },
         },
-        address: true, // Core layout support mapping for mobile treatments and home services
-        item: true, // FIXED: Swapped 'service' mapping over to pull unified treatment details
+        address: true,
+        items: {
+          include: {
+            item: {
+              select: {
+                name: true,
+                price: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: {
-        startTime: "desc", // Chronological slot ordering
-      },
+      orderBy: { startTime: "desc" },
     });
 
-    return NextResponse.json({ bookings }, { status: 200 });
+    const formattedBookings = (
+      bookings as unknown as BaseBookingWithRelations[]
+    ).map((booking: BaseBookingWithRelations) => {
+      // 🛠️ CRITICAL FIXED BLOCK: Destructures position [0] safely to extract the correct index record row completely typesafe
+      const bookingItemsArray = booking.items || [];
+      const [firstRelationRecord] = bookingItemsArray;
+      const coreItemMetadata = firstRelationRecord
+        ? firstRelationRecord.item
+        : null;
+
+      return {
+        id: booking.id,
+        startTime: booking.startTime
+          ? booking.startTime.toISOString()
+          : new Date().toISOString(),
+        endTime: booking.endTime
+          ? booking.endTime.toISOString()
+          : new Date().toISOString(),
+        status: booking.status,
+        notes: booking.notes,
+        createdAt: booking.createdAt
+          ? booking.createdAt.toISOString()
+          : new Date().toISOString(),
+
+        // 🔒 Explicit Root Mapping: Ensures that the true passcode value generated by your app remains permanently locked to this customer
+        queueCode: booking.queueCode || "NO-CODE",
+        paymentStatus: booking.paymentStatus || "PENDING",
+
+        user: {
+          firstName: booking.user?.firstName || "Client",
+          lastName: booking.user?.lastName || "Profile",
+          email: booking.user?.email || "N/A",
+          phone: booking.user?.phone || "N/A",
+        },
+
+        item: {
+          name: coreItemMetadata?.name || "General Treatment",
+          price: booking.totalAmount || coreItemMetadata?.price || 0,
+          duration: null,
+        },
+      };
+    });
+
+    return NextResponse.json({ bookings: formattedBookings }, { status: 200 });
   } catch (error: unknown) {
     console.error("BUSINESS_BOOKINGS_GET_ERROR:", error);
     return NextResponse.json(

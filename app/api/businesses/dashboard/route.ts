@@ -1,95 +1,182 @@
-import { getAuth } from "@clerk/nextjs/server";
-import { NextResponse, NextRequest } from "next/server";
-import prisma from "@/lib/prisma"; // Core default Prisma v7 instance import
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
+import { BookingStatus, ItemType } from "@prisma/client";
 
-export async function GET(request: NextRequest) {
+interface CompletedBookingRecord {
+  id: string;
+  totalAmount?: number | null;
+  status: BookingStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PrismaUserRecord {
+  id: string;
+  clerkId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PrismaRatingRecord {
+  id: string;
+  rating: number;
+  review: string | null;
+  userId: string;
+  businessId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: PrismaUserRecord | null;
+}
+
+export async function GET(req: Request) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    // 1. Authenticate the caller using Clerk
+    const { userId: clerkId } = await auth();
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // FIXED: Uses findFirst because ownerId is no longer designated as a unique key descriptor constraint
-    const businessData = await prisma.business.findFirst({
-      where: {
-        ownerId: clerkId,
-      },
-      include: {
-        bookings: {
-          include: {
-            item: {
-              select: { price: true },
-            },
-          },
-        },
-        orders: {
-          where: { status: "DELIVERED" },
-          select: { totalAmount: true },
-        },
-        ratings: {
-          include: {
-            user: {
-              select: { firstName: true, lastName: true, image: true },
-            },
-            item: {
-              select: { name: true },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-        items: true,
-      },
+    // 2. Extract the business slug query parameter from the request URL
+    const { searchParams } = new URL(req.url);
+    const slug = searchParams.get("slug");
+
+    if (!slug) {
+      return NextResponse.json(
+        { error: "Missing business slug" },
+        { status: 400 },
+      );
+    }
+
+    // 3. Authorization Check: Verify this business belongs to the logged-in user
+    const business = await prisma.business.findUnique({
+      where: { slug },
+      select: { id: true, ownerId: true, owner: { select: { clerkId: true } } },
     });
 
-    if (!businessData) {
+    if (!business) {
       return NextResponse.json(
-        { error: "Wellness space business profile not found" },
+        { error: "Business workspace not found" },
         { status: 404 },
       );
     }
 
-    // 2️⃣ Separate available offerings catalog by table enum types
-    const allItems = businessData.items || [];
-    const totalServices = allItems.filter(
-      (item) => item.type === "SERVICE",
-    ).length;
-    const totalProducts = allItems.filter(
-      (item) => item.type === "PRODUCT",
-    ).length;
+    if (business.owner.clerkId !== clerkId) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not own this shop" },
+        { status: 403 },
+      );
+    }
 
-    // 3️⃣ Calculate Booking Earnings (Services)
-    const bookingEarnings = businessData.bookings.reduce(
-      (acc: number, booking) => {
-        if (booking.status === "CONFIRMED" || booking.status === "COMPLETED") {
-          return acc + (booking.item?.price || 0);
-        }
-        return acc;
-      },
-      0,
-    );
+    // 4. Parallel Aggregation Execution: Run database counts safely
+    const [
+      servicesCount,
+      productsCount,
+      bookingsCount,
+      revenueBookingsData,
+      recentRatings,
+    ] = await Promise.all([
+      prisma.item
+        .count({
+          where: { businessId: business.id, type: ItemType.SERVICE },
+        })
+        .catch(() => 0),
 
-    // 4️⃣ Calculate Product Earnings from Delivered Orders
-    const productEarnings = businessData.orders.reduce((acc: number, order) => {
-      return acc + (order.totalAmount || 0);
+      prisma.item
+        .count({
+          where: { businessId: business.id, type: ItemType.PRODUCT },
+        })
+        .catch(() => 0),
+
+      prisma.booking
+        .count({
+          where: { businessId: business.id },
+        })
+        .catch(() => 0),
+
+      // 🛠️ FIX: Track earnings using both CONFIRMED and COMPLETED statuses
+      prisma.booking
+        .findMany({
+          where: {
+            businessId: business.id,
+            status: {
+              in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED],
+            },
+          },
+          select: {
+            id: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+        .catch(() => []),
+
+      prisma.rating
+        .findMany({
+          where: { businessId: business.id },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+          include: {
+            user: true,
+          },
+        })
+        .catch(() => []),
+    ]);
+
+    // 5. Accumulate revenue sums safely using totalAmount properties from confirmed/completed rows
+    const totalEarnings = (
+      revenueBookingsData as CompletedBookingRecord[]
+    ).reduce((sum: number, booking: CompletedBookingRecord) => {
+      return sum + (booking.totalAmount || 0);
     }, 0);
 
-    const totalEarnings = Math.round(bookingEarnings + productEarnings);
+    // 6. Format ratings objects using explicit model mapping interfaces
+    const formattedRatings = (recentRatings as PrismaRatingRecord[]).map(
+      (r: PrismaRatingRecord) => {
+        const clientFirstName = r.user?.firstName || "";
+        const clientLastName = r.user?.lastName || "";
+        const combinedName = `${clientFirstName} ${clientLastName}`.trim();
 
+        return {
+          id: r.id,
+          rating: r.rating || 5,
+          review: r.review || "No descriptive comment provided.",
+          createdAt: r.createdAt
+            ? r.createdAt.toISOString()
+            : new Date().toISOString(),
+          user: {
+            name: combinedName || "Anonymous Client",
+            image: r.user?.image || null,
+          },
+          service: {
+            name: "Verified Feedback",
+          },
+        };
+      },
+    );
+
+    // Return payload properties matching frontend dashboard states precisely
     return NextResponse.json(
       {
-        ratings: businessData.ratings || [],
-        totalBookings: businessData.bookings.length,
+        totalServices: servicesCount,
+        totalProducts: productsCount,
         totalEarnings,
-        totalServices,
-        totalProducts,
+        totalBookings: bookingsCount,
+        ratings: formattedRatings,
       },
       { status: 200 },
     );
   } catch (error) {
-    console.error("Owner Dashboard Metrics Fetch Error Exception:", error);
+    console.error("Dashboard database metrics failure:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "Internal server processing failure" },
       { status: 500 },
     );
   }

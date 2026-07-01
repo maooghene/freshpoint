@@ -1,39 +1,83 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, UserRole } from "@prisma/client";
 
 export async function GET() {
   try {
     const { userId: clerkId } = await auth();
 
-    // If not logged in, return zero safely
+    // If not logged in, return defaults safely
     if (!clerkId) {
-      return NextResponse.json({ bookingCount: 0 }, { status: 200 });
+      return NextResponse.json(
+        { bookingCount: 0, role: "CUSTOMER" },
+        { status: 200 },
+      );
     }
 
-    // Resolve native system user profile CUID from the Clerk ID
+    // Resolve system profile CUID and user role from the Clerk ID
     const user = await prisma.user.findUnique({
       where: { clerkId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ bookingCount: 0 }, { status: 200 });
-    }
-
-    // Aggregate confirmed future or active bookings for this user
-    const bookingCount = await prisma.booking.count({
-      where: {
-        userId: user.id,
-        status: BookingStatus.CONFIRMED,
-        startTime: { gte: new Date() }, // Shows only upcoming appointments
+      select: {
+        id: true,
+        role: true,
       },
     });
 
-    return NextResponse.json({ bookingCount }, { status: 200 });
+    if (!user) {
+      return NextResponse.json(
+        { bookingCount: 0, role: "CUSTOMER" },
+        { status: 200 },
+      );
+    }
+
+    let bookingCount = 0;
+    const now = new Date();
+
+    // DYNAMIC METRIC AGGREGATION BASED ON DB ROLE
+    if (user.role === UserRole.BUSINESS_OWNER) {
+      // For owners, count all upcoming confirmed appointments across their businesses
+      bookingCount = await prisma.booking.count({
+        where: {
+          business: {
+            ownerId: user.id,
+          },
+          status: BookingStatus.CONFIRMED,
+          startTime: { gte: now },
+        },
+      });
+    } else if (user.role === UserRole.STAFF) {
+      // For staff, count upcoming confirmed appointments assigned specifically to them
+      bookingCount = await prisma.booking.count({
+        where: {
+          staffId: user.id,
+          status: BookingStatus.CONFIRMED,
+          startTime: { gte: now },
+        },
+      });
+    } else {
+      // For customers, count their personal upcoming appointments
+      bookingCount = await prisma.booking.count({
+        where: {
+          userId: user.id,
+          status: BookingStatus.CONFIRMED,
+          startTime: { gte: now },
+        },
+      });
+    }
+
+    return NextResponse.json(
+      {
+        bookingCount,
+        role: user.role,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Navigation count exception:", error);
-    return NextResponse.json({ bookingCount: 0 }, { status: 500 });
+    return NextResponse.json(
+      { bookingCount: 0, role: "CUSTOMER" },
+      { status: 500 },
+    );
   }
 }

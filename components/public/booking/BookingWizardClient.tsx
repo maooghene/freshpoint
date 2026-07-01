@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -10,6 +10,8 @@ import {
   Calendar,
   Info,
   Check,
+  Loader2,
+  CalendarOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,29 +31,129 @@ interface ItemDetails {
   type: string;
   business: {
     id: string;
+    slug: string; // 🔑 Ensure your query pulls business slug context parameters correctly
     name: string;
     address: string;
     staff: StaffMember[];
   };
 }
 
+interface DBBusinessSchedule {
+  id: string;
+  day: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+  openTime: string; // e.g. "09:00"
+  closeTime: string; // e.g. "16:30"
+  isClosed: boolean;
+}
+
 export default function BookingWizardClient({ item }: { item: ItemDetails }) {
   const router = useRouter();
-
   const todayString = new Date().toISOString().split("T")[0];
-
-  const timeSlots = [
-    "09:00 AM",
-    "10:30 AM",
-    "11:00 AM",
-    "01:30 PM",
-    "03:00 PM",
-    "04:30 PM",
-  ];
 
   const [selectedDate, setSelectedDate] = useState<string>(todayString);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [selectedStaff, setSelectedStaff] = useState<string>("any");
+
+  // 🛠️ LIVE STREAM HOOK STATES: Replaces static loops with real-time database hours tracking
+  const [storeSchedules, setStoreSchedules] = useState<DBBusinessSchedule[]>(
+    [],
+  );
+  const [calculatedSlots, setCalculatedSlots] = useState<string[]>([]);
+  const [fetchingHours, setFetchingHours] = useState<boolean>(true);
+
+  // 1️⃣ Fetch operational hours directly using the public endpoint path
+  useEffect(() => {
+    let isMounted = true;
+    async function loadLiveBusinessHours() {
+      try {
+        setFetchingHours(true);
+        // Targets your unified public slug endpoint safely
+        const res = await fetch(
+          `/api/businesses/slug/${item.business.slug}/schedule`,
+        );
+        if (!res.ok) throw new Error("Failed to load storefront metrics");
+
+        const data = await res.json();
+        if (isMounted) {
+          setStoreSchedules(data.schedules || []);
+        }
+      } catch (err) {
+        console.error("Storefront schedule fetch error:", err);
+      } finally {
+        if (isMounted) setFetchingHours(false);
+      }
+    }
+    if (item.business.slug) loadLiveBusinessHours();
+    return () => {
+      isMounted = false;
+    };
+  }, [item.business.slug]);
+
+  // 2️⃣ DYNAMIC GENERATOR: Slices custom hours (like 9:00 to 16:30) into clean slots based on date chosen
+  const generateTimeSlotsForDate = useCallback(
+    (dateString: string) => {
+      if (storeSchedules.length === 0) return;
+
+      const daysMap = [
+        "SUNDAY",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+      ];
+      const targetDate = new Date(dateString);
+      const targetDayStr = daysMap[targetDate.getDay()];
+
+      // Find the specific rule the provider saved for this day
+      const dayRule = storeSchedules.find((s) => s.day === targetDayStr);
+
+      // If day is unchecked/closed or not configured, freeze available options immediately
+      if (!dayRule || dayRule.isClosed) {
+        setCalculatedSlots([]);
+        return;
+      }
+
+      // Unpack saved limits (e.g. openTime: "09:00", closeTime: "16:30")
+      const [startHour, startMin] = dayRule.openTime.split(":").map(Number);
+      const [endHour, endMin] = dayRule.closeTime.split(":").map(Number);
+
+      const timeStringsArray: string[] = [];
+      let currentHour = startHour;
+      let currentMin = startMin;
+
+      while (
+        currentHour < endHour ||
+        (currentHour === endHour && currentMin <= endMin)
+      ) {
+        // Formats string into readable layout tags (e.g., convert "13:30" to "01:30 PM")
+        const rawHour = currentHour;
+        const ampm = rawHour >= 12 ? "PM" : "AM";
+        const displayHour = rawHour % 12 === 0 ? 12 : rawHour % 12;
+        const displayStr = `${displayHour.toString().padStart(2, "0")}:${currentMin.toString().padStart(2, "0")} ${ampm}`;
+
+        timeStringsArray.push(displayStr);
+
+        // Increments index selections forward by clean 30-minute operational block periods
+        currentMin += 30;
+        if (currentMin >= 60) {
+          currentHour += 1;
+          currentMin = 0;
+        }
+      }
+
+      setCalculatedSlots(timeStringsArray);
+    },
+    [storeSchedules],
+  );
+
+  // Track state changes to re-evaluate slots whenever user alters the active calendar element card
+  useEffect(() => {
+    if (selectedDate && storeSchedules.length > 0) {
+      generateTimeSlotsForDate(selectedDate);
+    }
+  }, [selectedDate, storeSchedules, generateTimeSlotsForDate]);
 
   const getReadableSelectedDate = () => {
     if (!selectedDate) return "";
@@ -150,7 +252,7 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
       {/* MATRIX SELECTOR GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-card border border-border rounded-[2rem] p-6 space-y-8 shadow-xs">
-          {/* FLEXIBLE CALENDAR SELECTOR */}
+          {/* CALENDAR SELECTOR */}
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-extrabold text-lg tracking-tight">
@@ -178,31 +280,51 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
             </div>
           </div>
 
-          {/* INTERACTIVE TIME SLOTS */}
+          {/* DYNAMIC TIME SLOTS CONTAINER */}
           <div className="space-y-4">
             <h3 className="font-extrabold text-lg tracking-tight">
               Available Slots
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {timeSlots.map((time) => (
-                <button
-                  key={time}
-                  type="button"
-                  onClick={() => setSelectedSlot(time)}
-                  className={`p-3 text-center rounded-xl border font-bold text-xs transition-all cursor-pointer ${
-                    selectedSlot === time
-                      ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
-                      : "border-border bg-background/40 hover:border-primary/30 text-foreground"
-                  }`}
-                >
-                  {time}
-                </button>
-              ))}
-            </div>
+
+            {fetchingHours ? (
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground p-4 bg-muted/40 rounded-xl border border-dashed animate-pulse">
+                <Loader2 className="animate-spin w-4 h-4 text-primary" />
+                Synchronizing live provider operating calendars...
+              </div>
+            ) : calculatedSlots.length === 0 ? (
+              /* If shop hours are toggled to Closed on this weekday, throw safe fallback notice alerts */
+              <div className="flex flex-col items-center justify-center p-8 bg-destructive/5 border border-dashed border-destructive/20 text-center rounded-2xl gap-2 animate-in fade-in">
+                <CalendarOff className="w-8 h-8 text-destructive/60" />
+                <p className="text-xs font-bold text-destructive">
+                  This wellness workspace is closed on this calendar day.
+                </p>
+                <p className="text-[10px] text-muted-foreground max-w-[280px]">
+                  Please tap a different date on the picker dashboard above to
+                  book appointments.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-in fade-in duration-200">
+                {calculatedSlots.map((time) => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => setSelectedSlot(time)}
+                    className={`p-3 text-center rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                      selectedSlot === time
+                        ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                        : "border-border bg-background/40 hover:border-primary/30 text-foreground hover:scale-[1.01]"
+                    }`}
+                  >
+                    {time}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* INTERACTIVE SPECIALIST SIDEBAR */}
+        {/* INTERACTIVE SPECIALIST SIDEBAR (Part 2 Integration) */}
         <div className="space-y-6">
           <div className="bg-card border border-border rounded-[2rem] p-6 space-y-5 shadow-xs">
             <h3 className="font-extrabold text-lg tracking-tight">
@@ -262,7 +384,7 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
             <Button
               onClick={handleAddToBasket}
               disabled={!selectedSlot}
-              className="w-full h-12 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md text-sm transition-all"
+              className="w-full h-12 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md text-sm transition-all cursor-pointer"
             >
               Add to Booking Basket
             </Button>
