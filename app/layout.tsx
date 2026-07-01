@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import "./globals.css";
+import "@/app/globals.css";
 import Navbar from "@/components/Navbar";
-import Providers from "@/components/Providers"; // This already handles Redux + Theme internally
+import Providers from "@/components/Providers";
+
 
 export const metadata: Metadata = {
   title: "Freshpoint | Wellness Platform",
@@ -23,11 +24,12 @@ export default function RootLayout({
         className="scroll-smooth antialiased"
       >
         <body className="min-h-screen font-sans bg-background text-foreground flex flex-col">
-          {/* Centralized application provider layer */}
           <Providers>
             <div className="flex-1 flex flex-col">
+              {/* Core Global Header Navigation */}
               <Navbar />
-              <main className="flex-1">{children}</main>
+              {children}
+              
             </div>
           </Providers>
         </body>

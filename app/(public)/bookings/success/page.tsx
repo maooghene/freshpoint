@@ -140,7 +140,8 @@ export default function BookingSuccessPage() {
             size="lg"
             className="w-full font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
           >
-            <Link href="/bookings">
+            <Link href="/bookings
+            ">
               View My Appointments
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>

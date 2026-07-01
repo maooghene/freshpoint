@@ -1,186 +1,200 @@
 "use client";
 
-import { useSelector, useDispatch } from "react-redux";
 import {
-  CartItem,
-  addItemToCart,
-  removeItemFromCart,
-} from "@/lib/features/cartSlice";
+  CalendarIcon,
+  Trash2Icon,
+  ClockIcon,
+  MapPinIcon,
+  ShoppingBag,
+} from "lucide-react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAppSelector, useAppDispatch } from "@/lib/store";
+import { clearBookingFlow } from "@/lib/features/bookingSlice";
 import { Button } from "@/components/ui/button";
-import { Trash2Icon, Plus, Minus, ShoppingBag } from "lucide-react";
+import BookingSummary from "@/components/BookingSummary";
+import { PackageOpen } from "lucide-react";
 
-export default function CartPage() {
-  const dispatch = useDispatch();
-  const router = useRouter();
+export default function BookingCart() {
   const currency = "₦";
+  const dispatch = useAppDispatch();
 
-  // FIXED: Explicitly map local store shape to safely isolate from cyclic unknown fallbacks
-  const { items, totalAmount } = useSelector(
-    (state: {
-      cart: {
-        items: CartItem[];
-        totalAmount: number;
-        businessId: string | null;
-      };
-    }) => state.cart,
-  );
+  // Directly reads the selected appointment state from your Redux slice
+  const bookingState = useAppSelector((state) => state.booking);
+  const { businessName, selectedService, bookingTime } = bookingState;
 
-  const handleDecreaseQuantity = (item: CartItem) => {
-    if (item.quantity <= 1) {
-      dispatch(removeItemFromCart(item.itemId));
-    } else {
-      // Re-add with a negative count value to safely step-down aggregate state counters
-      dispatch(
-        addItemToCart({
-          businessId: "local-cart",
-          item: {
-            id: item.id,
-            itemId: item.itemId,
-            name: item.name,
-            price: item.price,
-            quantity: -1,
-            priceAtAdd: item.priceAtAdd,
-          },
-        }),
-      );
-    }
+  const handleCancelBooking = () => {
+    dispatch(clearBookingFlow());
   };
 
-  const handleIncreaseQuantity = (item: CartItem) => {
-    dispatch(
-      addItemToCart({
-        businessId: "local-cart",
-        item: {
-          id: item.id,
-          itemId: item.itemId,
-          name: item.name,
-          price: item.price,
-          quantity: 1,
-          priceAtAdd: item.priceAtAdd,
+  // Convert slice structure into a standardized array for our UI loop maps
+  const activeBookings = selectedService
+    ? [
+        {
+          id: selectedService.id,
+          name: selectedService.name,
+          price: selectedService.price,
+          duration: selectedService.duration,
+          image: selectedService.image,
+          businessName: businessName,
+          time: bookingTime,
         },
-      }),
-    );
-  };
+      ]
+    : [];
 
-  return (
-    <div className="max-w-4xl mx-auto p-6 pt-24 min-h-screen">
-      <div className="mb-8 space-y-1">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          Retail Basket
-        </h1>
-        <p className="text-sm text-muted-foreground font-medium">
-          Review physical wellness products added from vendor stores.
-        </p>
+  return activeBookings.length > 0 ? (
+    <div className="relative min-h-screen overflow-hidden pt-20 bg-background text-foreground">
+      {/* BULLETPROOF BACKGROUND GRID PATTERN */}
+      <div className="absolute inset-0 -z-10">
+        <div
+          className="absolute inset-0 
+          bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] 
+          dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] 
+          bg-[size:4rem_4rem] 
+          [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"
+        />
+        <div className="absolute top-20 left-1/4 w-72 h-72 bg-primary/10 dark:bg-primary/5 rounded-full blur-[120px]" />
       </div>
 
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center max-w-sm mx-auto">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground">
-            <ShoppingBag className="size-8" />
-          </div>
-          <p className="text-base text-muted-foreground font-medium">
-            Your shopping product cart is currently empty.
+      <div className="max-w-7xl mx-auto px-6 relative z-10 w-full">
+        {/* TITLE SECTION */}
+        <div className="mb-12 space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Your Selection</h1>
+          <p className="text-muted-foreground font-medium">
+            Review your treatment choice and dynamic schedule
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4 rounded-xl font-semibold"
-            onClick={() => router.push("/explore")}
-          >
-            Browse Products
-          </Button>
         </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="space-y-3">
-            {items.map((item) => (
+
+        <div className="flex flex-col lg:flex-row gap-10 items-start">
+          {/* BOOKING LIST CONTAINER */}
+          <div className="flex-1 w-full space-y-4">
+            {activeBookings.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-5 border border-border bg-card/40 backdrop-blur-md p-4 rounded-2xl shadow-xs transition-all hover:border-primary/20"
+                className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-6 p-5 rounded-2xl border border-border bg-card/60 backdrop-blur-md shadow-xs hover:border-primary/30 transition-all"
               >
-                {/* PRODUCT THUMBNAIL WRAPPER */}
-                <div className="relative w-20 h-20 bg-muted rounded-xl overflow-hidden border border-border/60 shrink-0">
+                {/* IMAGE FRAME WRAPPER */}
+                <div className="relative h-24 w-24 rounded-xl overflow-hidden border border-border/60 bg-muted shrink-0">
                   <Image
-                    src="/placeholder-product.jpg" // Fallback placeholder asset for items mapping
-                    alt={item.name}
+                    src={item.image || "/placeholder-service.jpg"}
                     fill
                     className="object-cover"
+                    alt={item.name}
                   />
                 </div>
 
-                {/* DETAILS METADATA TRACKS */}
-                <div className="flex-1 min-w-0">
-                  <h2 className="font-bold text-foreground text-base truncate tracking-tight">
+                {/* SERVICE SPECS METADATA */}
+                <div className="flex-1 space-y-1">
+                  <h3 className="text-lg font-bold text-foreground tracking-tight">
                     {item.name}
-                  </h2>
-                  <p className="text-primary font-extrabold text-sm mt-0.5">
-                    {currency}
-                    {(item.price * item.quantity).toLocaleString()}
-                  </p>
-
-                  {/* HIGH-UTILITY QUANTITY COUNTER CHIPS */}
-                  <div className="flex items-center gap-1 mt-3">
-                    <button
-                      type="button"
-                      onClick={() => handleDecreaseQuantity(item)}
-                      className="h-7 w-7 flex items-center justify-center border border-border rounded-lg bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus size={12} />
-                    </button>
-
-                    <span className="w-8 text-center text-xs font-bold text-foreground">
-                      {item.quantity}
+                  </h3>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-medium">
+                    <span className="flex items-center gap-1">
+                      <ClockIcon size={14} className="text-primary" />
+                      {item.duration} mins
                     </span>
-
-                    <button
-                      type="button"
-                      onClick={() => handleIncreaseQuantity(item)}
-                      className="h-7 w-7 flex items-center justify-center border border-border rounded-lg bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus size={12} />
-                    </button>
+                    <span className="flex items-center gap-1">
+                      <MapPinIcon size={14} className="text-primary" />
+                      {item.businessName}
+                    </span>
                   </div>
+                  {item.time && (
+                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 pt-1">
+                      Selected Time:{" "}
+                      {new Date(item.time).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  )}
+                  <p className="pt-2 font-bold text-lg text-foreground">
+                    {currency}
+                    {item.price.toLocaleString()}
+                  </p>
                 </div>
 
-                {/* REMOVE OVERRIDE ACTIONS */}
-                <button
-                  type="button"
-                  onClick={() => dispatch(removeItemFromCart(item.itemId))}
-                  className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all cursor-pointer shrink-0"
-                  aria-label="Remove item from basket"
-                >
-                  <Trash2Icon size={18} />
-                </button>
+                {/* ITEM MANAGEMENT ACTIONS */}
+                <div className="flex sm:flex-col items-end gap-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-4 sm:pt-0 border-border">
+                  <button
+                    type="button"
+                    onClick={handleCancelBooking}
+                    className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all cursor-pointer"
+                    aria-label="Remove item"
+                  >
+                    <Trash2Icon size={18} />
+                  </button>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs font-semibold rounded-lg"
+                  >
+                    {/* 🚀 FIXED: Links back to your dedicated parameter booking path */}
+                    <Link href={`/book/${item.id}`}>Change Time</Link>
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
 
-          {/* CHECKOUT TOTAL AGGREGATIONS SUMMARY */}
-          <div className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/20 p-5 rounded-2xl border border-border mt-8">
-            <div>
-              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                Subtotal Aggregate
-              </p>
-              <h2 className="text-2xl font-black text-foreground tracking-tight">
-                {currency}
-                {totalAmount.toLocaleString()}
-              </h2>
-            </div>
+          {/* SIDEBAR SUMMARY CHECKOUT MODULE */}
+          <div className="w-full lg:w-96 shrink-0">
+            <div className="p-6 rounded-2xl border border-border bg-card/80 backdrop-blur-md shadow-xl space-y-6">
+              <BookingSummary
+                totalPrice={selectedService?.price || 0}
+                items={activeBookings}
+              />
 
-            <Button
-              onClick={() => router.push("/checkout")}
-              size="lg"
-              className="w-full sm:w-auto px-8 font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
-            >
-              Proceed to Checkout
-            </Button>
+              <Button
+                asChild
+                className="w-full font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                size="lg"
+              >
+                {/* 🚀 FIXED: Point links to your clean validation page layouts */}
+                <Link
+                  href={
+                    bookingTime
+                      ? "/booking/confirm"
+                      : `/book/${selectedService?.id}`
+                  }
+                >
+                  <CalendarIcon className="mr-2 size-4" />
+                  {bookingTime ? "Confirm Appointment" : "Pick Date & Time"}
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  ) : (
+    /* CLEAN EMPTY WORKSPACE LAYER */
+    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-6 max-w-md mx-auto w-full bg-background text-foreground animate-in fade-in slide-in-from-bottom-4 duration-300">
+      {/* Visual Workspace Asset Container */}
+      <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 ring-8 ring-primary/5">
+        <PackageOpen className="size-10 text-primary" />
+      </div>
+
+      {/* Industry-Agnostic Product Titles */}
+      <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+        Your cart is empty
+      </h1>
+
+      {/* Product-focused Description Layout */}
+      <p className="text-muted-foreground text-sm font-medium mb-8 leading-relaxed">
+        You haven&apos;t added any items or products to your shopping bag yet.
+        Browse our partner storefronts to purchase equipment, care items, and
+        merchandise.
+      </p>
+
+      {/* Universal Action Call */}
+      <Button
+        asChild
+        size="lg"
+        className="rounded-xl font-semibold shadow-md px-8 hover:opacity-95 transition-opacity"
+      >
+        <Link href="/explore">Explore Storefront Products</Link>
+      </Button>
     </div>
   );
 }

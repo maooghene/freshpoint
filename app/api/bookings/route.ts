@@ -1,72 +1,70 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 import instance
-import { auth } from "@clerk/nextjs/server"; // FIXED: Corrected modern Clerk SDK package destination
+import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET() {
   try {
     const { userId: clerkId } = await auth();
-
-    if (!clerkId) {
+    if (!clerkId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    // 1️⃣ Resolve the internal structural database User.id row from Clerk identity hook
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true },
     });
 
-    if (!user) {
+    if (!user)
       return NextResponse.json(
-        { error: "User profile not registered in platform logs" },
-        { status: 404 },
+        { error: "Identity profile missing" },
+        { status: 400 },
       );
-    }
 
-    // 2️⃣ Fetch multi-tenant booking records scoped securely to the local relational ID
-    const bookings = await prisma.booking.findMany({
-      where: {
-        userId: user.id, // FIXED: Queries using internal relational sequential user ID matches
-      },
-
-      // ✅ FORCE CLEAN MULTI-TENANT WORKSPACE STRUCTURE
-      select: {
-        id: true,
-        startTime: true,
-        status: true,
-
-        item: {
-          // FIXED: Swapped 'service' relation filter parameter to match 'item' model rules
-          select: {
-            name: true,
-            price: true,
-            image: true,
+    const rawBookings = await prisma.booking.findMany({
+      where: { userId: user.id },
+      // 🌟 KEY FIX: Force descending order on createdAt so newest entries load first!
+      orderBy: { createdAt: "desc" },
+      include: {
+        business: { select: { name: true, address: true } },
+        items: {
+          include: {
+            item: { select: { name: true, image: true, type: true } },
           },
         },
-
-        business: {
-          // FIXED: Swapped 'salon' model mapping parameter out for 'business' relational tracking keys
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
-        },
-      },
-
-      orderBy: {
-        startTime: "desc",
+        ratings: { select: { rating: true } },
       },
     });
 
-    return NextResponse.json(bookings);
-  } catch (error: unknown) {
-    console.error("BOOKINGS API ERROR:", error);
+    const formattedBookings = rawBookings.map((b) => ({
+      id: b.id,
+      status: b.status,
+      startTime: b.startTime.toISOString(),
+      createdAt: b.createdAt.toISOString(), // 🌟 Pass creation date to calculate "time ago"
+      totalAmount: b.totalAmount || 0,
+      queueCode: b.queueCode || "FP-TBD",
+      isVerifiedByStaff: b.isVerifiedByStaff || false,
+      business: {
+        id: b.businessId,
+        name: b.business.name,
+        address: b.business.address,
+      },
+      items: b.items.map((i) => ({
+        id: i.id,
+        price: i.price,
+        item: {
+          name: i.item?.name || "Premium Wellness Asset",
+          image: i.item?.image || null,
+          type: i.item?.type || "SERVICE",
+        },
+      })),
+      ratings: b.ratings,
+    }));
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Server error fetching appointments";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(formattedBookings, { status: 200 });
+  } catch (error) {
+    console.error("Booking extraction failure:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

@@ -214,34 +214,41 @@ model Booking {
   id               String        @id @default(cuid())
   startTime        DateTime
   endTime          DateTime
-  status           BookingStatus @default(CONFIRMED) 
+  status           BookingStatus @default(CONFIRMED)
   locationType     LocationType  @default(IN_SHOP)
   notes            String?
 
   paymentReference String?       @unique
-  paymentStatus    String?       @default("pending")   
+  paymentStatus    String?       @default("pending")
   totalAmount      Float?
+  
+  // FreshPoint fee breakdown
+  freshpointFee    Float?        // 8% commission
+  providerPayout   Float?        // What provider receives after commission
+  freshpointNet    Float?        // FreshPoint profit after Paystack fees
+
+   queueCode        String?      // E.g., "FP-56" or "FP-102"
+  isVerifiedByStaff Boolean       @default(false)
 
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   addressId        String?
   address          Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  
-  businessId       String        
+
+  businessId       String
   business         Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
+
   userId           String
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   staffId          String?
   staff            StaffProfile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
-  items            BookingItem[] // A booking can now contain multiple bundled services
+  items            BookingItem[]
   ratings          Rating[]
 
-  // Highly optimized indices for lightning-fast salon dashboard calendar reads
-  @@index([businessId, staffId, startTime, endTime]) 
+  @@index([businessId, staffId, startTime, endTime])
   @@index([userId])
   @@index([addressId])
 }

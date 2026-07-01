@@ -13,6 +13,10 @@ interface BookingState {
   businessName: string | null;
   selectedService: SelectedService | null;
   bookingTime: string | null; // Stores the ISO string datetime slot
+  staffId: string | null; // Added parameter support for your specialist tracker
+
+  // Live aggregated notification metric field properties
+  upcomingCount: number;
 }
 
 const initialState: BookingState = {
@@ -20,13 +24,15 @@ const initialState: BookingState = {
   businessName: null,
   selectedService: null,
   bookingTime: null,
+  staffId: null,
+  upcomingCount: 0, // Default baseline initialization counter
 };
 
 const bookingSlice = createSlice({
-  name: "booking",
+  name: "bookingSlice",
   initialState,
   reducers: {
-    // FIXED: Maps business profiles explicitly and handles core item properties
+    // Maps business profiles explicitly and handles core item properties
     selectService: (
       state,
       action: PayloadAction<{
@@ -40,9 +46,36 @@ const bookingSlice = createSlice({
       state.selectedService = action.payload.service;
     },
 
-    // FIXED: Formally registers the named action needed by BookingConfirmPage
+    // Formally registers the named action needed by BookingConfirmPage
     setBookingTime: (state, action: PayloadAction<string>) => {
       state.bookingTime = action.payload;
+    },
+
+    // Allows saving everything simultaneously from the booking page
+    setCompleteBooking: (
+      state,
+      action: PayloadAction<{
+        businessId: string;
+        businessName: string;
+        selectedService: SelectedService;
+        bookingTime: string;
+        staffId: string | null;
+      }>,
+    ) => {
+      state.businessId = action.payload.businessId;
+      state.businessName = action.payload.businessName;
+      state.selectedService = action.payload.selectedService;
+      state.bookingTime = action.payload.bookingTime;
+      state.staffId = action.payload.staffId;
+    },
+
+    // Notification reducers to manage active live dashboard metrics
+    setBookingCount: (state, action: PayloadAction<number>) => {
+      state.upcomingCount = action.payload;
+    },
+
+    incrementBookingCount: (state) => {
+      state.upcomingCount += 1;
     },
 
     clearBookingFlow: (state) => {
@@ -50,14 +83,19 @@ const bookingSlice = createSlice({
       state.businessName = null;
       state.selectedService = null;
       state.bookingTime = null;
+      state.staffId = null;
+      // We deliberately DO NOT wipe upcomingCount here so the Navbar stays hydrated
     },
   },
 });
 
-// Structural selectors typed safely using local configuration interfaces
-export const selectActiveBooking = (state: { booking: BookingState }) =>
-  state.booking;
+export const {
+  selectService,
+  setBookingTime,
+  setCompleteBooking,
+  setBookingCount,
+  incrementBookingCount,
+  clearBookingFlow,
+} = bookingSlice.actions;
 
-export const { selectService, setBookingTime, clearBookingFlow } =
-  bookingSlice.actions;
 export default bookingSlice.reducer;

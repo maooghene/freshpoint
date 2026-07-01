@@ -74,7 +74,7 @@ export default function FreshpointAddItemDashboard({
 
       const token = await getToken();
 
-      await axios.post("/api/business/items", formData, {
+      await axios.post("/api/businesses/items", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,

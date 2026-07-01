@@ -266,7 +266,12 @@ export default function BusinessProfile() {
                     </div>
 
                     <Button
-                      onClick={() => router.push(`/book/${service.id}`)}
+                      onClick={() => {
+                        const cleanServiceName = service.name
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, "-");
+                        router.push(`/book/${service.id}`);
+                      }}
                       className="w-full rounded-xl font-bold text-sm gap-2"
                     >
                       <CalendarCheck className="w-4 h-4" />

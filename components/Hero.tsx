@@ -1,11 +1,12 @@
+// components/Hero.tsx
 "use client";
 
-import { SignUpButton, useUser } from "@clerk/nextjs";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { CalendarIcon, Sparkles } from "lucide-react";
-import Image from "next/image";
 import { getTimeBasedGreeting } from "@/lib/greetings";
+import HeroSlideshow from "./HeroSlideshow";
 
 function Hero() {
   const { user } = useUser();
@@ -13,7 +14,6 @@ function Hero() {
   return (
     <section className="relative min-h-[calc(100vh-4rem)] flex items-center overflow-hidden pt-16">
       {/* GRID BG */}
-      {/* GRID BG - Bulletproof Light & Dark Mode Contrast */}
       <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/5 to-primary/5">
         <div
           className="absolute inset-0 
@@ -92,7 +92,7 @@ function Hero() {
                     </Button>
                   </Link>
                 ) : (
-                  <SignUpButton mode="modal">
+                  <SignInButton mode="modal">
                     <Button
                       size={"lg"}
                       className="rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
@@ -100,7 +100,7 @@ function Hero() {
                       <Sparkles className="mr-2 size-5" />
                       Get Started Free
                     </Button>
-                  </SignUpButton>
+                  </SignInButton>
                 )}
               </div>
             </div>
@@ -110,14 +110,7 @@ function Hero() {
               <div className="absolute -top-4 -left-4 w-24 h-24 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl rotate-45 blur-xl"></div>
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl blur-xl scale-110"></div>
 
-              <Image
-                src="/wellness-hero.jpg"
-                alt="Freshpoint Multi-tenant Booking Interface"
-                width={450}
-                height={450}
-                className="m-4 rounded-2xl border-4 border-muted/20 shadow-2xl bg-background"
-                priority
-              />
+              <HeroSlideshow />
             </div>
           </div>
         </div>

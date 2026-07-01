@@ -4,10 +4,10 @@ import { useUser, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { useSelector } from "react-redux";
-import { CartItem } from "@/lib/features/cartSlice";
-import { useAppSelector } from "@/lib/store"; // FIXED: Uses type-safe custom hook from central store
+import { useState, useEffect } from "react";
+import { useDispatch } from "react-redux";
+import { useAppSelector } from "@/lib/store"; // Type-safe central selector hook
+import { setBookingCount } from "@/lib/features/bookingSlice";
 import { Button } from "./ui/button";
 import {
   BookAlertIcon,
@@ -25,23 +25,43 @@ function Navbar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const dispatch = useDispatch();
 
   const [searchQuery, setSearchQuery] = useState(
     searchParams?.get("search") || "",
   );
 
-  // FIXED: No longer uses plain useSelector with broken RootState imports
- const { totalQuantity } = useSelector(
-   (state: {
-     cart: { items: CartItem[]; totalQuantity: number; totalAmount: number };
-   }) => state.cart,
- );
+  // 1️⃣ Client side cart indicator values pulling directly from Redux Cart Slice
+  const totalQuantity = useAppSelector((state) => state.cart.totalQuantity);
+
+  // 2️⃣ Live database aggregate indicator value pulling via booking slice configuration tracker map
+  const bookingCount = useAppSelector((state) => state.booking.upcomingCount);
+
+  // Sync metrics from the live backend route upon client layout mounting pipeline
+  useEffect(() => {
+    if (!user) return;
+
+    const syncLiveCounts = async () => {
+      try {
+        const res = await fetch("/api/navigation/counts");
+        if (res.ok) {
+          const data = await res.json();
+          // Dispatch database aggregate straightforwardly into global memory slice
+          dispatch(setBookingCount(data.bookingCount || 0));
+        }
+      } catch (err) {
+        console.error("Layout metric initialization failure:", err);
+      }
+    };
+
+    syncLiveCounts();
+  }, [user, dispatch]);
 
   const isLandingPage = pathname === "/";
   const showAppNavbar = user && !isLandingPage;
 
   return (
-    <nav className="fixed top-0 right-0 left-0 z-50 px-6 border-b border-border bg-background/80 backdrop-blur-md h-16 flex items-center">
+    <nav className="fixed top-0 right-0 left-0 z-50 px-6 border-b border-border bg-background h-16 flex items-center">
       <div className="max-w-7xl w-full mx-auto flex justify-between items-center">
         {/* LOGO */}
         <Link
@@ -106,7 +126,6 @@ function Navbar() {
 
         {/* ================= ACTIONS + AUTH CLUSTER ================= */}
         <div className="flex items-center gap-4">
-          {/* THEME TOGGLE SWITCH - FIXED: Uses pure Tailwind mode selectors to prevent hydration loops */}
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -127,11 +146,11 @@ function Navbar() {
               {/* 🛒 MULTI-TENANT BASKET STATUS */}
               <Link
                 href="/cart"
-                className="relative text-muted-foreground hover:text-primary transition-colors"
+                className="relative text-muted-foreground hover:text-primary transition-colors p-1"
               >
                 <ShoppingCart size={24} />
                 {totalQuantity > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center animate-in scale-in">
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center animate-in scale-in">
                     {totalQuantity}
                   </span>
                 )}
@@ -140,12 +159,16 @@ function Navbar() {
               {/* 📅 LIVE APPOINTMENT ENTRIES */}
               <Link
                 href="/bookings"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="relative text-muted-foreground hover:text-primary transition-colors p-1"
               >
                 <BookAlertIcon size={24} />
+                {bookingCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center animate-in scale-in">
+                    {bookingCount}
+                  </span>
+                )}
               </Link>
 
-              {/* USER ACTION INTERFACE */}
               <UserButton />
             </div>
           )}

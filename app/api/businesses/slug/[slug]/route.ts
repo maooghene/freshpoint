@@ -76,8 +76,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         totalReviews: business._count.ratings,
         rating: business._count.ratings > 0 ? "4.8" : "New", // Hardcoded fallback until live aggregate reviews trigger tasks are written
 
-        services,
-        products,
+        items: [...services, ...products],
       },
       { status: 200 },
     );

@@ -2,7 +2,9 @@ import { Sparkles } from "lucide-react";
 
 function Footer() {
   return (
-    <footer className="px-6 py-12 border-t bg-muted/30 w-full">
+    <footer className="px-6 py-12 border-t bg-muted/30 w-full mt-auto">
+      {" "}
+      {/* 🌟 mt-auto locks it to the very bottom */}
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {/* Branding */}

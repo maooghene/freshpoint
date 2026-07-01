@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useAppSelector, useAppDispatch } from "@/lib/store"; // Uses type-safe store hooks
+import { useAppSelector, useAppDispatch } from "@/lib/store";
 import { clearBookingFlow } from "@/lib/features/bookingSlice";
 import { Button } from "@/components/ui/button";
 import BookingSummary from "@/components/BookingSummary";
@@ -20,8 +20,7 @@ export default function BookingCart() {
 
   // Directly reads the selected appointment state from your Redux slice
   const bookingState = useAppSelector((state) => state.booking);
-  const { businessId, businessName, selectedService, bookingTime } =
-    bookingState;
+  const { businessName, selectedService, bookingTime } = bookingState;
 
   const handleCancelBooking = () => {
     dispatch(clearBookingFlow());
@@ -43,9 +42,9 @@ export default function BookingCart() {
     : [];
 
   return activeBookings.length > 0 ? (
-    <div className="relative min-h-screen overflow-hidden pt-20">
-      {/* BULLETPROOF BACKGROUND GRID PATTERN - Works in both light and dark mode */}
-      <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/5 to-primary/5 -z-10">
+    <div className="relative min-h-screen overflow-hidden pt-20 bg-background text-foreground">
+      {/* BULLETPROOF BACKGROUND GRID PATTERN */}
+      <div className="absolute inset-0 -z-10">
         <div
           className="absolute inset-0 
           bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] 
@@ -53,14 +52,13 @@ export default function BookingCart() {
           bg-[size:4rem_4rem] 
           [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"
         />
+        <div className="absolute top-20 left-1/4 w-72 h-72 bg-primary/10 dark:bg-primary/5 rounded-full blur-[120px]" />
       </div>
 
       <div className="max-w-7xl mx-auto px-6 relative z-10 w-full">
         {/* TITLE SECTION */}
         <div className="mb-12 space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-            Your Selection
-          </h1>
+          <h1 className="text-4xl font-bold tracking-tight">Your Selection</h1>
           <p className="text-muted-foreground font-medium">
             Review your treatment choice and dynamic schedule
           </p>
@@ -128,9 +126,9 @@ export default function BookingCart() {
                     asChild
                     variant="ghost"
                     size="sm"
-                    className="text-xs font-semibold rounded-lg"
+                    className="text-xs font-semibold rounded-lg text-primary hover:text-primary/80 hover:bg-primary/5"
                   >
-                    <Link href={`/explore?itemId=${item.id}`}>Change Time</Link>
+                    <Link href={`/book/${item.id}`}>Change Time</Link>
                   </Button>
                 </div>
               </div>
@@ -144,24 +142,7 @@ export default function BookingCart() {
                 totalPrice={selectedService?.price || 0}
                 items={activeBookings}
               />
-
-              <Button
-                asChild
-                className="w-full font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
-                size="lg"
-              >
-                {/* FIXED: Swapped out 'item.time' for your actual Redux 'bookingTime' variable */}
-                <Link
-                  href={
-                    bookingTime
-                      ? "/checkout"
-                      : `/explore?itemId=${selectedService?.id}`
-                  }
-                >
-                  <CalendarIcon className="mr-2 size-4" />
-                  {bookingTime ? "Confirm Appointment" : "Pick Date & Time"}
-                </Link>
-              </Button>
+              
             </div>
           </div>
         </div>
@@ -169,8 +150,8 @@ export default function BookingCart() {
     </div>
   ) : (
     /* CLEAN EMPTY WORKSPACE LAYER */
-    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-6 max-w-md mx-auto w-full">
-      <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 animate-pulse">
+    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-6 max-w-md mx-auto w-full bg-background text-foreground animate-in fade-in duration-300">
+      <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
         <ShoppingBag className="size-10 text-primary" />
       </div>
       <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
@@ -180,10 +161,12 @@ export default function BookingCart() {
         Your dynamic appointment booking basket is currently empty. Explore our
         collection of premium salons and wellness providers to get started.
       </p>
+
+      {/* 🚀 FIXED: Updated fallback button to bg-primary purple too */}
       <Button
         asChild
         size="lg"
-        className="rounded-xl font-semibold shadow-md px-8"
+        className="rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md px-8"
       >
         <Link href="/explore">Find a Provider Space</Link>
       </Button>
