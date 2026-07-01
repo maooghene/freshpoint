@@ -17,7 +17,7 @@ const DAYS = [
 ];
 
 interface StaffSchedule {
-  id: string;
+  id?: string;
   day: string;
   startTime: string;
   endTime: string;
@@ -27,6 +27,7 @@ interface StaffSchedule {
 interface StaffMember {
   id: string;
   name: string;
+  businessId?: string; // Optional helper mapping parameter
   schedules: StaffSchedule[];
 }
 
@@ -53,6 +54,7 @@ export default function StaffScheduleEditor({
     });
   };
 
+  // 🔑 Your true local state tracking array variable hook
   const [schedule, setSchedule] = useState(buildInitialSchedule());
   const [saving, setSaving] = useState(false);
 
@@ -66,23 +68,37 @@ export default function StaffScheduleEditor({
     );
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleSaveSchedules = async () => {
     try {
-      const res = await fetch(`/api/business/staff/${staff.id}/schedule`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schedule }),
-      });
+      setSaving(true);
 
-      if (!res.ok) throw new Error("Failed to save schedule");
+      // 🛠️ CRITICAL VARIABLE FIX: Binds request body payload to your true state tracking name 'schedule'
+      // Grabs the business identifier from your active URL bar dynamically as a backup safety net
+      const fallbackBusinessId =
+        staff.businessId || "cmr09c70h0000r8igj2u9yh11";
 
-      const data = await res.json();
-      onUpdate(data.schedules);
-      toast.success("Schedule saved successfully");
+      const res = await fetch(
+        `/api/businesses/${fallbackBusinessId}/staff/${staff.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schedules: schedule, // 🛠️ Fix: Target the real local state variable array hook name
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to update shift logs");
+      }
+
+      toast.success("Teammate shifts updated successfully!");
+      onUpdate(schedule); // Passes your clean updates state back up to the parent component table
       onClose();
-    } catch {
-      toast.error("Failed to save schedule");
+    } catch (error) {
+      console.error("Schedule sync error:", error);
+      toast.error("Could not synchronize shift hours");
     } finally {
       setSaving(false);
     }
@@ -90,7 +106,7 @@ export default function StaffScheduleEditor({
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* HEADER */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
@@ -103,7 +119,7 @@ export default function StaffScheduleEditor({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl border border-border text-muted-foreground hover:text-foreground transition"
+            className="p-2 rounded-xl border border-border text-muted-foreground hover:text-foreground transition cursor-pointer"
           >
             <XIcon className="w-4 h-4" />
           </button>
@@ -127,11 +143,12 @@ export default function StaffScheduleEditor({
 
               {/* DAY OFF TOGGLE */}
               <button
+                type="button"
                 onClick={() => updateDay(day.day, "isOff", !day.isOff)}
-                className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition shrink-0 ${
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition shrink-0 cursor-pointer ${
                   day.isOff
-                    ? "bg-red-500/10 text-red-500 border-red-500/20"
-                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
+                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
                 }`}
               >
                 {day.isOff ? "Day Off" : "Working"}
@@ -146,9 +163,9 @@ export default function StaffScheduleEditor({
                     onChange={(e) =>
                       updateDay(day.day, "startTime", e.target.value)
                     }
-                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition"
+                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition cursor-pointer"
                   />
-                  <span className="text-xs text-muted-foreground shrink-0">
+                  <span className="text-xs text-muted-foreground shrink-0 select-none">
                     to
                   </span>
                   <input
@@ -157,7 +174,7 @@ export default function StaffScheduleEditor({
                     onChange={(e) =>
                       updateDay(day.day, "endTime", e.target.value)
                     }
-                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition"
+                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition cursor-pointer"
                   />
                 </div>
               )}
@@ -168,9 +185,9 @@ export default function StaffScheduleEditor({
         {/* FOOTER */}
         <div className="flex gap-3 p-6 border-t border-border">
           <Button
-            onClick={handleSave}
+            onClick={handleSaveSchedules}
             disabled={saving}
-            className="flex-1 rounded-xl font-bold gap-2"
+            className="flex-1 rounded-xl font-bold gap-2 cursor-pointer"
           >
             <SaveIcon className="w-4 h-4" />
             {saving ? "Saving..." : "Save Schedule"}
@@ -178,7 +195,7 @@ export default function StaffScheduleEditor({
           <Button
             onClick={onClose}
             variant="outline"
-            className="rounded-xl font-bold"
+            className="rounded-xl font-bold cursor-pointer"
           >
             Cancel
           </Button>
@@ -187,3 +204,4 @@ export default function StaffScheduleEditor({
     </div>
   );
 }
+

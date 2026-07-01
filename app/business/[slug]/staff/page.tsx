@@ -1,7 +1,7 @@
-// app/business/[slug]/staff/page.tsx
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+// 🛠️ CRITICAL PATH REPAIR: Pointing to your correct refactored coordinator 'StaffDashboard'
 import StaffDashboard from "@/components/business/staff/StaffDashboard";
 
 interface PageProps {
@@ -14,6 +14,7 @@ export default async function StaffPageRoute({ params }: PageProps) {
 
   if (!clerkId) notFound();
 
+  // Resolve the business profile along with its full nested staff structure
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
@@ -37,21 +38,39 @@ export default async function StaffPageRoute({ params }: PageProps) {
 
   if (!business) notFound();
 
+  // Verify absolute ownership guard rails to prevent cross-tenant parameter visibility leaks
+  if (business.ownerId !== clerkId) {
+    const ownerProfile = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { id: true },
+    });
+
+    if (!ownerProfile || business.ownerId !== ownerProfile.id) {
+      notFound();
+    }
+  }
+
+  // Safe JSON serialization to cleanly pass Date timestamps from Server to Client Components
+  const serializedBusiness = JSON.parse(JSON.stringify(business));
+
   return (
-    <div className="space-y-8">
-      <div className="border-b border-border pb-6">
-        <h1 className="text-3xl font-black tracking-tight text-foreground">
-          Staff Management
+    <div className="space-y-6 w-full max-w-7xl mx-auto">
+      {/* SEAMLESS HEADER LAYOUT */}
+      <div className="flex flex-col gap-1 border-b border-border pb-6">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          Team{" "}
+          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Roster
+          </span>
         </h1>
-        <p className="text-sm text-muted-foreground font-medium mt-1">
-          Manage your team, schedules, and specialist profiles.
+        <p className="text-muted-foreground text-sm font-medium">
+          Onboard new professionals, assign service roles, and manage workspace
+          permissions.
         </p>
       </div>
 
-      <StaffDashboard
-        business={JSON.parse(JSON.stringify(business))}
-        businessSlug={slug}
-      />
+      {/* 🛠️ Renders your newly refactored dashboard component smoothly */}
+      <StaffDashboard business={serializedBusiness} businessSlug={slug} />
     </div>
   );
 }

@@ -129,16 +129,19 @@ function NavbarContent() {
               Overview
             </Link>
             <Link
-              href={`/business/${businessId}/manage-items`}
+              // 🛠️ FIX 1: Uses your exact local variable name (businessId or businessSlug) inside the string template text
+              href={`/business/${businessId}/add-service`}
               className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                pathname.includes("/manage-items")
-                  ? "text-primary"
+                // 🛠️ FIX 2: Correctly checks your true browser path location to highlight the link text cleanly
+                pathname.includes("/add-service")
+                  ? "text-primary font-bold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Store size={16} />
               Services & Products
             </Link>
+
             <Link
               href={`/business/${businessId}/staff`}
               className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${

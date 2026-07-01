@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
     if (!businessId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Inside your backend bookings route file -> GET method block:
     const bookings = await prisma.booking.findMany({
       where: { businessId },
       include: {
@@ -128,7 +129,10 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { startTime: "desc" },
+      // 🛠️ CRITICAL BLOCK FIX: Swapped 'startTime' for 'createdAt' to sort by transaction booking logs!
+      orderBy: {
+        createdAt: "desc", // "desc" ensures that the latest created booking sits right at the top
+      },
     });
 
     const formattedBookings = (
