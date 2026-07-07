@@ -29,7 +29,7 @@ export function ReviewModal({
     e.preventDefault();
     startTransition(async () => {
       try {
-        const res = await fetch("/api/ratings", {
+        const res = await fetch("/api/ratings/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

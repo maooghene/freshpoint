@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { uploadToImageKit } from "@/lib/imagekit";
 
 export interface ActionState {
   success: boolean;
@@ -36,7 +37,6 @@ export async function updateBusinessSettings(
     const systemUser = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
-
     if (!systemUser) {
       return {
         success: false,
@@ -47,7 +47,6 @@ export async function updateBusinessSettings(
     const business = await prisma.business.findUnique({
       where: { id: businessId },
     });
-
     if (!business || business.ownerId !== systemUser.id) {
       return {
         success: false,
@@ -59,7 +58,46 @@ export async function updateBusinessSettings(
     const phone = formData.get("phone")?.toString().trim() || "";
     const address = formData.get("address")?.toString().trim() || "";
     const description = formData.get("description")?.toString().trim() || null;
-    const image = formData.get("image")?.toString().trim() || null;
+
+    // 🌟 FIXED: Extracts the direct raw media file wrapper binary block from the SettingsForm channel
+    const file = formData.get("imageFile") as File | null;
+    let savedImagePath = business.image;
+
+    const errors: Record<string, string[]> = {};
+
+    // Validate if a new file asset was explicitly attached by the provider
+    if (file && file.size > 0) {
+      if (file.size > 4 * 1024 * 1024) {
+        errors.image = [
+          "File size is too massive. Maximum allowed size is 4MB.",
+        ];
+      }
+
+      const allowedMimeTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+      ];
+      if (!allowedMimeTypes.includes(file.type)) {
+        errors.image = [
+          "Invalid format type. Only JPEG, PNG, and WebP are allowed.",
+        ];
+      }
+
+      if (Object.keys(errors).length === 0) {
+        try {
+          // Push binary directly into the isolated upload function block
+          savedImagePath = await uploadToImageKit(file);
+        } catch (uploadError: unknown) {
+          console.error("IMAGE_UPLOAD_FAILURE:", uploadError);
+          return {
+            success: false,
+            message: "Media storage synchronization pipeline failed.",
+          };
+        }
+      }
+    }
 
     const sittingCapacityRaw = formData.get("sittingCapacity");
     const sittingCapacity = sittingCapacityRaw
@@ -74,22 +112,14 @@ export async function updateBusinessSettings(
           .filter(Boolean)
       : [];
 
-    const errors: Record<string, string[]> = {};
-
-    if (!name || name.length < 2) {
+    if (!name || name.length < 2)
       errors.name = ["Business name must be at least 2 characters long."];
-    }
-    if (!phone || phone.length < 7) {
+    if (!phone || phone.length < 7)
       errors.phone = ["Phone number must be at least 7 characters long."];
-    }
-    if (!address || address.length < 5) {
+    if (!address || address.length < 5)
       errors.address = ["Address must be at least 5 characters long."];
-    }
-    if (isNaN(sittingCapacity) || sittingCapacity < 1) {
-      errors.sittingCapacity = [
-        "Sitting capacity must register at least 1 person.",
-      ];
-    }
+    if (isNaN(sittingCapacity) || sittingCapacity < 1)
+      errors.sittingCapacity = ["Sitting capacity must be at least 1."];
 
     if (Object.keys(errors).length > 0) {
       return { success: false, message: "Validation failed.", errors };
@@ -104,7 +134,7 @@ export async function updateBusinessSettings(
         sittingCapacity,
         categories,
         description,
-        image,
+        image: savedImagePath, // 🌟 FIXED: Writes the clean ImageKit string token path securely back to Postgres
       },
     });
 

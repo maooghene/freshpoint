@@ -1,18 +1,22 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { useUser, SignInButton } from "@clerk/nextjs";
+import { CtaTabs } from "./CtaTabs";
+import { CtaDashboardPreview } from "./CtaDashboardPreview";
 
-function CTA() {
+type PreviewTabMode = "BOOKINGS" | "PRODUCTS" | "DELIVERIES";
+
+export default function CTA() {
   const { user } = useUser();
   const router = useRouter();
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<PreviewTabMode>("BOOKINGS");
 
-  // Intelligent intercept action router
   const handleOnboardingRedirect = async () => {
     if (isLoading) return;
     setIsLoading(true);
@@ -25,8 +29,7 @@ function CTA() {
       }
       const data = await res.json();
       router.push(data.destination);
-    } catch (_err) {
-      // Graceful fallback to registration form if API times out
+    } catch (_err: unknown) {
       router.push("/register-business");
     } finally {
       setIsLoading(false);
@@ -36,48 +39,39 @@ function CTA() {
   return (
     <section
       id="for-owners"
-      className="relative py-20 px-6 overflow-hidden bg-gradient-to-br from-muted/10 via-background to-muted/5"
+      className="relative py-12 px-6 overflow-hidden bg-gradient-to-br from-muted/5 via-background to-muted/10 border-t border-border/40"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.03),transparent_70%)]"></div>
-
       <div className="relative z-10 max-w-6xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content Column */}
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-primary">
-                  Built for Wellness Professionals
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          {/* Content Block */}
+          <div className="space-y-5 text-center lg:text-left">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10 mx-auto lg:mx-0">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                  {"Built for Retailers & Service Providers"}
                 </span>
               </div>
-
-              <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight">
-                <span className="bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Grow your business,
-                </span>
-                <br />
-                <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                  manage clients effortlessly
-                </span>
+              <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1]">
+                {"Scale your workspace, sell or book effortlessly"}
               </h2>
-
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Join salons, spas, and wellness spaces using Freshpoint to
-                automate appointments, sell products, and scale operations.
+              {/* 🌟 FIXED: Tailored marketing copy explicitly targets decentralized vendor-controlled delivery settings */}
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
+                {
+                  "Whether you run a luxury salon needing live calendar schedules, an automated beauty storefront shipping products, or want to offer your clients distance-based doorstep delivery options—Freshpoint acts as your financial command engine. Let clients choose between in-store pickup or delivery, and we automatically calculate and collect logistics fees for you."
+                }
               </p>
             </div>
 
-            {/* Context-Aware Interactive Button */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               {!user ? (
                 <SignInButton mode="modal" fallbackRedirectUrl="/dashboard">
                   <Button
                     size="lg"
-                    className="w-full sm:w-auto font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                    className="w-full sm:w-auto font-bold bg-primary rounded-xl cursor-pointer"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    List Your Business
+                    {"List Your Business"}
                   </Button>
                 </SignInButton>
               ) : (
@@ -85,7 +79,7 @@ function CTA() {
                   size="lg"
                   onClick={handleOnboardingRedirect}
                   disabled={isLoading}
-                  className="w-full sm:w-auto font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex items-center justify-center"
+                  className="w-full sm:w-auto font-bold bg-primary rounded-xl flex items-center justify-center cursor-pointer"
                 >
                   {isLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -98,35 +92,13 @@ function CTA() {
             </div>
           </div>
 
-          {/* Right Image Layout Column */}
-          <div className="relative flex justify-center lg:justify-end">
-            <div className="relative">
-              <div className="absolute -top-4 left-4 bg-gradient-to-r from-green-500/90 to-emerald-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg z-10">
-                <div className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                  Real-time booking active
-                </div>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl blur-xl scale-110"></div>
-                <Image
-                  src="/wellness-dashboard.jpg"
-                  alt="Freshpoint Wellness Booking System Dashboard"
-                  width={500}
-                  height={400}
-                  className="w-full max-w-[500px] h-auto rounded-2xl border-4 border-muted/20 shadow-2xl bg-background"
-                  priority
-                />
-              </div>
-
-              <div className="absolute -bottom-2 -right-2 w-16 h-16 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full blur-lg"></div>
-            </div>
+          {/* Graphical Tabs Preview Box Side */}
+          <div className="relative flex flex-col justify-center items-center lg:items-end w-full max-w-[460px] mx-auto lg:max-w-none gap-3">
+            <CtaTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+            <CtaDashboardPreview activeTab={activeTab} />
           </div>
         </div>
       </div>
     </section>
   );
 }
-
-export default CTA;

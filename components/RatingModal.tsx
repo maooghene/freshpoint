@@ -30,7 +30,7 @@ const RatingModal = ({ ratingModal, setRatingModal }: RatingModalProps) => {
 
     try {
       // 🚀 Connect to your Freshpoint dynamic review endpoint
-      const response = await fetch("/api/ratings", {
+      const response = await fetch("/api/ratings/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

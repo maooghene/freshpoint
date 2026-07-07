@@ -197,4 +197,44 @@
   }
 }
 
+/* 🌟 ROOT GLOBAL THEME COMPRESSION ARCHITECTURE */
+@layer base {
+  html {
+    /* Set back to professional browser standard font sizes for extreme legibility */
+    font-size: 16px !important;
+  }
+  
+  @media (min-width: 768px) {
+    html {
+      font-size: 16px !important;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html {
+      font-size: 16.5px !important;
+    }
+  }
+
+  /* Keep padding utilities compressed so components don't waste screen estate */
+  .py-32, .py-24, .py-20 {
+    padding-top: 3.5rem !important;
+    padding-bottom: 3.5rem !important;
+  }
+  
+  .py-16, .py-12 {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .gap-16, .gap-12, .gap-10 {
+    gap: 1.5rem !important;
+  }
+
+  .space-y-10, .space-y-8, .space-y-6 {
+    margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse))) !important;
+    margin-bottom: calc(0.75rem * var(--tw-space-y-reverse)) !important;
+  }
+}
+
 

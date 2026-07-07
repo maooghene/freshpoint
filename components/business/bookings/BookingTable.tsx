@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Booking, BookingStatus } from "./types";
 
 interface BookingTableProps {
@@ -19,30 +20,30 @@ export default function BookingTable({
         <thead className="text-xs uppercase bg-secondary text-foreground border-b border-border sticky top-0 z-20">
           <tr>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Client
+              {"Client"}
             </th>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Service / Offering
+              {"Menu Option"}
             </th>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Booked On
+              {"Booked On"}
             </th>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Scheduled Time
+              {"Scheduled Time"}
             </th>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Price
+              {"Price"}
             </th>
             <th className="px-6 py-4 font-bold bg-secondary sticky top-0">
-              Status
+              {"Status"}
             </th>
-            <th className="px-6 py-4 font-bold text-right bg-secondary sticky top-0">
-              Actions
+            <th className="px-6 py-4 text-right bg-secondary sticky top-0">
+              {"Actions"}
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border bg-card relative z-10">
-          {bookings.map((booking) => {
+          {bookings.map((booking: Booking) => {
             const baseAmount = booking.item?.price ?? 0;
             const displayPrice = baseAmount.toLocaleString();
 
@@ -67,21 +68,18 @@ export default function BookingTable({
 
                 <td className="px-6 py-4 text-xs font-mono text-muted-foreground whitespace-nowrap">
                   {booking.createdAt
-                    ? new Date(booking.createdAt).toLocaleDateString(
-                        undefined,
-                        {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        },
-                      )
+                    ? new Date(booking.createdAt).toLocaleDateString("en-NG", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
                     : "N/A"}
                 </td>
 
                 <td className="px-6 py-4 text-xs font-mono whitespace-nowrap">
                   {booking.startTime
-                    ? new Date(booking.startTime).toLocaleString()
+                    ? new Date(booking.startTime).toLocaleString("en-NG")
                     : "N/A"}
                 </td>
 
@@ -101,17 +99,22 @@ export default function BookingTable({
                             : "bg-destructive/10 text-destructive"
                     }`}
                   >
-                    <span className="text-[8px] leading-none shrink-0">●</span>
+                    <span className="text-[8px] leading-none shrink-0">
+                      {"●"}
+                    </span>
                     <span>{booking.status}</span>
                   </span>
                 </td>
 
                 <td
                   className="px-6 py-4 text-right whitespace-nowrap"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent<HTMLTableCellElement>) =>
+                    e.stopPropagation()
+                  }
                 >
                   <div className="relative inline-block text-left group">
                     <button
+                      type="button"
                       className={`inline-flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
                         booking.status === "CONFIRMED"
                           ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
@@ -123,10 +126,10 @@ export default function BookingTable({
                       }`}
                     >
                       <span>
-                        {booking.status === "PENDING" && " Pending"}
-                        {booking.status === "CONFIRMED" && " Confirmed"}
-                        {booking.status === "COMPLETED" && " Completed"}
-                        {booking.status === "CANCELLED" && " Cancelled"}
+                        {booking.status === "PENDING" && "Pending"}
+                        {booking.status === "CONFIRMED" && "Confirmed"}
+                        {booking.status === "COMPLETED" && "Completed"}
+                        {booking.status === "CANCELLED" && "Cancelled"}
                       </span>
                       <svg
                         className="w-3 h-3 transition-transform duration-200 group-hover:rotate-180"
@@ -145,47 +148,59 @@ export default function BookingTable({
 
                     <div className="absolute right-0 mt-2 w-36 rounded-xl bg-card border border-border shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 p-1">
                       <button
-                        onClick={() => onUpdateStatus(booking.id, "PENDING")}
+                        type="button"
+                        onClick={() =>
+                          void onUpdateStatus(booking.id, "PENDING")
+                        }
                         className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
                           booking.status === "PENDING"
                             ? "text-amber-600 bg-amber-500/5"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                         Pending
+                        {"Pending"}
                       </button>
 
                       <button
-                        onClick={() => onUpdateStatus(booking.id, "CONFIRMED")}
+                        type="button"
+                        onClick={() =>
+                          void onUpdateStatus(booking.id, "CONFIRMED")
+                        }
                         className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
                           booking.status === "CONFIRMED"
                             ? "text-emerald-600 bg-emerald-500/5"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                         Confirmed
+                        {"Confirmed"}
                       </button>
 
                       <button
-                        onClick={() => onUpdateStatus(booking.id, "COMPLETED")}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-black rounded-lg transition-all cursor-pointer text-left hover:bg-primary/10 ${
+                        type="button"
+                        onClick={() =>
+                          void onUpdateStatus(booking.id, "COMPLETED")
+                        }
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
                           booking.status === "COMPLETED"
-                            ? "text-primary bg-primary/10 shadow-sm"
-                            : "text-muted-foreground hover:text-primary"
+                            ? "text-primary bg-primary/5"
+                            : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                         Completed
+                        {"Completed"}
                       </button>
 
                       <button
-                        onClick={() => onUpdateStatus(booking.id, "CANCELLED")}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-destructive/10 ${
+                        type="button"
+                        onClick={() =>
+                          void onUpdateStatus(booking.id, "CANCELLED")
+                        }
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
                           booking.status === "CANCELLED"
                             ? "text-destructive bg-destructive/5"
-                            : "text-muted-foreground hover:text-destructive"
+                            : "text-destructive hover:bg-destructive/10"
                         }`}
                       >
-                         Cancelled
+                        {"Cancelled"}
                       </button>
                     </div>
                   </div>

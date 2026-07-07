@@ -318,11 +318,15 @@ model Rating {
   rating     Int      
   review     String?
 
+  // 🌟 ADDED FOR VENDOR MODERATION TOGGLE
+  isApproved Boolean  @default(true)
+
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  itemId     String   
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  // 🌟 FIXED: Made optional (?) to safely support general venue-wide reviews without a foreign key crash
+  itemId     String?   
+  item       Item?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   businessId String  
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -338,6 +342,8 @@ model Rating {
   @@index([userId])
   @@index([bookingId]) 
 }
+
+
 
 model Address {
   id        String    @id @default(cuid())

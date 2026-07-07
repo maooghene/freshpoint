@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import Image from "next/image";
 import {
@@ -30,16 +32,16 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
     );
   }
 
+  // 🌟 FIXED: Pull the flat 'price' property directly from the lineItem object where our API maps it
   const subtotal =
     order.items?.reduce(
       (acc, lineItem) =>
-        acc + Number(lineItem.item?.price || 0) * lineItem.quantity,
+        acc + (Number(lineItem.price) || 0) * lineItem.quantity,
       0,
     ) || 0;
 
   return (
     <div className="bg-card border border-border rounded-[2rem] shadow-xl overflow-hidden transition-all duration-200">
-      {/* 🎫 CRITICAL UPDATE: Passing down both parameters cleanly */}
       {/* Feeds your human-readable tracker code into our updated receipt header widget */}
       <ReceiptHeader orderId={order.id} orderCode={order.code} />
 
@@ -90,38 +92,42 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </div>
 
           <div className="space-y-2">
-            {order.items?.map((lineItem: OrderItem) => (
-              <div
-                key={lineItem.id}
-                className="flex items-center gap-3 p-3.5 rounded-2xl border border-border bg-background/60 hover:bg-muted/20 transition-colors"
-              >
-                <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0 border border-border">
-                  <Image
-                    src={lineItem.item?.image || "/placeholder-product.jpg"}
-                    alt={lineItem.item?.name || "Product"}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
+            {order.items?.map((lineItem: OrderItem) => {
+              // 🌟 FIXED: Safely parse the real item line price
+              const unitPrice = Number(lineItem.price) || 0;
+              const lineTotal = unitPrice * lineItem.quantity;
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-foreground truncate">
-                    {lineItem.item?.name || "Product Item"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                    {lineItem.quantity} × {currency}
-                    {Number(lineItem.item?.price || 0).toLocaleString()}
-                  </p>
-                </div>
+              return (
+                <div
+                  key={lineItem.id}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-border bg-background/60 hover:bg-muted/20 transition-colors"
+                >
+                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0 border border-border">
+                    <Image
+                      src={lineItem.item?.image || "/placeholder-product.jpg"}
+                      alt={lineItem.item?.name || "Product"}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
 
-                <span className="text-sm font-black text-foreground shrink-0">
-                  {currency}
-                  {(
-                    Number(lineItem.item?.price || 0) * lineItem.quantity
-                  ).toLocaleString()}
-                </span>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">
+                      {lineItem.item?.name || "Product Item"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                      {lineItem.quantity} × {currency}
+                      {unitPrice.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <span className="text-sm font-black text-foreground shrink-0">
+                    {currency}
+                    {lineTotal.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

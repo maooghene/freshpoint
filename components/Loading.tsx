@@ -4,9 +4,11 @@ import React from "react";
 
 const Loading = () => {
   return (
-    <div className="relative flex items-center justify-center h-auto py-6 bg-transparent w-full">
+    // 🌟 FIXED: Added flex-grow and a full-view responsive minimum height (min-h-[70vh])
+    // This forces the container to expand and align your architectural loader perfectly in the center of the screen
+    <div className="w-full flex-grow flex flex-col items-center justify-center min-h-[70vh] bg-background relative px-6">
       {/* Dynamic Brand Glow Background Effect */}
-      <div className="absolute w-24 h-24 bg-primary/20 dark:bg-primary/10 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute w-32 h-32 bg-primary/20 dark:bg-primary/10 rounded-full blur-3xl animate-pulse" />
 
       <div className="flex flex-col items-center gap-4 relative z-10">
         {/* Modern Spinning Architectural Loader */}
@@ -18,7 +20,7 @@ const Loading = () => {
         </div>
 
         {/* Universal Application Branding Text */}
-        <p className="text-xs font-bold tracking-[0.2em] uppercase text-muted-foreground animate-pulse">
+        <p className="text-xs font-bold tracking-[0.2em] uppercase text-muted-foreground animate-pulse pl-[0.2em]">
           Fresh<span className="text-primary">point</span>
         </p>
       </div>

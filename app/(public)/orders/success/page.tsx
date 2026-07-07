@@ -11,6 +11,12 @@ import ReceiptCard from "@/components/receipt/ReceiptCard";
 import { OrderData } from "@/components/receipt/types";
 import ReceiptSkeleton from "@/components/receipt/ReceiptSkeleton";
 
+// Define strict typing envelope matching the backend route delivery format
+interface OrderApiResponsePayload {
+  success: boolean;
+  order: OrderData;
+}
+
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("reference");
@@ -37,7 +43,6 @@ function OrderSuccessContent() {
         );
 
         if (!response.ok) {
-          // If the record isn't written yet (404), trigger re-polling parameters safely
           if (response.status === 404 && retryCount < maxRetries) {
             retryCount++;
             pollTimeoutId = setTimeout(fetchOrderDetails, 1500); // Check again in 1.5 seconds
@@ -46,9 +51,19 @@ function OrderSuccessContent() {
           throw new Error("Order parameters could not be found.");
         }
 
-        const data = (await response.json()) as OrderData;
-        setOrder(data);
-        setError(null);
+        // 🌟 FIXED: Cast to envelope wrapper layout type instead of forcing OrderData on the root level
+        const data = (await response.json()) as OrderApiResponsePayload;
+
+        // Extract the nested order node safely
+        if (data && data.success && data.order) {
+          setOrder(data.order);
+          setError(null);
+        } else {
+          throw new Error(
+            "Received malformed payload signature data from server.",
+          );
+        }
+
         setLoading(false);
       } catch (err: unknown) {
         setError(
@@ -58,7 +73,6 @@ function OrderSuccessContent() {
       }
     };
 
-    // Asynchronous macro-task deferral to block initial lifecycle cascades
     const handler = setTimeout(() => {
       fetchOrderDetails();
     }, 100);
@@ -113,7 +127,6 @@ function OrderSuccessContent() {
         {order && <ReceiptCard order={order} />}
 
         <div className="flex flex-col gap-3 pt-2 w-full">
-          {/* Main Core Action */}
           <Button
             asChild
             size="lg"
@@ -123,7 +136,6 @@ function OrderSuccessContent() {
           </Button>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* NEW HIGH-UTILITY LINK: Direct context jump straight to history ledger records */}
             <Button
               asChild
               variant="secondary"
