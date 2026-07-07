@@ -1,15 +1,42 @@
-// components/Hero.tsx
 "use client";
 
+import * as React from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { CalendarIcon, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import { getTimeBasedGreeting } from "@/lib/greetings";
 import HeroSlideshow from "./HeroSlideshow";
 
 function Hero() {
   const { user } = useUser();
+
+  // 🧼 Robust fallback and sanitization sequence for Google/Gmail OAuth logins
+  const displayName = React.useMemo(() => {
+    if (!user) return "";
+
+    // Target base raw value passed from Clerk/Google profile streams
+    let rawName = user.firstName || user.fullName || "";
+
+    if (!rawName) {
+      // Parse out email address identity prefix if name is completely empty
+      const fallbackEmail = user.primaryEmailAddress?.emailAddress;
+      if (fallbackEmail) {
+        const parts = fallbackEmail.split("@");
+        rawName = parts[0] || "";
+      }
+    }
+
+    // Strip out trailing 4-digit years/numbers (e.g., "Damilola Additional 2018" -> "Damilola Additional")
+    const cleanedName = rawName
+      .replace(/\s?\d{4}$/, "") // Strip trailing 4-digit years
+      .replace(/\d+$/, "") // Strip any other trailing numerical IDs
+      .trim();
+
+    // 👑 THE FIRST NAME FIX: Split by space and strictly extract the first segment (Index 0)
+    const nameSegments = cleanedName.split(" ");
+    return nameSegments[0] || "Valued Guest";
+  }, [user]);
 
   return (
     <section className="relative min-h-[calc(100vh-4rem)] flex items-center overflow-hidden pt-16">
@@ -48,8 +75,8 @@ function Hero() {
                     <span className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
                       {getTimeBasedGreeting()},{" "}
                     </span>
-                    <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                      {user?.firstName}
+                    <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent capitalize">
+                      {displayName}
                     </span>
                   </h1>
                 ) : (
@@ -85,17 +112,17 @@ function Hero() {
                   <Link href="/explore">
                     <Button
                       size={"lg"}
-                      className="rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                      className="rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
                     >
-                      <CalendarIcon className="mr-2 size-5" />
-                      Book Appointment
+                      <Search className="w-4 h-4" />
+                      Explore Marketplace
                     </Button>
                   </Link>
                 ) : (
                   <SignInButton mode="modal">
                     <Button
                       size={"lg"}
-                      className="rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                      className="rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
                     >
                       <Sparkles className="mr-2 size-5" />
                       Get Started Free

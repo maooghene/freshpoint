@@ -3,7 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "@/app/globals.css";
 import Navbar from "@/components/Navbar";
 import Providers from "@/components/Providers";
-
+import ToastProvider from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
   title: "Freshpoint | Wellness Platform",
@@ -29,8 +29,9 @@ export default function RootLayout({
               {/* Core Global Header Navigation */}
               <Navbar />
               {children}
-              
             </div>
+
+            <ToastProvider />
           </Providers>
         </body>
       </html>

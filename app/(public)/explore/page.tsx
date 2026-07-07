@@ -1,15 +1,121 @@
-// app/(public)/explore/page.tsx
+import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { MapPinIcon, StarIcon, SparklesIcon } from "lucide-react";
+import {
+  SparklesIcon,
+  Store,
+  Scissors,
+  Flower2,
+  Sparkle,
+  Stethoscope,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import BusinessesGrid, { GridItem } from "./BusinessesGrid";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExplorePage() {
+interface PageProps {
+  searchParams: Promise<{ search?: string; category?: string }>;
+}
+
+const CATEGORIES = [
+  {
+    label: "All Providers",
+    value: "",
+    icon: <Store className="w-3.5 h-3.5" />,
+  },
+  {
+    label: "Salons",
+    value: "SALON",
+    icon: <Scissors className="w-3.5 h-3.5" />,
+  },
+  { label: "Spas", value: "SPA", icon: <Flower2 className="w-3.5 h-3.5" /> },
+  {
+    label: "Aesthetics",
+    value: "CLINIC",
+    icon: <Sparkle className="w-3.5 h-3.5" />,
+  },
+  {
+    label: "Wellness & Health",
+    value: "WELLNESS",
+    icon: <Stethoscope className="w-3.5 h-3.5" />,
+  },
+];
+
+export default async function ExplorePage({ searchParams }: PageProps) {
+  const resolvedParams = await searchParams;
+  const searchQuery = resolvedParams.search?.trim() || "";
+  const selectedCategory = resolvedParams.category?.trim().toUpperCase() || "";
+
+  // Base visibility filters matching approved entries
+  const baseConditions: Prisma.BusinessWhereInput[] = [
+    {
+      status: {
+        in: [
+          "approved",
+          "verified",
+          "APPROVED",
+          "VERIFIED",
+          "Approved",
+          "Verified",
+          "active",
+          "ACTIVE",
+        ],
+      },
+    },
+  ];
+
+  // If a category ribbon is active, match it dynamically via array hasSome OR partial text fallback strings
+  if (selectedCategory) {
+    const capitalizedCategory =
+      selectedCategory.charAt(0) + selectedCategory.slice(1).toLowerCase();
+    const lowercaseCategory = selectedCategory.toLowerCase();
+
+    baseConditions.push({
+      OR: [
+        {
+          categories: {
+            hasSome: [
+              selectedCategory,
+              capitalizedCategory,
+              lowercaseCategory,
+              `${lowercaseCategory} `,
+            ],
+          },
+        },
+        // Fallback: If array parameters fail, check if the word is found anywhere inside text definitions
+        {
+          name: {
+            contains: lowercaseCategory,
+            mode: "insensitive",
+          },
+        },
+        {
+          description: {
+            contains: lowercaseCategory,
+            mode: "insensitive",
+          },
+        },
+      ],
+    });
+  }
+
+  // Layer search queries if active
+  if (searchQuery) {
+    baseConditions.push({
+      OR: [
+        { name: { contains: searchQuery, mode: "insensitive" } },
+        { description: { contains: searchQuery, mode: "insensitive" } },
+        { slug: { contains: searchQuery, mode: "insensitive" } },
+      ],
+    });
+  }
+
   const businesses = await prisma.business.findMany({
-    where: { isActive: true },
+    where: {
+      AND: baseConditions,
+    },
     select: {
       id: true,
       name: true,
@@ -17,123 +123,101 @@ export default async function ExplorePage() {
       description: true,
       image: true,
       address: true,
+      status: true,
       categories: true,
     },
     orderBy: { createdAt: "desc" },
   });
 
+  const normalizedBusinesses: GridItem[] = businesses.map((b) => {
+    let displayedCategory = "Shop";
+    if (Array.isArray(b.categories) && b.categories.length > 0) {
+      displayedCategory = String(b.categories[0]);
+    } else if (b.categories) {
+      displayedCategory = String(b.categories);
+    }
+
+    return {
+      id: b.id,
+      name: b.name,
+      slug: b.slug,
+      description: b.description,
+      image: b.image,
+      address: b.address,
+      status: b.status,
+      category: displayedCategory,
+    };
+  });
+
   return (
     <div className="relative min-h-screen pt-24 pb-32 bg-background text-foreground overflow-hidden">
-      {/* BACKGROUND */}
       <div className="absolute inset-0 -z-10">
-        <div
-          className="absolute inset-0
-          bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)]
-          dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)]
-          bg-[size:4rem_4rem]
-          [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"
-        />
-        <div className="absolute top-20 left-1/4 w-72 h-72 bg-primary/10 dark:bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 w-full space-y-12">
-        {/* HEADER */}
+      <div className="max-w-7xl mx-auto px-6 w-full space-y-10">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <Badge className="bg-primary/10 text-primary border-primary/20 font-bold px-3">
-            <SparklesIcon className="w-3 h-3 mr-1" />
-            Discover Providers
+            <SparklesIcon className="w-3 h-3 mr-1" /> Discover Providers
           </Badge>
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">
-            Find Your Wellness Space
+            Explore Providers & Products
           </h1>
           <p className="text-muted-foreground font-medium text-sm md:text-base leading-relaxed">
-            Browse verified wellness and personal care providers near you. Book
-            appointments instantly.
+            Browse verified marketplace workspaces near you. Book treatments and
+            order products instantly.
           </p>
         </div>
 
-        {/* GRID */}
-        {businesses.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-border rounded-2xl bg-muted/30">
-            <SparklesIcon className="mx-auto w-10 h-10 text-muted-foreground/40 mb-3" />
-            <h3 className="text-base font-bold text-foreground mb-1">
-              No Providers Yet
+        {/* Dynamic Category Selector Ribbon Bar */}
+        <div className="flex items-center justify-start md:justify-center gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x snap-mandatory">
+          {CATEGORIES.map((cat) => {
+            const isSelected = selectedCategory === cat.value;
+            const queryString = new URLSearchParams();
+            if (searchQuery) queryString.set("search", searchQuery);
+            if (cat.value) queryString.set("category", cat.value);
+            const finalHref = `/explore${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+
+            return (
+              <Link
+                key={cat.label}
+                href={finalHref}
+                className={`snap-center flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all cursor-pointer ${
+                  isSelected
+                    ? "border-primary bg-primary text-primary-foreground ring-4 ring-primary/10"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                {cat.icon} <span>{cat.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Dynamic Sub-component Grid Matrix Render */}
+        {normalizedBusinesses.length === 0 ? (
+          <div className="text-center py-24 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
+            <Store className="mx-auto w-10 h-10 text-muted-foreground/30 animate-pulse" />
+            <h3 className="text-base font-bold text-foreground">
+              {searchQuery || selectedCategory
+                ? "No matches found"
+                : "No Providers Available"}
             </h3>
-            <p className="text-sm text-muted-foreground font-medium">
-              Wellness providers will appear here once they join FreshPoint.
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto px-4 font-medium">
+              We couldn&apos;t find any verified providers matching your
+              selected parameters filters.
             </p>
+            <div className="pt-2">
+              <Link
+                href="/explore"
+                className="text-xs font-bold text-primary underline underline-offset-4"
+              >
+                Reset all filters
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {businesses.map((business) => (
-              <Link
-                key={business.id}
-                href={`/explore/${business.slug}`}
-                className="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden shadow-xs hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-              >
-                {/* IMAGE */}
-                <div className="relative aspect-video w-full bg-muted border-b border-border overflow-hidden">
-                  <Image
-                    src={business.image || "/placeholder-business.jpg"}
-                    alt={business.name}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
-
-                {/* INFO */}
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-                  <div className="space-y-1.5">
-                    <h2 className="font-black text-foreground text-lg tracking-tight group-hover:text-primary transition-colors truncate">
-                      {business.name}
-                    </h2>
-                    <p className="text-xs text-muted-foreground line-clamp-2 font-medium leading-relaxed">
-                      {business.description ||
-                        "Wellness and personal care provider."}
-                    </p>
-                  </div>
-
-                  {/* CATEGORIES */}
-                  {business.categories.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {business.categories.slice(0, 3).map((cat, i) => (
-                        <Badge
-                          key={i}
-                          variant="secondary"
-                          className="text-[10px] font-semibold px-2 rounded-md"
-                        >
-                          {cat}
-                        </Badge>
-                      ))}
-                      {business.categories.length > 3 && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] font-semibold px-2 rounded-md"
-                        >
-                          +{business.categories.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-
-                  {/* FOOTER */}
-                  <div className="flex items-center justify-between pt-3 border-t border-border/60">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold truncate">
-                      <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span className="truncate">
-                        {business.address || "Nigeria"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
-                      <StarIcon className="w-3.5 h-3.5 fill-current" />
-                      New
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <BusinessesGrid businesses={normalizedBusinesses} />
         )}
       </div>
     </div>

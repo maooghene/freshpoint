@@ -1,12 +1,12 @@
-// src/app/business/[slug]/page.tsx
+import * as React from "react";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-import { BookingStatus } from "@prisma/client";
-import { Banknote, CalendarCheck2, Users, Layers } from "lucide-react";
-
-// 🛠️ STEP 1: IMPORT THE STATCARD COMPONENT CORRECTLY USING YOUR GLOBAL ALIAS PATH
-import StatCard from "@/components/business/dashboard/StatCard";
+import { prisma } from "@/lib/prisma";
+import { BookingStatus, OrderStatus } from "@prisma/client";
+import { computeTimelineData, mergeActivities } from "@/lib/dashboard-helpers";
+import { MetricsGrid } from "@/components/business/dashboard/MetricsGrid";
+import PerformanceCharts from "./PerformanceCharts";
+import RecentActivityFeed from "./RecentActivityFeed";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -18,27 +18,89 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
 
   if (!clerkId) notFound();
 
-  // Fetch the business details scoped to the slug parameter matrix
-  const business = await prisma.business.findUnique({
-    where: { slug },
-    include: {
-      staff: true,
-      items: true,
-      bookings: true,
-    },
-  });
+  // 1️⃣ SCOPE VARIABLES OUTSIDE: Isolate your data layer parameters from your JSX tree
+  let business;
+  let latestBookings = [];
+  let latestOrders = [];
 
-  if (!business) notFound();
+  try {
+    business = await prisma.business.findFirst({
+      where: { slug },
+      include: {
+        staff: { where: { isActive: true }, select: { id: true } },
+        items: { where: { isActive: true }, select: { id: true, type: true } },
+        bookings: {
+          select: {
+            id: true,
+            status: true,
+            totalAmount: true,
+            createdAt: true,
+          },
+        },
+        orders: {
+          select: {
+            id: true,
+            status: true,
+            totalAmount: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
 
-  // 2️⃣ SERVER SIDE CALCULATIONS: Aggregate metrics cleanly before rendering cards
+    if (!business) notFound();
+
+    [latestBookings, latestOrders] = await Promise.all([
+      prisma.booking.findMany({
+        where: { businessId: business.id },
+        take: 3,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true } },
+        },
+      }),
+      prisma.order.findMany({
+        where: { businessId: business.id },
+        take: 3,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true } },
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.error("Dashboard database fetch failure:", error);
+    return (
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-3xl items-center justify-center px-4">
+        <div className="w-full rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+          <h1 className="text-xl font-semibold text-foreground">
+            We could not reach your workspace data right now.
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Please refresh in a moment or try again later.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2️⃣ METRIC COMPUTATIONS: Process data calculations safely outside try/catch boundaries
+  const totalServicesCount = business.items.filter(
+    (i) => i.type === "SERVICE",
+  ).length;
+  const totalProductsCount = business.items.filter(
+    (i) => i.type === "PRODUCT",
+  ).length;
   const totalStaffCount = business.staff.length;
-  const totalServicesCount = business.items.length;
 
-  // Calculate aggregate revenue fields collected from active completed bookings
-  const rawRevenue = business.bookings
+  const bookingRevenue = business.bookings
     .filter((b) => b.status === BookingStatus.COMPLETED)
     .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-  const formattedRevenue = `₦${rawRevenue.toLocaleString()}`;
+  const orderRevenue = business.orders
+    .filter((o) => o.status === OrderStatus.DELIVERED)
+    .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+  const formattedRevenue = `₦${(bookingRevenue + orderRevenue).toLocaleString()}`;
 
   const activeBookingsCount = business.bookings.filter(
     (b) =>
@@ -46,61 +108,46 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
       b.status === BookingStatus.PENDING,
   ).length;
 
+  const activeOrdersCount = business.orders.filter(
+    (o) =>
+      o.status === OrderStatus.PENDING ||
+      o.status === OrderStatus.PROCESSING ||
+      o.status === OrderStatus.SHIPPED,
+  ).length;
+
+  const performanceTimelineData = computeTimelineData(
+    business.bookings,
+    business.orders,
+  );
+  const unifiedActivities = mergeActivities(latestBookings, latestOrders);
+
+  // 3️⃣ UNBLOCKED CLEAN JSX RETURN: No try/catch boundaries wrapping this layout tree
   return (
-    <div className="space-y-8 w-full max-w-7xl mx-auto">
-      {/* SECTION HEADER ROW */}
-      <div className="flex flex-col gap-1 border-b border-border pb-6">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          Workspace{" "}
-          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Overview
-          </span>
+    <div className="space-y-8 w-full max-w-7xl mx-auto min-w-0">
+      <div className="flex flex-col gap-1 border-b border-border pb-6 min-w-0">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground truncate">
+          Workspace Overview
         </h1>
-        <p className="text-muted-foreground text-sm font-medium">
-          Monitor your real-time analytics indicators, revenue yields, and
-          active staff counts.
+        <p className="text-muted-foreground text-sm font-medium truncate">
+          Monitor real-time analytics indicators, revenue yields, and active
+          staff.
         </p>
       </div>
 
-      {/* 🛠️ STEP 3: RENDER THE CARDS IN A BEAUTIFUL RESPONSIVE TW-GRID COMPONENT */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* TOTAL REVENUE EARNED METRIC CARD */}
-        <StatCard
-          title="Total Revenue"
-          value={formattedRevenue}
-          icon={Banknote}
-          color="text-emerald-500"
-        />
+      <MetricsGrid
+        formattedRevenue={formattedRevenue}
+        activeBookingsCount={activeBookingsCount}
+        activeOrdersCount={activeOrdersCount}
+        totalStaffCount={totalStaffCount}
+        totalServicesCount={totalServicesCount}
+        totalProductsCount={totalProductsCount}
+      />
 
-        {/* ACTIVE APPOINTMENTS PLACED CARD */}
-        <StatCard
-          title="Active Bookings"
-          value={activeBookingsCount}
-          icon={CalendarCheck2}
-          color="text-primary"
-        />
-
-        {/* TEAM MEMBERS ROSTER COUNT CARD */}
-        <StatCard
-          title="Active Staff"
-          value={totalStaffCount}
-          icon={Users}
-          color="text-sky-500"
-        />
-
-        {/* CATALOG OFFERINGS/SERVICES INVENTORY CARD */}
-        <StatCard
-          title="Total Services"
-          value={totalServicesCount}
-          icon={Layers}
-          color="text-amber-500"
-        />
+      <div className="w-full min-w-0">
+        <PerformanceCharts data={performanceTimelineData} />
       </div>
-
-      {/* REMAINDER OF YOUR MAIN DASHBOARD LOWER MODULE GRIDS (Chart plots, recent activities list, etc.) */}
-      <div className="p-12 border border-dashed rounded-3xl text-center bg-secondary/10 border-border text-xs font-semibold text-muted-foreground">
-        📊 Multi-tenant performance tracking maps will mount cleanly right
-        underneath your metric summaries card dashboard area.
+      <div className="w-full min-w-0">
+        <RecentActivityFeed activities={unifiedActivities} />
       </div>
     </div>
   );

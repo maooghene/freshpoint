@@ -5,7 +5,7 @@ import { DayOfWeek } from "@prisma/client"; // 🔑 Import the strict enum types
 
 // 1️⃣ Enforce strict structural contracts matching your database schema properties exactly
 interface IncomingScheduleItem {
-  day: DayOfWeek; // 🛠️ Fix: Changed from string to DayOfWeek enum to satisfy typesafe assignments
+  day: string; // 🛠️ Handle raw client strings safely before casting to Enum values below
   startTime: string;
   endTime: string;
   isOff: boolean;
@@ -18,8 +18,9 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await auth();
-    if (!userId)
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const { id: businessId, staffId } = await params;
     const body = await request.json();
@@ -45,31 +46,34 @@ export async function PATCH(
     if (typeof name === "string") updateData.name = name.trim();
     if (typeof isActive === "boolean") updateData.isActive = isActive;
 
-    // Run atomically inside a transaction block if schedules are passed in the request
+    // Run atomically inside an Interactive Transaction block if schedules are passed
     if (Array.isArray(schedules)) {
       const typedSchedules = schedules as IncomingScheduleItem[];
 
-      await prisma.$transaction([
-        // Update basic text identifiers
-        prisma.staffProfile.update({
+      // 🛠️ FIX: Swapped out flat array block for an interactive database transaction context closure
+      await prisma.$transaction(async (tx) => {
+        // 1. Update basic profile tracking markers
+        await tx.staffProfile.update({
           where: { id: staffId, businessId: business.id },
           data: updateData,
-        }),
-        // Wipe old shift intervals
-        prisma.staffSchedule.deleteMany({
+        });
+
+        // 2. Wipe old shift rows sequentially to prevent unique key constraint racing conflicts on Neon
+        await tx.staffSchedule.deleteMany({
           where: { staffId },
-        }),
-        // Re-populate using strict types to satisfy the Prisma Client data contract requirements
-        prisma.staffSchedule.createMany({
+        });
+
+        // 3. Re-populate using explicit casting to satisfy the DayOfWeek Enum constraints safely
+        await tx.staffSchedule.createMany({
           data: typedSchedules.map((s: IncomingScheduleItem) => ({
             staffId,
-            day: s.day, // 🛠️ Maps perfectly to your true DayOfWeek enum columns
+            day: String(s.day).trim().toUpperCase() as DayOfWeek, // 🛠️ Ensures "Monday" becomes "MONDAY" to match database columns
             startTime: s.startTime,
             endTime: s.endTime,
             isOff: s.isOff ?? false,
           })),
-        }),
-      ]);
+        });
+      });
     } else {
       // Direct write fallback if the user is just editing name or active state switches
       await prisma.staffProfile.update({
@@ -88,12 +92,11 @@ export async function PATCH(
       { success: true, staff: updatedStaff },
       { status: 200 },
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("STAFF_PATCH_ERROR:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -104,8 +107,9 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await auth();
-    if (!userId)
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const { id: businessId, staffId } = await params;
 
@@ -132,7 +136,7 @@ export async function DELETE(
       { success: true, message: "Staff member removed successfully" },
       { status: 200 },
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("STAFF_DELETE_ERROR:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },

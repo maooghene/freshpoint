@@ -1,7 +1,8 @@
+import * as React from "react";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-// 🛠️ CRITICAL PATH REPAIR: Pointing to your correct refactored coordinator 'StaffDashboard'
+// 💡 FIXED: Pointing to the standardized named connection instance wrapper
+import { prisma } from "@/lib/prisma";
 import StaffDashboard from "@/components/business/staff/StaffDashboard";
 
 interface PageProps {
@@ -38,7 +39,7 @@ export default async function StaffPageRoute({ params }: PageProps) {
 
   if (!business) notFound();
 
-  // Verify absolute ownership guard rails to prevent cross-tenant parameter visibility leaks
+  // Verify absolute ownership guard rails to prevent cross-tenant leaks
   if (business.ownerId !== clerkId) {
     const ownerProfile = await prisma.user.findUnique({
       where: { clerkId },
@@ -50,7 +51,7 @@ export default async function StaffPageRoute({ params }: PageProps) {
     }
   }
 
-  // Safe JSON serialization to cleanly pass Date timestamps from Server to Client Components
+  // Safe JSON serialization to cleanly pass Date timestamps to Client Component trees
   const serializedBusiness = JSON.parse(JSON.stringify(business));
 
   return (
@@ -69,7 +70,7 @@ export default async function StaffPageRoute({ params }: PageProps) {
         </p>
       </div>
 
-      {/* 🛠️ Renders your newly refactored dashboard component smoothly */}
+      {/* Renders your refactored dashboard component smoothly */}
       <StaffDashboard business={serializedBusiness} businessSlug={slug} />
     </div>
   );

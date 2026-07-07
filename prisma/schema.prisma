@@ -270,26 +270,35 @@ model BookingItem {
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessId  String      
-  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id              String      @id @default(cuid())
+  code             String       @unique 
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId      String      
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  items       OrderItem[]
-  totalAmount Float
-  status      OrderStatus @default(PENDING)
+  items           OrderItem[]
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
 
-  addressId   String?     
-  address     Address?    @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  isDelivery      Boolean     @default(false)
+  deliveryAddress String?
+  deliveryNotes   String?
+  
+  // NEW: Captures explicit delivery surcharge split out from subtotal lines
+  deliveryFee     Float       @default(0.0)
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  addressId       String?     
+  address         Address?    @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([businessId])
   @@index([userId])
   @@index([addressId])
 }
+
 
 model OrderItem {
   id        String  @id @default(cuid())

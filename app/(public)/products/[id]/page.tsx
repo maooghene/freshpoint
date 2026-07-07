@@ -57,12 +57,13 @@ export default function ProductPage() {
       addItemToCart({
         businessId: product.businessId,
         item: {
-          id: `${product.id}-${Date.now()}`, // Safely structures instance tracking identities
+          id: `${product.id}-${Date.now()}`,
           itemId: product.id,
           name: product.name,
           price: product.price,
           quantity: qty,
           priceAtAdd: product.price,
+          image: product.image || null, // ← add this
         },
       }),
     );

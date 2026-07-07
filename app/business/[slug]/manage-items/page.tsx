@@ -1,4 +1,4 @@
-// src/app/business/[slug]/manage-items/page.tsx
+import * as React from "react";
 import { notFound } from "next/navigation";
 import ManageItemsDashboard from "@/components/business/manage-items/index";
 
@@ -15,13 +15,18 @@ export default async function ManageItemsPageRoute({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Catalog Management
+    <div className="w-full space-y-6 max-w-7xl mx-auto">
+      {/* 💡 FIXED: Terminology simplified so that any shop owner can understand it instantly */}
+      <div className="flex flex-col gap-1 border-b border-border pb-6">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          My{" "}
+          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Items
+          </span>
         </h1>
-        <p className="text-muted-foreground text-sm">
-          Configure and manage your inventory products and bookable services.
+        <p className="text-muted-foreground text-sm font-medium">
+          See all your treatments, services, and products available in your shop
+          dashboard list.
         </p>
       </div>
 

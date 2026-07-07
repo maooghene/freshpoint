@@ -4,13 +4,14 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
 import axios from "axios";
-import { SparklesIcon, PackageIcon, ClockIcon } from "lucide-react";
+import { SparklesIcon, PackageIcon, Clock1Icon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/nextjs";
-import { ItemType, ItemFormState, CATEGORIES } from "./types";
+import { ItemType, ItemFormState } from "./types";
 import ImageUpload from "./ImageUpload";
+import { MARKETPLACE_CATEGORIES } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
 
 interface FreshpointAddItemDashboardProps {
   businessSlug: string;
@@ -66,21 +67,24 @@ export default function FreshpointAddItemDashboard({
       formData.append("description", serviceInfo.description);
       formData.append("price", serviceInfo.price);
       formData.append("category", serviceInfo.category);
-      formData.append("businessSlug", businessSlug); // Secure Multi-tenancy Isolation Key
+      formData.append("businessSlug", businessSlug);
 
       if (type === "SERVICE") formData.append("duration", serviceInfo.duration);
       if (type === "PRODUCT") formData.append("stock", serviceInfo.stock);
       if (image) formData.append("image", image);
 
+      // Fetch active authentication context session
       const token = await getToken();
 
-      await axios.post("/api/businesses/items", formData, {
+      // Submit multi-part structural form payload to database API path
+      await axios.post(`/api/businesses/${businessSlug}/items`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,
         },
       });
 
+      // Clear operational input hooks on successful return
       setServiceInfo({
         name: "",
         description: "",
@@ -92,12 +96,18 @@ export default function FreshpointAddItemDashboard({
       setImage(null);
       setImagePreview(null);
 
-      toast.success(
-        `${type === "SERVICE" ? "Service" : "Product"} added successfully!`,
-      );
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to create item");
+      // Compute visual context target string dynamically
+      const displayLabel = type === "SERVICE" ? "Service" : "Product";
+      toast.success(`${displayLabel} added successfully!`);
+    } catch (error: unknown) {
+      console.error("Freshpoint Submit Error Logger:", error);
+
+      // Pull operational error messages from axios instances safely if present
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("Failed to create item");
+      }
     } finally {
       setLoading(false);
     }
@@ -126,6 +136,7 @@ export default function FreshpointAddItemDashboard({
       <div className="flex p-1 bg-secondary/50 rounded-2xl mb-6 w-fit border border-primary/5">
         <button
           type="button"
+          disabled={loading}
           onClick={() => setType("SERVICE")}
           className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
             type === "SERVICE"
@@ -137,6 +148,7 @@ export default function FreshpointAddItemDashboard({
         </button>
         <button
           type="button"
+          disabled={loading}
           onClick={() => setType("PRODUCT")}
           className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
             type === "PRODUCT"
@@ -149,7 +161,6 @@ export default function FreshpointAddItemDashboard({
       </div>
 
       <div className="grid gap-6 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
-        {/* Render Isolated Image Upload Sub-Component */}
         <ImageUpload
           type={type}
           imagePreview={imagePreview}
@@ -167,6 +178,7 @@ export default function FreshpointAddItemDashboard({
           </label>
           <Input
             name="name"
+            disabled={loading}
             onChange={onChangeHandler}
             value={serviceInfo.name}
             placeholder={
@@ -186,6 +198,7 @@ export default function FreshpointAddItemDashboard({
           </label>
           <Textarea
             name="description"
+            disabled={loading}
             onChange={onChangeHandler}
             value={serviceInfo.description}
             placeholder="Details about the item..."
@@ -210,6 +223,7 @@ export default function FreshpointAddItemDashboard({
               <Input
                 type="number"
                 name="price"
+                disabled={loading}
                 onChange={onChangeHandler}
                 value={serviceInfo.price}
                 className="pl-10 bg-background/50 border-primary/10 h-12 rounded-xl"
@@ -224,10 +238,11 @@ export default function FreshpointAddItemDashboard({
                 Duration (Mins)
               </label>
               <div className="relative">
-                <ClockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-primary size-4" />
+                <Clock1Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-primary size-4" />
                 <Input
                   type="number"
                   name="duration"
+                  disabled={loading}
                   onChange={onChangeHandler}
                   value={serviceInfo.duration}
                   className="pl-10 bg-background/50 border-primary/10 h-12 rounded-xl"
@@ -245,6 +260,7 @@ export default function FreshpointAddItemDashboard({
               <Input
                 type="number"
                 name="stock"
+                disabled={loading}
                 onChange={onChangeHandler}
                 value={serviceInfo.stock}
                 placeholder="Quantity available"
@@ -262,13 +278,14 @@ export default function FreshpointAddItemDashboard({
           </label>
           <select
             name="category"
+            disabled={loading}
             onChange={onChangeHandler}
             value={serviceInfo.category}
-            className="flex h-12 w-full rounded-xl border border-primary/10 bg-background/50 px-4 py-2 text-sm text-foreground focus:outline-none appearance-none"
+            className="flex h-12 w-full rounded-xl border border-primary/10 bg-background/50 px-4 py-2 text-sm text-foreground focus:outline-none appearance-none disabled:opacity-50"
             required
           >
             <option value="">Select category</option>
-            {CATEGORIES.map((cat) => (
+            {MARKETPLACE_CATEGORIES.map((cat) => (
               <option
                 key={cat}
                 value={cat}
@@ -291,7 +308,9 @@ export default function FreshpointAddItemDashboard({
         ) : (
           <PackageIcon className="mr-2 size-5" />
         )}
-        Publish {type === "SERVICE" ? "Service" : "Product"}
+        {loading
+          ? "Publishing..."
+          : `Publish ${type === "SERVICE" ? "Service" : "Product"}`}
       </Button>
     </form>
   );

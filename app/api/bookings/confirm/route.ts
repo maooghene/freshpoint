@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, DayOfWeek } from "@prisma/client";
+import { getDayNameFromDateString } from "@/lib/dateUtils";
 
 interface PaystackWebhookData {
   status: string;
@@ -12,6 +13,7 @@ interface PaystackWebhookData {
     itemId?: string;
     businessId?: string;
     dateTime?: string;
+    staffId?: string;
   };
 }
 
@@ -23,6 +25,7 @@ export async function POST(request: NextRequest) {
       businessId: bodyBusinessId,
       itemId: bodyItemId,
       startTime: bodyStartTime,
+      staffId: bodyStaffId,
     } = body;
 
     if (!reference) {
@@ -69,13 +72,15 @@ export async function POST(request: NextRequest) {
       bodyBusinessId,
       bodyItemId,
       bodyStartTime,
+      bodyStaffId,
     });
 
-    // Use Paystack metadata where available, fallback to request body
+    // Resolve all fields — Paystack metadata takes priority, body is fallback
     const resolvedUserId = metadata?.userId;
     const resolvedItemId = metadata?.itemId || bodyItemId;
     const resolvedBusinessId = metadata?.businessId || bodyBusinessId;
     const resolvedDateTime = metadata?.dateTime || bodyStartTime;
+    const resolvedStaffId = metadata?.staffId || bodyStaffId || null;
 
     if (
       !resolvedUserId ||
@@ -95,6 +100,35 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    // 🛡️ STAFF OFF-DUTY HARD REJECTION
+    if (resolvedStaffId && resolvedStaffId !== "any") {
+      const dateOnly = resolvedDateTime.split("T")[0];
+      const targetDayName = getDayNameFromDateString(dateOnly);
+
+      const staffSchedule = await prisma.staffSchedule.findUnique({
+        where: {
+          staffId_day: {
+            staffId: resolvedStaffId,
+            day: targetDayName as DayOfWeek,
+          },
+        },
+      });
+
+      if (staffSchedule && staffSchedule.isOff) {
+        console.warn(
+          `🚫 Staff ${resolvedStaffId} is off duty on ${targetDayName}. Booking rejected.`,
+        );
+        return NextResponse.json(
+          {
+            error: "Staff member is off duty on the selected day.",
+            code: "STAFF_OFF_DUTY",
+            day: targetDayName,
+          },
+          { status: 422 },
+        );
+      }
     }
 
     // 2️⃣ Resolve user from Clerk ID
@@ -155,41 +189,29 @@ export async function POST(request: NextRequest) {
 
     console.log("💰 Fee breakdown:", fees);
 
-    // 1️⃣ Generate a Truly Unique Temporal Sequence Code (e.g., FP-19284)
-    // - Takes the current timestamp in milliseconds
-    // - Slices the last 5 digits (changes every millisecond)
-    // - Appends a 2-digit random buffer to handle concurrent parallel queries perfectly
+    // 7️⃣ Generate unique queue code
     let uniqueQueueCode = "";
     let isCodeUnique = false;
 
-    // 🌟 THE MANUAL BACKUP LOOP: Generates memorable passes like FP-A56, FP-B91, etc.
     while (!isCodeUnique) {
-      // 1. Pick a random uppercase letter from A to Z
       const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       const randomLetter = characters.charAt(
         Math.floor(Math.random() * characters.length),
       );
-
-      // 2. Pick a random 2-digit number sequence buffer
       const randomNumber = Math.floor(10 + Math.random() * 90);
-
-      // 3. Combine into your exact requested string format pattern
       uniqueQueueCode = `FP-${randomLetter}${randomNumber}`;
 
-      // 4. Quick database query check to confirm no duplication collisions exist
       const collisionCheck = await prisma.booking.findFirst({
         where: { queueCode: uniqueQueueCode },
         select: { id: true },
       });
 
       if (!collisionCheck) {
-        isCodeUnique = true; // Code is clear to save, break the generation loop!
+        isCodeUnique = true;
       }
     }
 
-
-
-    // 7️⃣ Create booking with BookingItem join and dynamic fee calculation outputs
+    // 8️⃣ Create booking with BookingItem join and fee breakdown
     const booking = await prisma.booking.create({
       data: {
         startTime,
@@ -197,17 +219,17 @@ export async function POST(request: NextRequest) {
         status: BookingStatus.CONFIRMED,
         locationType: "IN_SHOP",
         businessId: resolvedBusinessId,
-        userId: user.id, // Dynamically maps database UUID/CUID from verified Clerk lookup
-        paymentReference: reference, // Dynamic Paystack gateway tracking parameter token
+        userId: user.id,
+        paymentReference: reference,
         paymentStatus: "paid",
         totalAmount: servicePrice,
-
         queueCode: uniqueQueueCode,
-
         freshpointFee: fees.freshpointFee,
         providerPayout: fees.providerPayout,
         freshpointNet: fees.freshpointNet,
-
+        ...(resolvedStaffId && resolvedStaffId !== "any"
+          ? { staffId: resolvedStaffId }
+          : {}),
         items: {
           create: [
             {

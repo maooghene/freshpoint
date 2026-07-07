@@ -19,9 +19,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     const item = await prisma.item.findUnique({
-      where: {
-        id: id.trim(),
-      },
+      where: { id: id.trim() },
       include: {
         business: {
           select: {
@@ -35,6 +33,14 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
               select: {
                 id: true,
                 name: true,
+                isActive: true,
+                schedules: {
+                  // ← critical — must include schedules
+                  select: {
+                    day: true,
+                    isOff: true,
+                  },
+                },
               },
             },
           },

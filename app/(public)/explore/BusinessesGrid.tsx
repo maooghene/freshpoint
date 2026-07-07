@@ -1,78 +1,96 @@
-import BusinessCard from "@/components/BusinessCard";
-import Link from "next/link";
+"use client";
 
-export interface WellnessBusiness {
+import React from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { MapPinIcon, StarIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+// Strict type object blueprint definition
+export interface GridItem {
   id: string;
   name: string;
   slug: string;
-  address: string;
-  image: string | null;
   description: string | null;
-  categories: string[];
-  sittingCapacity: number; // Aligned to replace totalChairs from database schema
-  isActive: boolean;
-  rating?: string;
-  totalReviews?: number;
-  totalServices?: number;
+  image: string | null;
+  address: string | null;
+  status: string | null;
+  category: string;
 }
 
-interface BusinessesGridProps {
-  search: string;
-}
-
-export const dynamic = "force-dynamic";
-
-export default async function BusinessesGrid({ search }: BusinessesGridProps) {
-  const searchParam = search ? `?search=${encodeURIComponent(search)}` : "";
-
-  // Hits your new multi-tenant aware internal businesses data router API
-  const res = await fetch(
-    `http://localhost:3000/api/businesses${searchParam}`,
-    {
-      cache: "no-store",
-      next: { revalidate: 0 },
-    },
-  );
-
-  if (!res.ok) {
-    return (
-      <div className="col-span-full py-24 text-center border border-dashed border-border rounded-[2.5rem] bg-card/40 backdrop-blur-md">
-        <p className="text-xl font-bold text-foreground">
-          Failed to load wellness spaces
-        </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          Please try refreshing the page or try again later.
-        </p>
-      </div>
-    );
-  }
-
-  const businesses: WellnessBusiness[] = await res.json();
+export default function BusinessesGrid({
+  businesses,
+}: {
+  businesses: GridItem[];
+}) {
+  const resolveImageSource = (savedPath: string | null) => {
+    if (!savedPath || savedPath.trim().length === 0)
+      return "/placeholder-business.jpg";
+    if (savedPath.startsWith("http://") || savedPath.startsWith("https://"))
+      return savedPath;
+    return `https://imagekit.io{savedPath.replace(/^\//, "")}`;
+  };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 mb-32 w-full">
-      {businesses.length > 0 ? (
-        businesses.map((business) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {businesses.map((business: GridItem) => {
+        const isApproved =
+          business.status?.trim().toLowerCase() === "approved" ||
+          business.status?.trim().toLowerCase() === "verified";
+
+        return (
           <Link
             key={business.id}
-            href={`/explore/${business.slug}`} // Maps to your app/explore/[slug]/page.tsx viewer
-            className="block transition-all hover:scale-[1.01] active:scale-[0.99] group"
+            href={`/explore/${business.slug}`}
+            className="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden shadow-2xs hover:shadow-lg hover:border-primary/30 transition-all duration-300"
           >
-            {/* Make sure to rename/create your card component at components/BusinessCard */}
-            <BusinessCard business={business} />
+            {/* Image Layer */}
+            <div className="relative aspect-video w-full bg-muted border-b border-border overflow-hidden">
+              <Image
+                src={resolveImageSource(business.image)}
+                alt={business.name}
+                fill
+                sizes="(max-w-7xl) 100vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            </div>
+
+            {/* Info Layer */}
+            <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 justify-between min-w-0">
+                  <h2 className="font-black text-foreground text-base tracking-tight group-hover:text-primary transition-colors truncate flex-1">
+                    {business.name}
+                  </h2>
+                  {isApproved && (
+                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-bold text-[9px] px-1.5 py-0.5 rounded shrink-0">
+                      ✓ Verified
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2 font-medium leading-relaxed">
+                  {business.description ||
+                    "Premium service treatment and product provider."}
+                </p>
+              </div>
+
+              {/* Compact Card Footer */}
+              <div className="flex items-center justify-between pt-3 border-t border-border/60 gap-4">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold truncate flex-1 min-w-0">
+                  <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="truncate">
+                    {business.address || "Nigeria"}
+                  </span>
+                </div>
+
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 px-2.5 py-0.5 rounded-md border border-primary/10 capitalize">
+                  {business.category.toLowerCase()}
+                </span>
+              </div>
+            </div>
           </Link>
-        ))
-      ) : (
-        <div className="col-span-full py-24 text-center border border-dashed border-border rounded-[2.5rem] bg-card/40 backdrop-blur-md">
-          <p className="text-xl font-bold text-foreground">
-            No wellness spaces found
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Try adjusting your search for a different provider name, category,
-            or location.
-          </p>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }

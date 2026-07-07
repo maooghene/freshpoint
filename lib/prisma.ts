@@ -1,17 +1,32 @@
 import { PrismaClient } from "@prisma/client";
+// Prisma v7 requires a driver adapter when using the 'client' engine type.
+// Use the postgres adapter package installed in the project.
 import { PrismaPg } from "@prisma/adapter-pg";
-
-console.log(">>> DATABASE_URL:", process.env.DATABASE_URL ?? "UNDEFINED");
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+if (!connectionString) {
+  throw new Error("DATABASE_URL or DIRECT_URL is not set");
+}
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+// Ensure Prisma reads the correct connection string from env at runtime
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = connectionString;
+}
+
+// Create a driver adapter instance for PrismaClient
+const prismaAdapter = new PrismaPg(connectionString);
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    adapter: prismaAdapter,
+  });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 

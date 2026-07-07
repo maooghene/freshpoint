@@ -1,5 +1,5 @@
+// lib/features/cartSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { RootState } from "../store";
 
 export interface CartItem {
   id: string;
@@ -9,11 +9,12 @@ export interface CartItem {
   price: number;
   quantity: number;
   priceAtAdd: number | null;
+  image?: string | null;
   createdAt: string;
 }
 
 interface CartState {
-  businessId: string | null; // Multi-tenant lock: One active business context at a time
+  businessId: string | null;
   items: CartItem[];
   totalQuantity: number;
   totalAmount: number;
@@ -39,10 +40,11 @@ const cartSlice = createSlice({
     ) => {
       const { item, businessId } = action.payload;
 
-      // If user switches businesses, clear out previous items completely to isolate checkouts
       if (state.businessId !== businessId) {
         state.businessId = businessId;
         state.items = [];
+        state.totalQuantity = 0;
+        state.totalAmount = 0;
       }
 
       const existingItem = state.items.find((i) => i.itemId === item.itemId);
@@ -59,6 +61,29 @@ const cartSlice = createSlice({
       state.totalQuantity += item.quantity;
       state.totalAmount += item.price * item.quantity;
     },
+
+    updateItemQuantity: (
+      state,
+      action: PayloadAction<{ itemId: string; quantity: number }>,
+    ) => {
+      const { itemId, quantity } = action.payload;
+      const existing = state.items.find((i) => i.itemId === itemId);
+      if (!existing) return;
+
+      const diff = quantity - existing.quantity;
+      existing.quantity = quantity;
+      state.totalQuantity += diff;
+      state.totalAmount += existing.price * diff;
+
+      // Remove if quantity drops to zero
+      if (quantity <= 0) {
+        state.totalQuantity -= existing.quantity;
+        state.totalAmount -= existing.price * existing.quantity;
+        state.items = state.items.filter((i) => i.itemId !== itemId);
+        if (state.items.length === 0) state.businessId = null;
+      }
+    },
+
     removeItemFromCart: (state, action: PayloadAction<string>) => {
       const itemId = action.payload;
       const existingItem = state.items.find((item) => item.itemId === itemId);
@@ -69,10 +94,9 @@ const cartSlice = createSlice({
         state.items = state.items.filter((item) => item.itemId !== itemId);
       }
 
-      if (state.items.length === 0) {
-        state.businessId = null;
-      }
+      if (state.items.length === 0) state.businessId = null;
     },
+
     clearCart: (state) => {
       state.items = [];
       state.businessId = null;
@@ -90,6 +114,10 @@ export const selectCartBusinessContext = (state: {
   cart: CartState;
 }): string | null => state.cart.businessId;
 
-export const { addItemToCart, removeItemFromCart, clearCart } =
-  cartSlice.actions;
+export const {
+  addItemToCart,
+  updateItemQuantity,
+  removeItemFromCart,
+  clearCart,
+} = cartSlice.actions;
 export default cartSlice.reducer;

@@ -1,24 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import {
-  Sparkles,
-  ClockIcon,
-  MapPinIcon,
-  Calendar,
-  Info,
-  Check,
-  Loader2,
-  CalendarOff,
-} from "lucide-react";
+import { Sparkles, ClockIcon, MapPinIcon, Calendar, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-interface StaffMember {
+import { useBookingState } from "@/hooks/useBookingState";
+import { BookingSlotsGrid } from "@/components/BookingSlotsGrid";
+import { SpecialistSidebar } from "@/components/SpecialistSidebar";
+
+interface StaffScheduleDetails {
+  day: string;
+  isOff: boolean;
+}
+
+interface StaffMemberDetails {
   id: string;
   name: string;
+  schedules?: StaffScheduleDetails[];
 }
 
 interface ItemDetails {
@@ -31,134 +32,33 @@ interface ItemDetails {
   type: string;
   business: {
     id: string;
-    slug: string; // 🔑 Ensure your query pulls business slug context parameters correctly
+    slug: string;
     name: string;
     address: string;
-    staff: StaffMember[];
+    staff: StaffMemberDetails[];
   };
-}
-
-interface DBBusinessSchedule {
-  id: string;
-  day: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
-  openTime: string; // e.g. "09:00"
-  closeTime: string; // e.g. "16:30"
-  isClosed: boolean;
 }
 
 export default function BookingWizardClient({ item }: { item: ItemDetails }) {
   const router = useRouter();
-  const todayString = new Date().toISOString().split("T")[0];
-
-  const [selectedDate, setSelectedDate] = useState<string>(todayString);
-  const [selectedSlot, setSelectedSlot] = useState<string>("");
-  const [selectedStaff, setSelectedStaff] = useState<string>("any");
-
-  // 🛠️ LIVE STREAM HOOK STATES: Replaces static loops with real-time database hours tracking
-  const [storeSchedules, setStoreSchedules] = useState<DBBusinessSchedule[]>(
-    [],
-  );
-  const [calculatedSlots, setCalculatedSlots] = useState<string[]>([]);
-  const [fetchingHours, setFetchingHours] = useState<boolean>(true);
-
-  // 1️⃣ Fetch operational hours directly using the public endpoint path
-  useEffect(() => {
-    let isMounted = true;
-    async function loadLiveBusinessHours() {
-      try {
-        setFetchingHours(true);
-        // Targets your unified public slug endpoint safely
-        const res = await fetch(
-          `/api/businesses/slug/${item.business.slug}/schedule`,
-        );
-        if (!res.ok) throw new Error("Failed to load storefront metrics");
-
-        const data = await res.json();
-        if (isMounted) {
-          setStoreSchedules(data.schedules || []);
-        }
-      } catch (err) {
-        console.error("Storefront schedule fetch error:", err);
-      } finally {
-        if (isMounted) setFetchingHours(false);
-      }
-    }
-    if (item.business.slug) loadLiveBusinessHours();
-    return () => {
-      isMounted = false;
-    };
-  }, [item.business.slug]);
-
-  // 2️⃣ DYNAMIC GENERATOR: Slices custom hours (like 9:00 to 16:30) into clean slots based on date chosen
-  const generateTimeSlotsForDate = useCallback(
-    (dateString: string) => {
-      if (storeSchedules.length === 0) return;
-
-      const daysMap = [
-        "SUNDAY",
-        "MONDAY",
-        "TUESDAY",
-        "WEDNESDAY",
-        "THURSDAY",
-        "FRIDAY",
-        "SATURDAY",
-      ];
-      const targetDate = new Date(dateString);
-      const targetDayStr = daysMap[targetDate.getDay()];
-
-      // Find the specific rule the provider saved for this day
-      const dayRule = storeSchedules.find((s) => s.day === targetDayStr);
-
-      // If day is unchecked/closed or not configured, freeze available options immediately
-      if (!dayRule || dayRule.isClosed) {
-        setCalculatedSlots([]);
-        return;
-      }
-
-      // Unpack saved limits (e.g. openTime: "09:00", closeTime: "16:30")
-      const [startHour, startMin] = dayRule.openTime.split(":").map(Number);
-      const [endHour, endMin] = dayRule.closeTime.split(":").map(Number);
-
-      const timeStringsArray: string[] = [];
-      let currentHour = startHour;
-      let currentMin = startMin;
-
-      while (
-        currentHour < endHour ||
-        (currentHour === endHour && currentMin <= endMin)
-      ) {
-        // Formats string into readable layout tags (e.g., convert "13:30" to "01:30 PM")
-        const rawHour = currentHour;
-        const ampm = rawHour >= 12 ? "PM" : "AM";
-        const displayHour = rawHour % 12 === 0 ? 12 : rawHour % 12;
-        const displayStr = `${displayHour.toString().padStart(2, "0")}:${currentMin.toString().padStart(2, "0")} ${ampm}`;
-
-        timeStringsArray.push(displayStr);
-
-        // Increments index selections forward by clean 30-minute operational block periods
-        currentMin += 30;
-        if (currentMin >= 60) {
-          currentHour += 1;
-          currentMin = 0;
-        }
-      }
-
-      setCalculatedSlots(timeStringsArray);
-    },
-    [storeSchedules],
-  );
-
-  // Track state changes to re-evaluate slots whenever user alters the active calendar element card
-  useEffect(() => {
-    if (selectedDate && storeSchedules.length > 0) {
-      generateTimeSlotsForDate(selectedDate);
-    }
-  }, [selectedDate, storeSchedules, generateTimeSlotsForDate]);
+  const {
+    selectedDate,
+    setSelectedDate,
+    selectedSlot,
+    setSelectedSlot,
+    selectedStaff,
+    setSelectedStaff,
+    calculatedSlots,
+    fetchingHours,
+    evaluatedStaffRoster,
+    isSelectedSpecialistOffDuty,
+    todayString,
+  } = useBookingState(item);
 
   const getReadableSelectedDate = () => {
     if (!selectedDate) return "";
-    const parsedDate = new Date(selectedDate);
-    return parsedDate.toLocaleDateString("en-NG", {
+    const [year, month, day] = selectedDate.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-NG", {
       weekday: "long",
       year: "numeric",
       month: "short",
@@ -171,6 +71,15 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
       alert("Please choose a day on the calendar first.");
       return;
     }
+
+    // 🚨 ABSOLUTE HARD BLOCK: Specialist is off duty
+    if (isSelectedSpecialistOffDuty) {
+      alert(
+        "This professional is scheduled to be off duty on this day. You cannot proceed to checkout with this selection.",
+      );
+      return;
+    }
+
     if (!selectedSlot) {
       alert("Please pick an available time slot before clicking checkout.");
       return;
@@ -275,107 +184,46 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
                   setSelectedDate(e.target.value);
                   setSelectedSlot("");
                 }}
-                className="w-full bg-transparent outline-none text-sm font-bold text-foreground cursor-pointer scheme-light dark:scheme-dark"
+                className="w-full bg-transparent outline-none text-sm font-bold text-foreground cursor-pointer"
               />
             </div>
           </div>
 
-          {/* DYNAMIC TIME SLOTS CONTAINER */}
-          <div className="space-y-4">
-            <h3 className="font-extrabold text-lg tracking-tight">
-              Available Slots
-            </h3>
-
-            {fetchingHours ? (
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground p-4 bg-muted/40 rounded-xl border border-dashed animate-pulse">
-                <Loader2 className="animate-spin w-4 h-4 text-primary" />
-                Synchronizing live provider operating calendars...
-              </div>
-            ) : calculatedSlots.length === 0 ? (
-              /* If shop hours are toggled to Closed on this weekday, throw safe fallback notice alerts */
-              <div className="flex flex-col items-center justify-center p-8 bg-destructive/5 border border-dashed border-destructive/20 text-center rounded-2xl gap-2 animate-in fade-in">
-                <CalendarOff className="w-8 h-8 text-destructive/60" />
-                <p className="text-xs font-bold text-destructive">
-                  This wellness workspace is closed on this calendar day.
-                </p>
-                <p className="text-[10px] text-muted-foreground max-w-[280px]">
-                  Please tap a different date on the picker dashboard above to
-                  book appointments.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-in fade-in duration-200">
-                {calculatedSlots.map((time) => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => setSelectedSlot(time)}
-                    className={`p-3 text-center rounded-xl border font-bold text-xs transition-all cursor-pointer ${
-                      selectedSlot === time
-                        ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
-                        : "border-border bg-background/40 hover:border-primary/30 text-foreground hover:scale-[1.01]"
-                    }`}
-                  >
-                    {time}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* DYNAMIC TIME SLOTS */}
+          <BookingSlotsGrid
+            fetchingHours={fetchingHours}
+            isSelectedSpecialistOffDuty={isSelectedSpecialistOffDuty}
+            calculatedSlots={calculatedSlots}
+            selectedSlot={selectedSlot}
+            setSelectedSlot={setSelectedSlot}
+          />
         </div>
 
-        {/* INTERACTIVE SPECIALIST SIDEBAR (Part 2 Integration) */}
+        {/* SIDEBAR SECTOR */}
         <div className="space-y-6">
-          <div className="bg-card border border-border rounded-[2rem] p-6 space-y-5 shadow-xs">
-            <h3 className="font-extrabold text-lg tracking-tight">
-              Select Specialist
-            </h3>
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => setSelectedStaff("any")}
-                className={`w-full flex items-center gap-3 p-3 border rounded-xl transition text-left cursor-pointer ${
-                  selectedStaff === "any"
-                    ? "border-primary bg-primary/5 font-bold"
-                    : "border-border bg-background/30"
-                }`}
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                  {selectedStaff === "any" ? <Check size={14} /> : "★"}
-                </div>
-                <span className="text-xs font-bold">Any Professional</span>
-              </button>
+          <SpecialistSidebar
+            selectedStaff={selectedStaff}
+            setSelectedStaff={setSelectedStaff}
+            setSelectedSlot={setSelectedSlot}
+            evaluatedStaffRoster={evaluatedStaffRoster}
+          />
 
-              {item.business.staff?.map((member) => (
-                <button
-                  key={member.id}
-                  type="button"
-                  onClick={() => setSelectedStaff(member.id)}
-                  className={`w-full flex items-center gap-3 p-3 border rounded-xl transition text-left cursor-pointer ${
-                    selectedStaff === member.id
-                      ? "border-primary bg-primary/5 font-bold"
-                      : "border-border bg-background/30"
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-black text-primary shrink-0">
-                    {selectedStaff === member.id ? (
-                      <Check size={14} />
-                    ) : (
-                      member.name.charAt(0)
-                    )}
-                  </div>
-                  <span className="text-xs font-bold">{member.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* CTA PANEL */}
+          {/* CTA ACTIONS CONTAINER */}
           <div className="bg-card border border-border rounded-[2rem] p-5 shadow-xs space-y-4">
+            {isSelectedSpecialistOffDuty && (
+              <div className="flex gap-2 text-xs text-destructive bg-destructive/5 p-3 rounded-xl border border-destructive/20 items-start">
+                <Info size={16} className="shrink-0 mt-0.5" />
+                <p className="font-medium leading-relaxed">
+                  The selected specialist is off duty on this day. Please choose
+                  a different specialist or date.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2 text-xs text-muted-foreground bg-muted/60 p-3 rounded-xl border border-border/50 items-start">
               <Info size={16} className="text-primary shrink-0 mt-0.5" />
               <p className="font-medium leading-relaxed">
-                {selectedSlot
+                {selectedSlot && !isSelectedSpecialistOffDuty
                   ? `${getReadableSelectedDate()} at ${selectedSlot}. Proceed to confirm your booking.`
                   : "Select a date and time slot to continue to checkout."}
               </p>
@@ -383,8 +231,8 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
 
             <Button
               onClick={handleAddToBasket}
-              disabled={!selectedSlot}
-              className="w-full h-12 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md text-sm transition-all cursor-pointer"
+              disabled={!selectedSlot || isSelectedSpecialistOffDuty}
+              className="w-full h-12 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add to Booking Basket
             </Button>

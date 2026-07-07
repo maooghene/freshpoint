@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"; // Standardized pluralized named export connection pooler
 import { auth } from "@clerk/nextjs/server";
 import { BookingStatus } from "@prisma/client";
-
-/* ================= TYPES FOR CREATE BOOKING (POST) ================= */
+import { validateServingCapacity } from "@/lib/booking-validator"; // Clean isolated utility import
 
 interface CreateBookingPayload {
   itemId: string;
@@ -13,111 +12,38 @@ interface CreateBookingPayload {
   staffId?: string; // "any" or a specific staff ID string
 }
 
-/* ================= HELPER: SERVING CAPACITY VALIDATOR ================= */
-
-async function validateServingCapacity(
-  businessId: string,
-  staffId: string,
-  startTime: Date,
-  durationMinutes: number,
-) {
-  const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
-
-  // 1. Fetch active staff members employed at this business
-  const businessData = await prisma.business.findUnique({
-    where: { id: businessId },
-    include: { staff: true },
-  });
-
-  const availableStaff = businessData?.staff.filter((s) => s.isActive) || [];
-  const totalServingCapacity = availableStaff.length;
-
-  if (totalServingCapacity === 0) {
-    return {
-      isValid: false,
-      reason:
-        "This business currently has no active staff members available to provide services.",
-    };
-  }
-
-  // 2. Query active bookings that overlap with this requested time window
-  const overlappingBookings = await prisma.booking.findMany({
-    where: {
-      businessId,
-      status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
-      NOT: {
-        OR: [
-          { startTime: { gte: endTime } }, // Existing booking starts after our requested end
-          { endTime: { lte: startTime } }, // Existing booking ends before our requested start
-        ],
-      },
-    },
-  });
-
-  // 🛑 RULE 1: Global Shop Serving Capacity
-  if (overlappingBookings.length >= totalServingCapacity) {
-    return {
-      isValid: false,
-      reason:
-        "This time slot is fully booked. All available staff members are scheduled for this time window.",
-    };
-  }
-
-  // 🛑 RULE 2: Specific Staff Member Availability Check
-  if (staffId !== "any" && staffId) {
-    const isSpecialistBusy = overlappingBookings.some(
-      (b) => b.staffId === staffId,
-    );
-    if (isSpecialistBusy) {
-      return {
-        isValid: false,
-        reason:
-          "The requested professional is currently busy serving another client during this time slot.",
-      };
-    }
-    return { isValid: true, assignedStaffId: staffId };
-  }
-
-  // 3. Auto-Assign Free Staff Member if "any" was selected
-  const busyStaffIds = overlappingBookings
-    .map((b) => b.staffId)
-    .filter(Boolean) as string[];
-  const freeStaff = availableStaff.find(
-    (member) => !busyStaffIds.includes(member.id),
-  );
-
-  return {
-    isValid: true,
-    assignedStaffId: freeStaff ? freeStaff.id : null,
-  };
-}
-
-/* ================= GET: Retrieve Workspace Operating Schedules ================= */
+/* =========================================================================
+   GET: Retrieve Authenticated Client Order Transaction History
+   ========================================================================= */
 export async function GET() {
   try {
     const { userId: clerkId } = await auth();
-    if (!clerkId)
+    if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true },
     });
 
-    if (!user)
-      return NextResponse.json({ error: "Identity profile missing" }, { status: 400 });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Identity profile missing" },
+        { status: 400 },
+      );
+    }
 
-    // 🛠️ 1. CALCULATE RETENTION BOUNDARY (Exactly 12 months ago from today)
+    // CALCULATE RETENTION BOUNDARY (Exactly 12 months ago from today to match pruning parameters)
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
 
     const rawBookings = await prisma.booking.findMany({
-      where: { 
+      where: {
         userId: user.id,
-        // 🛠️ 2. FILTER LAYER: Explicitly drop any historical records older than 1 year
         createdAt: {
-          gte: twelveMonthsAgo
-        }
+          gte: twelveMonthsAgo,
+        },
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -158,13 +84,17 @@ export async function GET() {
 
     return NextResponse.json(formattedBookings, { status: 200 });
   } catch (error) {
-    console.error("Booking extraction failure:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Booking history core collection extraction failure:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }
 
-
-/* ================= POST: Create a Safe, Overlap-Validated Booking Slot ================= */
+/* =========================================================================
+   POST: Create a Safe, Overlap-Validated Booking Slot Interceptor Pipeline
+   ========================================================================= */
 export async function POST(req: NextRequest) {
   try {
     const { userId: clerkId } = await auth();
@@ -182,7 +112,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch treatment item to resolve its duration and price constants
+    // Resolve service offering timeline attributes
     const serviceItem = await prisma.item.findUnique({
       where: { id: itemId },
     });
@@ -194,23 +124,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Parse selected components into a valid JavaScript Date object
+    // 💡 CRITICAL VISIBILITY FIREWALL: Instantly drop the request if this item was toggled off!
+    if (!serviceItem.isActive) {
+      return NextResponse.json(
+        {
+          error:
+            "This item or treatment has been temporarily deactivated by the provider. Please select an active service.",
+        },
+        { status: 422 }, // Unprocessable Entity
+      );
+    }
+
+    // Standardize timeline strings into a unified JavaScript Date payload object
     const appointmentStart = new Date(`${date} ${decodeURIComponent(time)}`);
     const durationMinutes = serviceItem.duration || 30;
 
-    // 3. Run Serving Capacity validation pipeline
-    const check = await validateServingCapacity(
+    // Passes the raw, unshifted date string to prevent timezone day-shifting errors
+    const check = await validateServingCapacity({
       businessId,
-      staffId || "any",
-      appointmentStart,
+      staffId: staffId || "any",
+      dateString: date,
+      startTime: appointmentStart,
       durationMinutes,
-    );
+    });
 
     if (!check.isValid) {
-      return NextResponse.json({ error: check.reason }, { status: 409 }); // 409 Conflict
+      return NextResponse.json({ error: check.reason }, { status: 409 });
     }
 
-    // 4. Resolve the user's internal account profile record
+    // Resolve client profile details
     const userRecord = await prisma.user.findUnique({
       where: { clerkId },
     });
@@ -227,18 +169,17 @@ export async function POST(req: NextRequest) {
     );
     const generatedPassCode = `FP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    // 5. Create the validated multi-tenant booking record inside a database transaction
+    // Instantiate record inside a single database transaction allocation
     const newBooking = await prisma.booking.create({
       data: {
         businessId,
         userId: userRecord.id,
-        staffId: check.assignedStaffId, // Dynamically locks down a free staff member's ID
+        staffId: check.assignedStaffId,
         startTime: appointmentStart,
         endTime: appointmentEnd,
         totalAmount: serviceItem.price,
-        status: "CONFIRMED",
+        status: BookingStatus.CONFIRMED, // Enforces standard Prisma schema enum constraints
         queueCode: generatedPassCode,
-        // Automatically link the item down into your join table configuration safely
         items: {
           create: {
             itemId: serviceItem.id,
@@ -253,7 +194,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error("Booking creation reservation pipeline error:", error);
+    console.error("Booking registration reservation pipeline failure:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

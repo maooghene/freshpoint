@@ -1,21 +1,22 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import * as React from "react";
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   MailIcon,
   MapPinIcon,
   StarIcon,
   ArrowLeftIcon,
-  ClockIcon,
   ShoppingBagIcon,
-  Sparkles,
-  CalendarCheck,
 } from "lucide-react";
 import Loading from "@/components/Loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
+import { ServiceCatalogGrid } from "@/components/ServiceCatalogGrid";
+import { ProductCatalogGrid } from "@/components/ProductCatalogGrid";
 
 interface UnifiedItem {
   id: string;
@@ -38,7 +39,7 @@ interface BusinessProfileInfo {
   address: string;
   email: string;
   phone: string;
-  categories: string[];
+  categories: string[] | null; // 💡 FIXED: Can evaluate to null to mirror API payloads safely
   isActive: boolean;
   rating?: number | string;
   reviewCount?: number;
@@ -54,10 +55,11 @@ export default function BusinessProfile() {
   );
   const [services, setServices] = useState<UnifiedItem[]>([]);
   const [products, setProducts] = useState<UnifiedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     if (!slug) return;
+    let isMounted = true;
 
     const fetchWorkspaceData = async () => {
       try {
@@ -67,11 +69,12 @@ export default function BusinessProfile() {
         });
 
         if (!res.ok) {
-          setBusinessInfo(null);
+          if (isMounted) setBusinessInfo(null);
           return;
         }
 
         const data = await res.json();
+        if (!isMounted) return;
 
         setBusinessInfo({
           id: data.id,
@@ -82,7 +85,7 @@ export default function BusinessProfile() {
           address: data.address,
           email: data.email,
           phone: data.phone,
-          categories: data.categories,
+          categories: data.categories || [], // 💡 FIXED: Strict array fallback assignment
           isActive: data.isActive,
           rating: data.rating || "New",
           reviewCount: data.totalReviews || 0,
@@ -93,13 +96,16 @@ export default function BusinessProfile() {
         setProducts(allItems.filter((item) => item.type === "PRODUCT"));
       } catch (error) {
         console.error("Error loading Freshpoint workspace profile:", error);
-        setBusinessInfo(null);
+        if (isMounted) setBusinessInfo(null);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchWorkspaceData();
+    void fetchWorkspaceData();
+    return () => {
+      isMounted = false;
+    };
   }, [slug]);
 
   if (loading) return <Loading />;
@@ -129,21 +135,14 @@ export default function BusinessProfile() {
 
   return (
     <div className="relative min-h-screen overflow-hidden pt-24 bg-background text-foreground">
-      {/* BACKGROUND */}
+      {/* GRID VECTOR ACCENTS */}
       <div className="absolute inset-0 -z-10">
-        <div
-          className="absolute inset-0
-          bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)]
-          dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)]
-          bg-[size:4rem_4rem]
-          [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"
-        />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
         <div className="absolute top-20 left-1/4 w-72 h-72 bg-primary/10 dark:bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px]" />
       </div>
 
       <div className="max-w-7xl mx-auto px-6 w-full">
-        {/* BACK BUTTON */}
         <button
           onClick={() => router.push("/explore")}
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mb-6 cursor-pointer group"
@@ -152,7 +151,7 @@ export default function BusinessProfile() {
           Back to Providers
         </button>
 
-        {/* BUSINESS HEADER */}
+        {/* BUSINESS PROFILE HEADER */}
         <div className="relative overflow-hidden bg-card/60 backdrop-blur-xl border border-border rounded-[2.5rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 shadow-xl mb-16">
           <div className="relative shrink-0 w-44 h-44 md:w-52 md:h-52 rounded-2xl overflow-hidden border border-border bg-muted">
             <Image
@@ -180,16 +179,26 @@ export default function BusinessProfile() {
                 "No description configured yet for this wellness venue."}
             </p>
 
+            {/* DYNAMIC BACKUP PROTECTION BADGE GRID */}
             <div className="flex flex-wrap justify-center md:justify-start gap-1.5">
-              {businessInfo.categories.map((category, index) => (
+              {businessInfo.categories && businessInfo.categories.length > 0 ? (
+                businessInfo.categories.map((category: string, idx: number) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className="text-[11px] font-semibold px-2.5 rounded-md"
+                  >
+                    {category}
+                  </Badge>
+                ))
+              ) : (
                 <Badge
-                  key={index}
-                  variant="secondary"
-                  className="text-[11px] font-semibold px-2.5 rounded-md"
+                  variant="outline"
+                  className="text-[11px] font-semibold px-2.5 rounded-md text-muted-foreground border-dashed"
                 >
-                  {category}
+                  General Provider
                 </Badge>
-              ))}
+              )}
             </div>
 
             <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2 pt-4 border-t border-border">
@@ -209,7 +218,7 @@ export default function BusinessProfile() {
           </div>
         </div>
 
-        {/* ===== SECTION A: SERVICES ===== */}
+        {/* COMPONENT PRESENTATION GRIDS */}
         <div className="space-y-8 mb-20">
           <div className="text-center space-y-1">
             <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
@@ -220,153 +229,20 @@ export default function BusinessProfile() {
               our live provider schedule.
             </p>
           </div>
-
-          {services.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {services.map((service) => (
-                <div
-                  key={service.id}
-                  className="flex flex-col bg-card border border-border rounded-2xl overflow-hidden shadow-xs hover:shadow-lg hover:border-primary/30 transition-all group duration-300"
-                >
-                  <div className="relative aspect-video w-full bg-muted border-b border-border overflow-hidden">
-                    <Image
-                      src={service.image || "/placeholder-service.jpg"}
-                      alt={service.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-1.5">
-                      <h3 className="font-bold text-foreground text-lg tracking-tight group-hover:text-primary transition-colors">
-                        {service.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 font-medium">
-                        {service.description ||
-                          "No description provided for this treatment."}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-border/60">
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          Price Rate
-                        </p>
-                        <p className="font-black text-foreground text-base">
-                          ₦{service.price.toLocaleString()}
-                        </p>
-                      </div>
-                      {service.duration && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold">
-                          <ClockIcon className="w-3.5 h-3.5 shrink-0" />
-                          {service.duration} mins
-                        </div>
-                      )}
-                    </div>
-
-                    <Button
-                      onClick={() => {
-                        const cleanServiceName = service.name
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, "-");
-                        router.push(`/book/${service.id}`);
-                      }}
-                      className="w-full rounded-xl font-bold text-sm gap-2"
-                    >
-                      <CalendarCheck className="w-4 h-4" />
-                      Book Appointment
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-muted/30">
-              <Sparkles className="mx-auto w-10 h-10 text-muted-foreground/40 mb-3" />
-              <h3 className="text-base font-bold text-foreground mb-1">
-                No Services Listed Yet
-              </h3>
-              <p className="text-sm text-muted-foreground font-medium">
-                This provider hasn&apos;t added any treatments or services yet.
-              </p>
-            </div>
-          )}
+          <ServiceCatalogGrid services={services} />
         </div>
 
-        {/* ===== SECTION B: PRODUCTS ===== */}
         <div className="space-y-8 mb-24">
           <div className="text-center space-y-1">
             <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight flex items-center justify-center gap-2">
-              <ShoppingBagIcon className="w-6 h-6 text-primary" />
-              Available Products
+              <ShoppingBagIcon className="w-6 h-6 text-primary" /> Available
+              Products
             </h2>
             <p className="text-sm text-muted-foreground font-medium">
               Explore wellness and beauty products available from this provider.
             </p>
           </div>
-
-          {products.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  onClick={() => router.push(`/products/${product.id}`)}
-                  className="cursor-pointer flex flex-col bg-card border border-border rounded-2xl overflow-hidden shadow-xs hover:shadow-lg hover:border-primary/30 transition-all group duration-300"
-                >
-                  <div className="relative aspect-square w-full bg-muted border-b border-border overflow-hidden">
-                    <Image
-                      src={product.image || "/placeholder-product.jpg"}
-                      alt={product.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <h3 className="font-bold text-foreground text-base tracking-tight group-hover:text-primary transition-colors">
-                        {product.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 font-medium">
-                        {product.description ||
-                          "No description available for this product."}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-border/60">
-                      <p className="font-black text-primary text-base">
-                        ₦{product.price.toLocaleString()}
-                      </p>
-                      {product.stock !== null && (
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            product.stock > 0
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : "bg-red-500/10 text-red-500"
-                          }`}
-                        >
-                          {product.stock > 0
-                            ? `${product.stock} in stock`
-                            : "Out of stock"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-muted/30">
-              <ShoppingBagIcon className="mx-auto w-10 h-10 text-muted-foreground/40 mb-3" />
-              <h3 className="text-base font-bold text-foreground mb-1">
-                No Products Listed Yet
-              </h3>
-              <p className="text-sm text-muted-foreground font-medium">
-                This provider hasn&apos;t added any products yet.
-              </p>
-            </div>
-          )}
+          <ProductCatalogGrid products={products} />
         </div>
       </div>
     </div>
