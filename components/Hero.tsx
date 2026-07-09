@@ -2,54 +2,54 @@
 
 import * as React from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
-import Link from "next/link"; // 🌟 FIXED: Imported standard Next.js Link component cleanly
+import Link from "next/link";
 import { Button } from "./ui/button";
 import { Search, Sparkles } from "lucide-react";
-import { getTimeBasedGreeting } from "@/lib/greetings";
+import { getGreetingFragment } from "@/lib/greetings";
 import HeroSlideshow from "./HeroSlideshow";
 
-function Hero() {
+function Hero(): React.JSX.Element {
   const { user } = useUser();
 
-  // Robust fallback and sanitization sequence for Google/Gmail OAuth logins
-  const displayName = React.useMemo(() => {
+  // 🛡️ REACT 19 LAZY INITIALIZER: Evaluates browser clock on mount without using useEffect
+  const [timeGreeting] = React.useState<string>(() => {
+    if (typeof window === "undefined") return "Hello";
+    const browserHour: number = new Date().getHours();
+    return getGreetingFragment(browserHour);
+  });
+
+  // Robust fallback and token string sanitization sequence for Google/Gmail OAuth logins
+  const displayName = React.useMemo<string>(() => {
     if (!user) return "";
 
-    let rawName = user.firstName || user.fullName || "";
+    let rawName: string = user.firstName || user.fullName || "";
 
     if (!rawName) {
-      const fallbackEmail = user.primaryEmailAddress?.emailAddress;
+      const fallbackEmail: string | undefined =
+        user.primaryEmailAddress?.emailAddress;
       if (fallbackEmail) {
-        const parts = fallbackEmail.split("@");
+        const parts: string[] = fallbackEmail.split("@");
         rawName = parts[0] || "";
       }
     }
 
-    const cleanedName = rawName
+    const cleanedName: string = rawName
       .replace(/\s?\d{4}$/, "")
       .replace(/\d+$/, "")
       .trim();
 
-    const nameSegments = cleanedName.split(" ");
+    const nameSegments: string[] = cleanedName.split(" ");
     return nameSegments[0] || "Valued Guest";
   }, [user]);
 
   return (
-    <section className="relative h-auto min-h-[70vh] flex items-center overflow-hidden py-8 md:py-12 border-b border-border/40">
-      {/* GRID VECTOR ACCENT LAYER */}
-      <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/5 to-primary/5 -z-10">
-        <div
-          className="absolute inset-0 
-          bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] 
-          dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] 
-          bg-[size:4rem_4rem] 
-          [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"
-        />
-      </div>
+    <section className="relative h-auto min-h-[70vh] flex items-center overflow-hidden py-8 md:py-12 border-b border-border/40 bg-background">
+      {/* ── CLEAN ORGANIC BACKDROP (NO BLUEPRINT TECH GRIDS) ── */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-background via-emerald-50/10 to-primary/5 -z-10" />
 
-      {/* GRADIENT BACKDROP GLOW ORBS */}
-      <div className="absolute top-12 left-1/4 w-60 h-60 bg-gradient-to-r from-primary/10 to-primary/5 rounded-full blur-3xl -z-10" />
-      <div className="absolute bottom-12 right-1/4 w-80 h-80 bg-gradient-to-r from-primary/10 to-primary/5 rounded-full blur-3xl -z-10" />
+      {/* SOFT NATURAL GLOW MESH ORBS */}
+      <div className="absolute top-12 left-1/4 w-72 h-72 bg-primary/10 rounded-full blur-[100px] -z-10" />
+      <div className="absolute bottom-12 right-1/4 w-96 h-96 bg-emerald-600/5 rounded-full blur-[120px] -z-10" />
 
       <div className="relative z-10 w-full px-6">
         <div className="max-w-7xl mx-auto">
@@ -57,42 +57,41 @@ function Hero() {
             {/* ── LEFT CONTENT COLUMN ── */}
             <div className="space-y-4 text-center lg:text-left">
               <div className="space-y-3">
-                {/* Compact Info Badge */}
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-primary/10 to-primary/5 rounded-full border border-primary/20 backdrop-blur-sm mx-auto lg:mx-0">
+                {/* Compact Branding Badge */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 rounded-full border border-primary/20 backdrop-blur-sm mx-auto lg:mx-0">
                   <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
                     {"Smart Booking for Wellness Spaces"}
                   </span>
                 </div>
 
-                {/* Main Heading Text Fields */}
+                {/* Main Heading Content Text Blocks */}
                 {user ? (
-                  <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
-                    <span className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
-                      {getTimeBasedGreeting()}
+                  <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-slate-900 dark:text-white">
+                    <span className="text-slate-900 dark:text-white">
+                      {timeGreeting}
                       {", "}
                     </span>
-                    <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent capitalize">
+                    {/* ISOLATED SOLID COLOR SPAN: Guarantees zero linear fade-out or background clip bleeding */}
+                    <span className="text-primary font-black tracking-tight capitalize inline-block clear-both">
                       {displayName}
                     </span>
                   </h1>
                 ) : (
-                  <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1]">
-                    <span className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1] text-slate-900 dark:text-white">
+                    <span className="text-slate-900 dark:text-white">
                       {"Find top-tier "}
                     </span>
                     <span className="inline">
-                      <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {"wellness spaces "}
-                      </span>
-                      <span className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
+                      <span className="text-primary">{"wellness spaces "}</span>
+                      <span className="text-slate-900 dark:text-white">
                         {"and book instantly"}
                       </span>
                     </span>
                   </h1>
                 )}
 
-                {/* Subtitle Description */}
+                {/* Subtitle Description Paragraphs */}
                 <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
                   {user
                     ? "Ready to prioritize your self-care today? Explore premier salons, spas, and wellness spaces near you."
@@ -100,10 +99,9 @@ function Hero() {
                 </p>
               </div>
 
-              {/* Call to Actions CTA Buttons Row */}
+              {/* Call to Actions CTA Action Triggers */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start pt-1">
                 {user ? (
-                  // 🌟 FIXED: Swapped out raw HTML <a> layout link parameters for optimized <Link> compilation node anchors
                   <Link href="/explore" className="w-full sm:w-auto">
                     <Button
                       size="lg"
@@ -129,7 +127,7 @@ function Hero() {
 
             {/* ── RIGHT SLIDESHOW DISPLAY COLUMN ── */}
             <div className="relative flex justify-center lg:justify-end w-full max-w-[440px] mx-auto lg:max-w-none">
-              <div className="absolute -top-3 -left-3 w-16 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl rotate-45 blur-xl -z-10" />
+              <div className="absolute -top-3 -left-3 w-16 h-16 bg-primary/10 rounded-2xl rotate-45 blur-xl -z-10" />
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-2xl blur-xl scale-105 -z-10" />
 
               <div className="w-full relative shadow-lg rounded-2xl overflow-hidden border border-border/40">

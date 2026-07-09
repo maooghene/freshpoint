@@ -1,4 +1,5 @@
-// src/components/business/staff/types.ts
+// components/business/staff/types.ts
+
 export interface StaffSchedule {
   id: string;
   day: string;

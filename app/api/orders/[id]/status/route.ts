@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { OrderStatus } from "@prisma/client";
 
 interface ParamsProps {
   params: Promise<{ id: string }>;
 }
 
-// 🚀 BOTH HTTP METHODS SUPPORTED TO SECURE FRONTEND COMPLIANCE
 async function handleStatusMutation(request: NextRequest, id: string) {
   try {
     const { userId: clerkId } = await auth();
@@ -17,9 +17,10 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
+    // Pull internal database ID along with the email to evaluate roles and staff profiles
     const user = await prisma.user.findUnique({
       where: { clerkId },
-      select: { id: true },
+      select: { id: true, email: true },
     });
 
     if (!user) {
@@ -52,7 +53,7 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    // Check if the current business exists and is managed by this user
+    // CORRECTED: Match business ownerId against the user's internal CUID profile ID, not the Clerk ID string
     const merchantVerification = await prisma.business.findFirst({
       where: {
         id: targetOrder.businessId,
@@ -60,17 +61,33 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       },
     });
 
-    // Fallback block: Allow mutations if the request belongs to either the vendor manager OR the booking user
-    const isAuthorized = merchantVerification || targetOrder.userId === user.id;
+    // Check 2: Is the current user an active staff member belonging to this business branch?
+    const staffVerification = await prisma.staffProfile.findFirst({
+      where: {
+        businessId: targetOrder.businessId,
+        email: { equals: user.email || "", mode: "insensitive" },
+        isActive: true,
+      },
+    });
+
+    // Master Authorization Multi-Tenant Matrix Check
+    const isAuthorized =
+      merchantVerification ||
+      staffVerification ||
+      targetOrder.userId === user.id;
+
     if (!isAuthorized) {
+      console.warn(
+        `🔒 Access Denied: User ID ${user.id} unauthorized for Order ID ${id}`,
+      );
       return NextResponse.json(
         { error: "Forbidden tenant assignment profile boundaries" },
         { status: 403 },
       );
     }
 
-    // Enforce matching capitalization schemas with database enum parameters (e.g., PENDING, COMPLETED, PROCESSING)
-    const normalizedStatus = status.trim().toUpperCase();
+    // Enforce matching capitalization schemas with database enum parameters
+    const normalizedStatus = status.trim().toUpperCase() as OrderStatus;
 
     const updatedOrder = await prisma.order.update({
       where: { id },
@@ -105,13 +122,11 @@ async function handleStatusMutation(request: NextRequest, id: string) {
   }
 }
 
-// Map both incoming PATCH requests cleanly
 export async function PATCH(request: NextRequest, props: ParamsProps) {
   const { id } = await props.params;
   return handleStatusMutation(request, id);
 }
 
-// 🌟 ADDED RECOVERY FALLBACK: Converts POST method request routes to clean up 405 error blocks instantly
 export async function POST(request: NextRequest, props: ParamsProps) {
   const { id } = await props.params;
   return handleStatusMutation(request, id);

@@ -1,25 +1,42 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ── 1️⃣ GLOBAL STORAGE REMOTE PATTERNS WHITELIST ──
   images: {
-    // 💡 FIXED: Direct array configuration whitelists both ImageKit subdomains and Clerk image engines
     remotePatterns: [
       {
         protocol: "https",
+        hostname: "freshpoint.com", // Added to allow your fresh production paths
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
         hostname: "ik.imagekit.io",
+        pathname: "/**",
       },
       {
         protocol: "https",
-        hostname: "*.imagekit.io",
+        hostname: "**.imagekit.io",
+        pathname: "/**",
       },
       {
         protocol: "https",
-        hostname: "img.clerk.com",
+        // CORRECTED: Stripped out illegal url separator characters (://) to fix image routing crashes
+        hostname: "clerk.com",
+        pathname: "/**",
       },
       {
         protocol: "https",
         hostname: "images.clerk.dev",
+        pathname: "/**",
       },
     ],
+  },
+
+  // ── 2️⃣ FIXED Root-Level EXPERIMENTAL NEXT.JS SETTINGS ──
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
   },
 };
 

@@ -200,19 +200,21 @@
 /* 🌟 ROOT GLOBAL THEME COMPRESSION ARCHITECTURE */
 @layer base {
   html {
-    /* Set back to professional browser standard font sizes for extreme legibility */
-    font-size: 16px !important;
+    /* Increased from 16px to 17px for clearer readability on smaller devices */
+    font-size: 17px !important;
   }
   
   @media (min-width: 768px) {
     html {
-      font-size: 16px !important;
+      /* Increased from 16px to 17.5px to enhance layout text reading weight */
+      font-size: 17.5px !important;
     }
   }
 
   @media (min-width: 1024px) {
     html {
-      font-size: 16.5px !important;
+      /* Increased from 16.5px to 18px for optimized wide screen reading */
+      font-size: 18px !important;
     }
   }
 
@@ -236,5 +238,6 @@
     margin-bottom: calc(0.75rem * var(--tw-space-y-reverse)) !important;
   }
 }
+
 
 

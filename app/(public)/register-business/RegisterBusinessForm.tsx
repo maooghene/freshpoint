@@ -5,46 +5,54 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { createBusiness, type RegisterState } from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "react-toastify";
-import {
-  Store,
-  Link2,
-  Mail,
-  Phone,
-  MapPin,
-  Users,
-  FileText,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, XCircle } from "lucide-react";
 
-export function RegisterBusinessForm() {
+import { BasicInfoFields } from "./BasicInfoFields";
+import { ImageAndCategoryFields } from "./ImageAndCategoryFields";
+import { FormContactFields } from "@/components/checkout/FormContactFields";
+import { FormLocationCapacityFields } from "@/components/checkout/FormLocationCapacityFields";
+import { FormDescriptionField } from "@/components/checkout/FormDescriptionField";
+
+const initialState: RegisterState = { success: false, message: "" };
+
+export function RegisterBusinessForm(): React.JSX.Element {
   const router = useRouter();
-  const initialState: RegisterState = { success: false, message: "" };
-  const [state, formAction, isPending] = useActionState<
-    RegisterState,
-    FormData
-  >(createBusiness, initialState);
-  const [slugValue, setSlugValue] = React.useState("");
+  const [state, formAction, isPending] = useActionState(
+    createBusiness,
+    initialState,
+  );
+  const [slugValue, setSlugValue] = React.useState<string>("");
 
-  // Sync automatic url safe slug suggestion transformations as user types shop name
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const generatedStr = e.target.value
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "") // Strip weird characters
-      .replace(/\s+/g, "-") // Collapse space intervals to clean hyphens
-      .replace(/-+/g, "-"); // Prevent multi-hyphen strings
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
     setSlugValue(generatedStr);
   };
 
+  const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setSlugValue(e.target.value.toLowerCase().replace(/\s+/g, "-"));
+  };
+
+  const handleSubmitIntercept = (e: React.FormEvent<HTMLFormElement>): void => {
+    const formData = new FormData(e.currentTarget);
+    const imageFile = formData.get("image") as File | null;
+
+    if (!imageFile || imageFile.size === 0) {
+      e.preventDefault();
+      toast.warning(
+        "Image field is required! Please upload an image of your business to get started.",
+      );
+    }
+  };
+
   React.useEffect(() => {
-    if (state.message) {
+    if (state.message && !state.isRejectedByFilter) {
       if (state.success) {
-        toast.success("Merchant storefront registered successfully!");
-        // The message body passes back the clean slug token safely to resolve the client route push instantly
+        toast.success("Workspace launched and approved automatically!");
         router.push(`/business/${state.message}`);
       } else {
         toast.error(state.message);
@@ -52,216 +60,77 @@ export function RegisterBusinessForm() {
     }
   }, [state, router]);
 
+  if (!state.success && state.isRejectedByFilter) {
+    return (
+      <div className="w-full max-w-xl bg-card border border-destructive/30 rounded-2xl p-8 text-center shadow-xl animate-in shake duration-300">
+        <div className="flex justify-center mb-5">
+          <div className="flex items-center justify-center w-16 h-16 bg-destructive/10 rounded-full border border-destructive/20">
+            <XCircle className="h-9 w-9 text-destructive" />
+          </div>
+        </div>
+        <h1 className="text-xl font-black text-foreground tracking-tight">
+          {"Workspace Creation Blocked"}
+        </h1>
+        <p className="mt-4 text-sm text-muted-foreground leading-relaxed bg-destructive/5 p-4 rounded-xl border border-destructive/10 text-left whitespace-normal break-words">
+          {state.message}
+        </p>
+        <p className="text-xs text-muted-foreground mt-4 leading-normal whitespace-normal break-words">
+          {
+            "If you believe this automated validation filter was triggered by error, please change your shop name or text description details and try submitting again."
+          }
+        </p>
+        <div className="mt-6 pt-5 border-b border-border" />
+        <Button
+          onClick={() => window.location.reload()}
+          className="w-full mt-4 font-bold bg-secondary hover:bg-secondary/80 text-foreground h-11 rounded-xl flex items-center justify-center gap-2 cursor-pointer border border-border"
+        >
+          <RefreshCw className="h-4 w-4" />
+          {"Retry Registration"}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-xl bg-card border border-border rounded-2xl p-6 md:p-8 shadow-xl animate-in fade-in duration-200">
       <div className="mb-6 pb-4 border-b border-border">
         <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-          Setup Your Workspace
+          {"Setup Your Workspace"}
         </h1>
         <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-          Initialize your store parameters on Freshpoint. Let&apos;s map out
-          your public client profile metadata.
+          {
+            "Initialize your store parameters on Freshpoint. Let's map out your public client profile metadata."
+          }
         </p>
       </div>
 
-      <form action={formAction} className="space-y-5">
-        {/* Business Name Field */}
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="name"
-            className="flex items-center gap-2 text-foreground font-bold"
-          >
-            <Store className="h-4 w-4 text-muted-foreground" />
-            Shop Name
-          </Label>
-          <Input
-            id="name"
-            name="name"
-            type="text"
-            placeholder="Freshpoint Salon & Spa"
-            onChange={handleNameChange}
-            disabled={isPending}
-            required
-            className="rounded-xl"
-          />
-          {state.errors?.name && (
-            <p className="text-xs font-semibold text-destructive mt-0.5">
-              {state.errors.name}
-            </p>
-          )}
-        </div>
+      <form
+        action={formAction}
+        onSubmit={handleSubmitIntercept}
+        className="space-y-5"
+      >
+        <BasicInfoFields
+          isPending={isPending}
+          state={state}
+          slugValue={slugValue}
+          onNameChange={handleNameChange}
+          onSlugChange={handleSlugChange}
+        />
 
-        {/* Clean URL Param Token (Slug) */}
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="slug"
-            className="flex items-center gap-2 text-foreground font-bold"
-          >
-            <Link2 className="h-4 w-4 text-muted-foreground" />
-            Marketplace URL Parameter (Slug)
-          </Label>
-          <div className="relative flex items-center">
-            <span className="absolute left-3 text-xs font-medium text-muted-foreground select-none pointer-events-none">
-              ://freshpoint.com
-            </span>
-            <Input
-              id="slug"
-              name="slug"
-              type="text"
-              value={slugValue}
-              onChange={(e) =>
-                setSlugValue(e.target.value.toLowerCase().replace(/\s+/g, "-"))
-              }
-              placeholder="salon-and-spa"
-              disabled={isPending}
-              required
-              className="pl-[148px] rounded-xl font-mono text-xs"
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground pl-1">
-            This identifies your multi-tenant shop URL workspace securely.
-            Lowercase alphanumeric and hyphens only.
-          </p>
-          {state.errors?.slug && (
-            <p className="text-xs font-semibold text-destructive mt-0.5">
-              {state.errors.slug}
-            </p>
-          )}
-        </div>
+        <ImageAndCategoryFields isPending={isPending} state={state} />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Public Work Email */}
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="email"
-              className="flex items-center gap-2 text-foreground font-bold"
-            >
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              Business Email
-            </Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="contact@brand.com"
-              disabled={isPending}
-              required
-              className="rounded-xl"
-            />
-            {state.errors?.email && (
-              <p className="text-xs font-semibold text-destructive mt-0.5">
-                {state.errors.email}
-              </p>
-            )}
-          </div>
+        <FormContactFields isPending={isPending} state={state} />
+        <FormLocationCapacityFields isPending={isPending} state={state} />
+        <FormDescriptionField isPending={isPending} />
 
-          {/* Business Phone Number */}
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="phone"
-              className="flex items-center gap-2 text-foreground font-bold"
-            >
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              Store Phone
-            </Label>
-            <Input
-              id="phone"
-              name="phone"
-              type="tel"
-              placeholder="+1 (555) 000-0000"
-              disabled={isPending}
-              required
-              className="rounded-xl"
-            />
-            {state.errors?.phone && (
-              <p className="text-xs font-semibold text-destructive mt-0.5">
-                {state.errors.phone}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Physical Address Coordinates */}
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="address"
-            className="flex items-center gap-2 text-foreground font-bold"
-          >
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            Physical Street Address
-          </Label>
-          <Input
-            id="address"
-            name="address"
-            type="text"
-            placeholder="123 Corporate Way, Suite 100"
-            disabled={isPending}
-            required
-            className="rounded-xl"
-          />
-          {state.errors?.address && (
-            <p className="text-xs font-semibold text-destructive mt-0.5">
-              {state.errors.address}
-            </p>
-          )}
-        </div>
-
-        {/* Booking Capacity Validator Parameter */}
-        <div className="space-y-1.5 w-full sm:max-w-[50%]">
-          <Label
-            htmlFor="sittingCapacity"
-            className="flex items-center gap-2 text-foreground font-bold"
-          >
-            <Users className="h-4 w-4 text-muted-foreground" />
-            Global Sitting Capacity
-          </Label>
-          <Input
-            id="sittingCapacity"
-            name="sittingCapacity"
-            type="number"
-            min="1"
-            defaultValue="1"
-            disabled={isPending}
-            required
-            className="rounded-xl"
-          />
-          {state.errors?.sittingCapacity && (
-            <p className="text-xs font-semibold text-destructive mt-0.5">
-              {state.errors.sittingCapacity}
-            </p>
-          )}
-        </div>
-
-        {/* Business Text Description */}
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="description"
-            className="flex items-center gap-2 text-foreground font-bold"
-          >
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            Short Brand Description
-          </Label>
-          <Textarea
-            id="description"
-            name="description"
-            placeholder="Describe your workspace offerings, specialties, and client workflow details..."
-            rows={3}
-            disabled={isPending}
-            className="rounded-xl resize-none"
-          />
-        </div>
-
-        {/* Form Submission Control Interface */}
         <Button
           type="submit"
           disabled={isPending}
           className="w-full font-bold bg-primary hover:bg-primary/90 text-primary-foreground h-11 shadow-md hover:shadow-lg transition-all rounded-xl mt-2 flex items-center justify-center gap-2 cursor-pointer"
         >
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isPending
-            ? "Configuring Database Cluster..."
-            : "Provision Freshpoint Workspace"}
+          {isPending ? "Setting up your digital shop..." : "Launch Workspace"}
         </Button>
       </form>
     </div>

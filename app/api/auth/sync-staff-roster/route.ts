@@ -1,9 +1,8 @@
-// app/api/auth/sync-staff-roster/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"; // 🎯 THE FIX: Use your standardized named connection pooler
 import { currentUser } from "@clerk/nextjs/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // 1. Fetch live authenticated profile email identifiers from Clerk
     const clerkUser = await currentUser();
@@ -15,10 +14,10 @@ export async function POST(request: NextRequest) {
     }
 
     const emailAddressString =
-      clerkUser.emailAddresses[0]?.emailAddress.toLowerCase();
+      clerkUser.emailAddresses[0]?.emailAddress?.toLowerCase();
     if (!emailAddressString) {
       return NextResponse.json(
-        { error: "Valid account email required" },
+        { error: "Valid account email required from active login parameters" },
         { status: 400 },
       );
     }
@@ -29,7 +28,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dbUser) {
-      // Re-provision baseline context maps if they haven't passed standard webhooks yet
       dbUser = await prisma.user.create({
         data: {
           clerkId: clerkUser.id,
@@ -45,9 +43,9 @@ export async function POST(request: NextRequest) {
     const pendingInvitation = await prisma.staffProfile.findFirst({
       where: {
         email: emailAddressString,
-        userId: null, // Only claim invitations that haven't been claimed yet
+        userId: null,
       },
-      include: { business: true }, // Pull the business details to get its URL slug
+      include: { business: true },
     });
 
     if (!pendingInvitation) {
@@ -64,9 +62,9 @@ export async function POST(request: NextRequest) {
     await prisma.staffProfile.update({
       where: { id: pendingInvitation.id },
       data: {
-        userId: dbUser.id, // Connects the Prisma user profile
-        isActive: true, // Sets them to Active / Linked
-        name: `${dbUser.firstName} ${dbUser.lastName || ""}`.trim(), // Sync name with real registration credentials
+        userId: dbUser.id,
+        isActive: true,
+        name: `${dbUser.firstName} ${dbUser.lastName || ""}`.trim(),
       },
     });
 
@@ -77,8 +75,10 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 },
     );
-  } catch (error) {
-    console.error("STAFF_ROSTER_SYNC_ERROR:", error);
+  } catch (error: unknown) {
+    const errorString =
+      error instanceof Error ? error.message : "Sync runtime operation error";
+    console.error("STAFF_ROSTER_SYNC_ERROR:", errorString);
     return NextResponse.json(
       { error: "Internal service connection error" },
       { status: 500 },

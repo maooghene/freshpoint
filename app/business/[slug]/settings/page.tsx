@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "./SettingsForm";
+// Added missing import statement to completely clear compilation faults
+import { BookingPolicyForm } from "./BookingPolicyForm";
 import { Building2 } from "lucide-react";
 
 interface PageProps {
@@ -36,21 +38,32 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     redirect("/dashboard");
   }
 
-  // 💡 TYPE RECONCILIATION: Extract exactly what the form expects to prevent lint errors
+  // 💡 TYPE RECONCILIATION: Fixed to map cleanly from business.image
   const serializedBusinessForForm = {
     id: business.id,
     name: business.name,
     slug: business.slug,
-    phone: business.phone ?? "",
-    address: business.address ?? "",
-    // Fall back to models or metadata variables safely
-    sittingCapacity:
-      (business as unknown as { sittingCapacity?: number }).sittingCapacity ??
-      1,
-    categories:
-      (business as unknown as { categories?: string[] }).categories ?? [],
-    description: business.description ?? null,
-    image: business.imageUrl ?? null, // Map from model property to shape token
+    phone: business.phone,
+    address: business.address,
+    sittingCapacity: business.sittingCapacity,
+    categories: business.categories,
+    description: business.description,
+    image: business.image ?? null, // FIXED: Changed business.imageUrl to business.image
+  };
+
+  // Look at your page.tsx file and update this section to inject fallback numbers:
+  const serializedPoliciesForForm = {
+    id: business.id,
+    slug: business.slug,
+    // If the old business row has NULL in the DB, inject your default system numbers here:
+    minNoticeHours: business.minNoticeHours ?? 2,
+    maxAheadDays: business.maxAheadDays ?? 30,
+    cancelWindowHours: business.cancelWindowHours ?? 24,
+    bufferTimeMinutes: business.bufferTimeMinutes ?? 0,
+    timezone: business.timezone || "Africa/Lagos",
+    currencyCode: business.currencyCode || "NGN",
+    emailAlertsActive: business.emailAlertsActive ?? true,
+    customInvoiceNote: business.customInvoiceNote ?? null,
   };
 
   return (
@@ -78,6 +91,7 @@ export default async function VendorSettingsPage({ params }: PageProps) {
       <div className="grid gap-6">
         {/* Pass down the sanitized, theme-adaptive configuration safely to our component */}
         <SettingsForm business={serializedBusinessForForm} />
+        <BookingPolicyForm business={serializedPoliciesForForm} />
       </div>
     </main>
   );

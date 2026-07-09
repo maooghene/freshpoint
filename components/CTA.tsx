@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -11,30 +11,60 @@ import { CtaDashboardPreview } from "./CtaDashboardPreview";
 
 type PreviewTabMode = "BOOKINGS" | "PRODUCTS" | "DELIVERIES";
 
-export default function CTA() {
-  const { user } = useUser();
+export default function CTA(): React.JSX.Element {
+  const { user, isLoaded } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<PreviewTabMode>("BOOKINGS");
 
-  const handleOnboardingRedirect = async () => {
+  // 🎯 MASTER-LEVEL TWCSS AUTOMATED CAROUSEL ROTATOR
+  useEffect(() => {
+    // Array order maps exactly to Calendar (BOOKINGS) -> E-Commerce (PRODUCTS) -> Deliveries (DELIVERIES)
+    const tabsOrder: PreviewTabMode[] = ["BOOKINGS", "PRODUCTS", "DELIVERIES"];
+
+    const intervalId = setInterval(() => {
+      setActiveTab((currentTab) => {
+        const currentIndex = tabsOrder.indexOf(currentTab);
+        const nextIndex = (currentIndex + 1) % tabsOrder.length;
+        return tabsOrder[nextIndex];
+      });
+    }, 3500); // Rotates smoothly every 3.5 seconds
+
+    // Clear the thread lifecycle instantly on unmount to safeguard memory footprints
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleOnboardingRedirect = async (): Promise<void> => {
     if (isLoading) return;
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/check-onboarding");
-      if (!res.ok) {
-        router.push("/register-business");
-        return;
-      }
-      const data = await res.json();
-      router.push(data.destination);
+      /*
+        🎯 THE ABSOLUTE ROUTING REDIRECTION FIX:
+        We push the authenticated user who explicitly clicked "Set Up Your Space" 
+        straight to our unified "/register-business" endpoint.
+      */
+      router.push("/register-business");
     } catch (_err: unknown) {
       router.push("/register-business");
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Guard compilation states against raw hydration shifts
+  if (!isLoaded) {
+    return (
+      <section className="relative py-12 px-6 bg-gradient-to-br from-muted/5 via-background to-muted/10 border-t border-border/40">
+        <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[300px]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            {"Loading Workspace Modules..."}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -49,13 +79,12 @@ export default function CTA() {
               <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10 mx-auto lg:mx-0">
                 <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                  {"Built for Retailers & Service Providers"}
+                  {"Built for Retailers &amp; Service Providers"}
                 </span>
               </div>
               <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1]">
                 {"Scale your workspace, sell or book effortlessly"}
               </h2>
-              {/* 🌟 FIXED: Tailored marketing copy explicitly targets decentralized vendor-controlled delivery settings */}
               <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
                 {
                   "Whether you run a luxury salon needing live calendar schedules, an automated beauty storefront shipping products, or want to offer your clients distance-based doorstep delivery options—Freshpoint acts as your financial command engine. Let clients choose between in-store pickup or delivery, and we automatically calculate and collect logistics fees for you."
@@ -65,7 +94,13 @@ export default function CTA() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               {!user ? (
-                <SignInButton mode="modal" fallbackRedirectUrl="/dashboard">
+                /* 
+                  🎯 THE SIGN-IN FALLBACK FIX:
+                  Changed fallbackRedirectUrl from "/register-business" to "/" (Home).
+                  This allows casual visitors to sign up or sign in cleanly without getting 
+                  trapped inside the vendor registration flow.
+                */
+                <SignInButton mode="modal" fallbackRedirectUrl="/">
                   <Button
                     size="lg"
                     className="w-full sm:w-auto font-bold bg-primary rounded-xl cursor-pointer"
@@ -75,9 +110,12 @@ export default function CTA() {
                   </Button>
                 </SignInButton>
               ) : (
+                /* If they are already signed in, clicking this explicitly initiates onboarding */
                 <Button
                   size="lg"
-                  onClick={handleOnboardingRedirect}
+                  onClick={() => {
+                    void handleOnboardingRedirect();
+                  }}
                   disabled={isLoading}
                   className="w-full sm:w-auto font-bold bg-primary rounded-xl flex items-center justify-center cursor-pointer"
                 >

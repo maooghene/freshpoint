@@ -1,119 +1,39 @@
-import { getAuth } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import { NextRequest, NextResponse } from "next/server";
-import authOwner from "@/lib/authOwner";
-import prisma from "@/lib/prisma";
-import { BookingStatus, LocationType } from "@prisma/client";
+import {
+  BookingUpdatePayload,
+  sanitizeSlug,
+  processBookingStatusUpdate,
+  getFormattedBookings,
+} from "./services";
 
-interface BookingUpdatePayload {
-  BookingId: string;
-  status: BookingStatus;
-}
-
-interface NestedItemDetails {
-  name: string;
-  price: number;
-}
-
-interface SchemaBookingItem {
-  id: string;
-  bookingId: string;
-  itemId: string;
-  item: NestedItemDetails | null;
-}
-
-interface SchemaUserRecord {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-  phone: string | null;
-  image: string | null;
-}
-
-interface BaseBookingWithRelations {
-  id: string;
-  startTime: Date;
-  endTime: Date;
-  status: BookingStatus;
-  locationType: LocationType;
-  totalAmount: number | null;
-  notes: string | null;
-  queueCode: string | null;
-  paymentStatus: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  businessId: string;
-  userId: string;
-  staffId: string | null;
-  user: SchemaUserRecord | null;
-  address: unknown | null;
-  items: SchemaBookingItem[];
-}
-
-// ✅ POST: Allow verified vendor space owners to alter specific booking slots safely
-export async function POST(request: NextRequest) {
+// ✅ POST: Allow verified vendors and operational staff to update states seamlessly
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { userId: clerkId } = getAuth(request);
-    if (!clerkId)
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
+    if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const businessId = await authOwner(clerkId);
-    if (!businessId)
-      return NextResponse.json(
-        { error: "Vendor account mapping required" },
-        { status: 401 },
-      );
+    }
 
     const body: BookingUpdatePayload = await request.json();
-    const { BookingId, status } = body;
-
-    if (!BookingId || !status) {
+    if (!body.BookingId || !body.status) {
       return NextResponse.json(
         { error: "Missing parameters: BookingId or status designation" },
         { status: 400 },
       );
     }
 
-    // 🌟 REFACTORED HYBRID SAFETY GUARD: Allow early service only if status was already CONFIRMED
-    if (status === "COMPLETED") {
-      const existingBooking = await prisma.booking.findUnique({
-        where: { id: BookingId, businessId: businessId },
-        select: { startTime: true, status: true }
-      });
-
-      if (!existingBooking) {
-        return NextResponse.json({ error: "Booking session parameters not found" }, { status: 404 });
-      }
-
-      const today = new Date();
-      const scheduledDate = new Date(existingBooking.startTime);
-
-      today.setHours(0, 0, 0, 0);
-      scheduledDate.setHours(0, 0, 0, 0);
-
-      // If today is BEFORE the appointment date AND the booking was never explicitly Confirmed
-      if (today < scheduledDate && existingBooking.status !== "CONFIRMED") {
-        const formattedDate = new Date(existingBooking.startTime).toLocaleDateString("en-NG", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-
-        return NextResponse.json(
-          { 
-            error: "Action Blocked", 
-            message: `Cannot complete a pending future appointment early. Please mark it as 'Confirmed' first to verify the client was served today (${formattedDate}).` 
-          }, 
-          { status: 422 }
-        );
-      }
+    const result = await processBookingStatusUpdate(
+      body.BookingId,
+      body.status,
+      clerkId,
+    );
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error, message: result.message },
+        { status: result.status },
+      );
     }
-
-    // Execute status commit seamlessly
-    await prisma.booking.update({
-      where: { id: BookingId, businessId: businessId },
-      data: { status },
-    });
 
     return NextResponse.json(
       { message: "Appointment status changed and updated successfully" },
@@ -128,89 +48,34 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ✅ GET: Fetch all historic and live bookings formatted explicitly for frontend components
-export async function GET(request: NextRequest) {
+// ✅ GET: Fetch all historic and live bookings formatted for frontend components
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const { userId: clerkId } = getAuth(request);
-    if (!clerkId)
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
+    if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const businessId = await authOwner(clerkId);
-    if (!businessId)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { searchParams } = new URL(request.url);
+    const rawSlug = searchParams.get("slug");
+    if (!rawSlug) {
+      return NextResponse.json(
+        { error: "Business slug parameter required" },
+        { status: 400 },
+      );
+    }
 
-    const bookings = await prisma.booking.findMany({
-      where: { businessId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            image: true,
-          },
-        },
-        address: true,
-        items: {
-          include: {
-            item: {
-              select: {
-                name: true,
-                price: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const slug = sanitizeSlug(rawSlug);
+    const result = await getFormattedBookings(slug, clerkId);
 
-    const formattedBookings = (
-      bookings as unknown as BaseBookingWithRelations[]
-    ).map((booking: BaseBookingWithRelations) => {
-      const bookingItemsArray = booking.items || [];
-      const [firstRelationRecord] = bookingItemsArray;
-      const coreItemMetadata = firstRelationRecord
-        ? firstRelationRecord.item
-        : null;
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status },
+      );
+    }
 
-      return {
-        id: booking.id,
-        startTime: booking.startTime
-          ? booking.startTime.toISOString()
-          : new Date().toISOString(),
-        endTime: booking.endTime
-          ? booking.endTime.toISOString()
-          : new Date().toISOString(),
-        status: booking.status,
-        notes: booking.notes,
-        createdAt: booking.createdAt
-          ? booking.createdAt.toISOString()
-          : new Date().toISOString(),
-
-        queueCode: booking.queueCode || "NO-CODE",
-        paymentStatus: booking.paymentStatus || "PENDING",
-
-        user: {
-          firstName: booking.user?.firstName || "Client",
-          lastName: booking.user?.lastName || "Profile",
-          email: booking.user?.email || "N/A",
-          phone: booking.user?.phone || "N/A",
-        },
-
-        item: {
-          name: coreItemMetadata?.name || "General Treatment",
-          price: booking.totalAmount || coreItemMetadata?.price || 0,
-          duration: null,
-        },
-      };
-    });
-
-    return NextResponse.json({ bookings: formattedBookings }, { status: 200 });
+    return NextResponse.json({ bookings: result.data }, { status: 200 });
   } catch (error: unknown) {
     console.error("BUSINESS_BOOKINGS_GET_ERROR:", error);
     return NextResponse.json(

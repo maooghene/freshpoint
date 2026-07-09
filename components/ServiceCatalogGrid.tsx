@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ClockIcon,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface ServiceItem {
   id: string;
@@ -59,34 +59,21 @@ export function ServiceCatalogGrid({ services }: ServiceCatalogGridProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {services.map((service: ServiceItem) => {
         const isReviewsOpen = !!expandedReviews[service.id];
-        const hasValidImage = service.image && service.image.trim().length > 0;
 
         return (
           <div
             key={service.id}
             className="flex flex-row md:flex-col bg-card border border-border rounded-xl overflow-hidden shadow-2xs hover:shadow-md hover:border-primary/20 transition-all duration-200 p-3 gap-4 h-fit"
           >
-            {/* Image Frame Section */}
             <div className="relative w-20 h-20 md:w-full md:aspect-video rounded-lg overflow-hidden bg-muted shrink-0 border border-border/40 flex items-center justify-center">
-              {hasValidImage ? (
-                <Image
-                  src={service.image as string}
-                  alt={service.name}
-                  fill
-                  className="object-cover group-hover:scale-103 transition-transform duration-300"
-                />
-              ) : (
-                // 🌟 FIXED: Pure CSS box background. No image files called, zero chance of a 404 server crash!
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 text-primary/40 p-2 text-center">
-                  <Activity className="w-5 h-5 mb-1 text-primary/30" />
-                  <span className="text-[9px] font-bold tracking-wider uppercase opacity-80">
-                    Treatment
-                  </span>
-                </div>
-              )}
+              <ImageWithFallback
+                src={service.image}
+                alt={service.name}
+                icon={Activity}
+                label="Treatment"
+              />
             </div>
 
-            {/* Content Container Frame */}
             <div className="flex-1 flex flex-col justify-between space-y-2 min-w-0">
               <div className="space-y-0.5">
                 <h3 className="font-bold text-foreground text-sm tracking-tight truncate">
@@ -98,7 +85,6 @@ export function ServiceCatalogGrid({ services }: ServiceCatalogGridProps) {
                 </p>
               </div>
 
-              {/* Compact Review Panel */}
               <div className="border-t border-b border-border/40 py-1">
                 <button
                   type="button"
@@ -120,7 +106,6 @@ export function ServiceCatalogGrid({ services }: ServiceCatalogGridProps) {
                 )}
               </div>
 
-              {/* Financial Rate Layout Line */}
               <div className="flex items-center justify-between pt-1">
                 <p className="font-black text-foreground text-sm">
                   ₦{service.price.toLocaleString()}

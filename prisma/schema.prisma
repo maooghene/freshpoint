@@ -82,6 +82,7 @@ model User {
 }
 
 model Business {
+  // ── 1️⃣ EXISTING PRODUCTION CORE SYSTEM SLATES ──
   id              String             @id @default(cuid())
   name            String
   slug            String             @unique // Essential for tenant subdomains or clean URL parameters
@@ -94,7 +95,29 @@ model Business {
   image           String?
   status          String             @default("pending")
   isActive        Boolean            @default(false)
+  latitude        Float              @default(6.5244)
+  longitude       Float              @default(3.3792)
 
+  // ── 2️⃣ ADVANCED BOOKING TIMELINE BOUNDARY CONTROLS ──
+  minNoticeHours       Int           @default(2)   // Block last-minute bookings (e.g., must book 2 hours ahead)
+  maxAheadDays         Int           @default(30)  // Caps future calendar visibility (e.g., maximum 30 days out)
+  cancelWindowHours    Int           @default(24)  // Cut-off time threshold for safe client cancellations
+  bufferTimeMinutes    Int           @default(0)   // Mandatory station/worker cooldown buffer injected after slots
+
+  // ── 3️⃣ LOCALIZATION & OPERATIONAL PARAMETERS ──
+  timezone             String        @default("Africa/Lagos") // Prevents serverless-vs-client hydration drift
+  currencyCode         String        @default("NGN")          // Defaults to Naira, adaptable for platform growth
+
+  // ── 4️⃣ NOTIFICATION & TRANSACTION ENGINE CONTROLS ──
+  emailAlertsActive    Boolean       @default(true)  // Toggles Resend SDK transaction block triggers
+  smsAlertsActive      Boolean       @default(false) // Ready for future local SMS gateway integration
+  customInvoiceNote    String?                       // Appends specialized gate codes or parking instructions
+
+  // ── 5️⃣ DEPOSIT & PAYMENT SECURITY PARAMETERS ──
+  requireDeposit       Boolean       @default(false) // Toggle to enforce upfront commitment deposits
+  depositPercentage    Int           @default(0)     // Percentage integer bound rule (e.g., 20 for 20% down-payment)
+
+  // ── 6️⃣ EXISTING PRODUCTION RELATIONSHIPS ──
   ownerId         String 
   owner           User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
@@ -111,6 +134,7 @@ model Business {
 
   @@index([ownerId])
 }
+
 
 // ==========================================
 // SALON STAFF & AVAILABILITY
@@ -342,8 +366,6 @@ model Rating {
   @@index([userId])
   @@index([bookingId]) 
 }
-
-
 
 model Address {
   id        String    @id @default(cuid())

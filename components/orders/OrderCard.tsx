@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Calendar,
@@ -11,9 +10,11 @@ import {
   MapPin,
   ArrowUpRight,
   MessageSquare,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReviewModal } from "./ReviewModal";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface HistoryItem {
   id: string;
@@ -32,7 +33,7 @@ interface OrderCardProps {
     totalAmount: number;
     isDelivery: boolean;
     deliveryAddress: string | null;
-    businessId: string; // Ensure your server page passes this token property down!
+    businessId: string;
     createdAt: string;
     business: { name: string };
     items: HistoryItem[];
@@ -62,7 +63,6 @@ export function OrderCard({ order }: OrderCardProps) {
 
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xs hover:shadow-sm transition-all duration-200">
-      {/* Header Banner */}
       <div className="p-4 px-5 bg-muted/20 border-b border-border flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
           <span className="flex items-center gap-1" suppressHydrationWarning>
@@ -94,7 +94,6 @@ export function OrderCard({ order }: OrderCardProps) {
         </div>
       </div>
 
-      {/* Info Block */}
       <div className="p-5 space-y-4">
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div>
@@ -117,7 +116,6 @@ export function OrderCard({ order }: OrderCardProps) {
           )}
         </div>
 
-        {/* Item Rows List */}
         <div className="divide-y divide-border/60 border border-border/80 rounded-xl bg-background/40 overflow-hidden">
           {order.items.map((lineItem) => (
             <div
@@ -126,11 +124,12 @@ export function OrderCard({ order }: OrderCardProps) {
             >
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <div className="w-10 h-10 relative bg-muted rounded-xl overflow-hidden border shrink-0 border-border">
-                  <Image
-                    src={lineItem.image || "/placeholder-product.jpg"}
+                  <ImageWithFallback
+                    src={lineItem.image}
                     alt={lineItem.name}
-                    fill
-                    className="object-cover"
+                    icon={Package}
+                    label=""
+                    sizes="40px"
                   />
                 </div>
                 <div className="min-w-0">
@@ -166,7 +165,6 @@ export function OrderCard({ order }: OrderCardProps) {
           ))}
         </div>
 
-        {/* Footer Sum */}
         <div className="pt-3 border-t border-border/40 flex items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-black uppercase text-muted-foreground block">
@@ -193,7 +191,6 @@ export function OrderCard({ order }: OrderCardProps) {
         </div>
       </div>
 
-      {/* 🚀 FIXED INJECTION: Explicitly passing order.businessId down to the review modal layer */}
       <ReviewModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

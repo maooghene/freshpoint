@@ -138,8 +138,12 @@ export default function DesktopSidebar({
 
           {/* 💡 SIDE-BY-SIDE EXIT WORKSPACE: Embedded directly in row on desktop to save space */}
           <Link
-            href="/explore"
+            href="/"
             title="Exit Workspace"
+            onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+              e.preventDefault();
+              window.location.href = "/";
+            }}
             className={`group inline-flex h-8 items-center justify-center rounded-lg border border-transparent transition-all duration-200 bg-secondary/30 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/20 ${
               isCollapsed
                 ? "w-8"

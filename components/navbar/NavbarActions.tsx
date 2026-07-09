@@ -16,7 +16,7 @@ interface NavbarActionsProps {
   isCurrentlyInBusinessDashboard: boolean;
   businessId: string;
   hasBusinessAccess: boolean;
-  merchantDashboardHref: string;
+  merchantDashboardHref: string | null;
 }
 
 export function NavbarActions({
@@ -24,7 +24,7 @@ export function NavbarActions({
   businessId,
   hasBusinessAccess,
   merchantDashboardHref,
-}: NavbarActionsProps) {
+}: NavbarActionsProps): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
@@ -45,7 +45,7 @@ export function NavbarActions({
     return () => clearTimeout(handler);
   }, []);
 
-  const handleMobileSearch = (e: React.FormEvent) => {
+  const handleMobileSearch = (e: React.FormEvent): void => {
     e.preventDefault();
     setIsMobileOpen(false);
     router.push(
@@ -56,43 +56,73 @@ export function NavbarActions({
   };
 
   return (
-    <div className="flex flex-1 items-center justify-end md:justify-between w-full h-full">
-      {/* 1. Desktop Stacks Injection */}
+    <div className="flex flex-1 items-center justify-end md:justify-between w-full h-full min-w-0">
+      {/* 1. Desktop Actions Integration */}
       <DesktopActions
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        handleDesktopSearch={handleMobileSearch} // Reuses your proven working router logic function!
+        handleDesktopSearch={handleMobileSearch}
         theme={theme}
         setTheme={setTheme}
         mounted={mounted}
         cartItemsCount={cartItemsCount}
       />
 
-      {/* Business Portal Link Sockets */}
-      {hasBusinessAccess && !isCurrentlyInBusinessDashboard && (
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="hidden lg:flex rounded-xl font-bold text-xs bg-card border-border shadow-2xs"
-        >
-          <Link href={merchantDashboardHref}>Biz Dashboard</Link>
-        </Button>
+      {/* Business Portal Link Socket */}
+      {hasBusinessAccess && merchantDashboardHref && (
+        // 🌟 SPACED OUT: Added margin utilities (ml-5 mr-3) to separate the shop button cleanly
+        <div className="hidden lg:flex items-center gap-2 min-w-0 ml-5 mr-3 shrink-0 select-none">
+          <div className="relative flex h-1.5 w-1.5 shrink-0 select-none">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+          </div>
+
+          <Button
+            asChild
+            variant="outline"
+            // 🌟 REDUCED DENSITY: Clamped height down to h-8.5 and text to text-[11px] for space optimization
+            className="relative overflow-hidden group h-8.5 rounded-xl border border-zinc-200/80 bg-white/70 backdrop-blur-md px-3.5 text-[11px] font-bold text-zinc-800 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-emerald-600 hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 active:translate-y-0 dark:border-zinc-200/80 dark:bg-zinc-950/70 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-emerald-400 dark:hover:border-emerald-500/40 cursor-pointer"
+          >
+            <Link
+              href={merchantDashboardHref || "#"}
+              className="flex items-center gap-1.5"
+            >
+              <svg
+                className="h-3 w-3 shrink-0 transition-transform duration-300 group-hover:rotate-12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+              </svg>
+
+              <span className="tracking-wide">{"My Shop"}</span>
+            </Link>
+          </Button>
+        </div>
       )}
 
-      {/* 2. Clerk Auth Token Trigger */}
-      <UserAuthButton isSignedIn={isSignedIn} />
+      {/* 2. Clerk Auth Button Trigger */}
+      <div className="shrink-0">
+        <UserAuthButton isSignedIn={isSignedIn} />
+      </div>
 
-      {/* 3. Responsive Hamburger Mobile Toggle Button */}
+      {/* 3. Hamburger Mobile Trigger */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer z-50 relative animate-fadeIn"
+        className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer z-50 relative shrink-0 ml-2"
         aria-label="Toggle navigation overlay drawer"
       >
-        {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
+        {isMobileOpen ? <X size={18} /> : <Menu size={18} />}
       </button>
 
-      {/* 4. Full Viewport Mobile Drawer Modal Injection */}
+      {/* 4. Mobile Drawer Modal Injection */}
       {isMobileOpen && (
         <MobileDrawer
           searchQuery={searchQuery}

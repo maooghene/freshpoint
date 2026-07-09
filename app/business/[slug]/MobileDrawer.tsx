@@ -53,7 +53,7 @@ export default function MobileDrawer({
         <div className="flex items-center justify-between border-b border-border px-5 py-4 shrink-0 min-w-0 gap-2">
           <div className="flex min-w-0 items-center gap-2 flex-1">
             <SparklesIcon className="h-5 w-5 shrink-0 text-primary" />
-            <span className="truncate font-black text-lg text-foreground">
+            <span className=" font-black text-lg text-foreground">
               {businessInfo?.name || "FreshPoint"}
             </span>
           </div>
@@ -113,8 +113,12 @@ export default function MobileDrawer({
 
             {/* 💡 MOVED LINK: Exit Workspace shifted into the same horizontal panel row on mobile viewports */}
             <Link
-              href="/explore"
-              onClick={() => setIsOpen(false)}
+              href="/"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsOpen(false);
+                window.location.href = "/";
+              }}
               className="flex-1 inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-border text-muted-foreground transition-colors hover:border-primary hover:text-foreground bg-secondary/20 px-3 text-xs font-bold"
               aria-label="Exit current workspace and browse providers"
             >

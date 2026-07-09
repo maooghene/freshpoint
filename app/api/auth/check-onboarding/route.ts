@@ -1,42 +1,158 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export async function GET(): Promise<NextResponse> {
   try {
     const { userId } = await auth();
 
-    // 1. If not authenticated, prompt back to standard creation entry point fallback
+    // 1. If not authenticated, prompt back to standard registration fallback entry point
     if (!userId) {
       return NextResponse.json({ destination: "/register-business" });
     }
 
-    // 2. Fetch the corresponding internal database system user id index
-    const systemUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
+    const clerkUser = await currentUser();
+    const emailAddress =
+      clerkUser?.emailAddresses?.[0]?.emailAddress?.toLowerCase().trim() || "";
 
-    if (!systemUser) {
-      // Fallback destination if the database user row hasn't synced yet
+    if (!emailAddress) {
       return NextResponse.json({ destination: "/register-business" });
     }
 
-    // 3. Find the first business owned explicitly by this caller to grab its slug token
-    const existingBusiness = await prisma.business.findFirst({
-      where: { ownerId: systemUser.id },
-      select: { slug: true },
+    // Resolve or sync basic account data profile matrices safely
+    const systemUser = await prisma.user.upsert({
+      where: { email: emailAddress },
+      update: { clerkId: userId },
+      create: {
+        clerkId: userId,
+        email: emailAddress,
+        firstName: clerkUser?.firstName || "Valued",
+        lastName: clerkUser?.lastName || "Guest",
+        role: "CUSTOMER",
+      },
     });
 
-    // 4. THE CORRECT CORRECTION: Dynamically point returning merchants to /business/[slug] instead of /dashboard
-    const destination = existingBusiness
-      ? `/business/${existingBusiness.slug}`
-      : "/register-business";
+    /* =========================================================================
+       🎯 RELATIONAL CONTEXT DIGESTION PHASE
+       Pre-fetch and evaluate all potential organizational structural links 
+       bound to this unified system account profile.
+       ========================================================================= */
 
-    return NextResponse.json({ destination });
-  } catch {
-    return NextResponse.json(
-      { destination: "/register-business" },
-      { status: 500 },
+    // Check if this user owns a business store setup
+    const existingBusiness = await prisma.business.findFirst({
+      where: { ownerId: systemUser.id },
+      select: { slug: true, status: true, isActive: true },
+    });
+
+    // Check if they have an active working staff profile record linked to an email roster
+    const activeStaffWorkspace = await prisma.staffProfile.findFirst({
+      where: {
+        email: emailAddress,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        business: { select: { slug: true } },
+      },
+    });
+
+    const isBusinessOwner = !!(existingBusiness && existingBusiness.slug);
+    const isStaffMember = !!(
+      activeStaffWorkspace && activeStaffWorkspace.business?.slug
     );
+
+    /* =========================================================================
+       🔀 PRIORITY 0: MULTI-IDENTITY CROSSROADS INTERCEPT
+       If the user account owns a storefront AND is an active employee inside 
+       a distinct multi-tenant matrix, send them to the workspace portal chooser.
+       ========================================================================= */
+    if (isBusinessOwner && isStaffMember) {
+      return NextResponse.json({ destination: "/workspace-selector" });
+    }
+
+    /* =========================================================================
+       👑 PRIORITY 1: SINGLE-TRACK MERCHANT BUSINESS OWNER CHECK
+       If this account owns a store, they must ALWAYS go to their manager dashboard.
+       This breaks the loop and stops business owners from getting stuck in staff checks.
+       ========================================================================= */
+    if (isBusinessOwner && existingBusiness) {
+      // 🌟 AUTOMATED VETTING VERIFICATION RECONCILIATION:
+      // If approved, push to live dashboard link. If rejected, route back to form layout!
+      if (existingBusiness.status === "approved" && existingBusiness.isActive) {
+        return NextResponse.json({
+          destination: `/business/${existingBusiness.slug}`,
+        });
+      } else {
+        return NextResponse.json({
+          destination: "/register-business",
+        });
+      }
+    }
+
+    /* =========================================================================
+       🎯 PRIORITY 2: UNCLAIMED STAFF INVITATION TOKEN MATCH
+       If they don't own a business, check if they have a pending invite token 
+       matching their email. If found, link it atomically right now.
+       ========================================================================= */
+    const pendingInvitation = await prisma.staffProfile.findFirst({
+      where: {
+        email: emailAddress,
+        userId: null,
+      },
+    });
+
+    if (pendingInvitation) {
+      await prisma.staffProfile.update({
+        where: { id: pendingInvitation.id },
+        data: {
+          userId: systemUser.id,
+          isActive: true,
+          name: `${systemUser.firstName} ${systemUser.lastName}`.trim(),
+        },
+      });
+
+      // Update local role tag; if they subsequently create a business,
+      // the Priority 0 interceptor handles the role selection selector.
+      await prisma.user.update({
+        where: { id: systemUser.id },
+        data: { role: "STAFF" },
+      });
+
+      const assignedStore = await prisma.business.findUnique({
+        where: { id: pendingInvitation.businessId },
+        select: { slug: true },
+      });
+
+      return NextResponse.json({
+        destination: assignedStore?.slug
+          ? `/business/${assignedStore.slug}`
+          : "/staff/dashboard",
+      });
+    }
+
+    /* =========================================================================
+       💼 PRIORITY 3: ESTABLISHED WORKING TEAM PROFILE CHECK
+       Only route them to the staff dashboard if they have a staff profile record 
+       AND it is verified as active (isActive: true).
+       ========================================================================= */
+    if (isStaffMember && activeStaffWorkspace.business) {
+      return NextResponse.json({
+        destination: `/business/${activeStaffWorkspace.business.slug}`,
+      });
+    }
+
+    /* =========================================================================
+       🛒 PRIORITY 4: STANDARD CUSTOMER FALLBACK
+       If they aren't a business owner, have no pending invites, and aren't an 
+       active staff member, they are a normal client. Send them to the homepage cleanly!
+       ========================================================================= */
+    return NextResponse.json({ destination: "/" });
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Fatal onboarding check error";
+    console.error("ONBOARDING_CHECK_ERROR:", errorMsg);
+    return NextResponse.json({ destination: "/" }, { status: 500 });
   }
 }

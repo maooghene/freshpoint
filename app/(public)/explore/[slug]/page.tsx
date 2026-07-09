@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { ServiceCatalogGrid } from "@/components/ServiceCatalogGrid";
 import { ProductCatalogGrid } from "@/components/ProductCatalogGrid";
 import { BusinessProfileHeader } from "@/components/BusinessProfileHeader";
-import { BusinessReviewList } from "@/components/BusinessReviewList";
 
 interface UnifiedItem {
   id: string;
@@ -55,6 +54,17 @@ export default function BusinessProfile() {
     if (!slug) return;
     let isMounted = true;
 
+    const resolveWorkspaceImage = (savedPath: string | null): string => {
+      if (!savedPath || savedPath.trim().length === 0) {
+        return "/placeholder-business.jpg";
+      }
+      if (savedPath.startsWith("http://") || savedPath.startsWith("https://")) {
+        return savedPath;
+      }
+      const cleanPath = savedPath.replace(/^\//, "");
+      return `https://imagekit.io{cleanPath}`;
+    };
+
     const fetchWorkspaceData = async () => {
       try {
         const cleanSlug = decodeURIComponent(slug);
@@ -74,7 +84,7 @@ export default function BusinessProfile() {
           name: data.name,
           slug: data.slug,
           description: data.description,
-          image: data.image,
+          image: resolveWorkspaceImage(data.image), // Fixed: Sanitizes raw payload path cleanly
           address: data.address,
           email: data.email,
           phone: data.phone,
@@ -124,7 +134,6 @@ export default function BusinessProfile() {
 
   return (
     <div className="relative min-h-screen overflow-hidden pt-24 bg-background text-foreground">
-      {/* Background vectors */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)] bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)]" />
       </div>
@@ -137,7 +146,6 @@ export default function BusinessProfile() {
           <ArrowLeftIcon className="w-4 h-4" /> Back to Providers
         </button>
 
-        {/* 1. Header Card Building Block */}
         <BusinessProfileHeader
           id={businessInfo.id}
           name={businessInfo.name}
@@ -150,26 +158,50 @@ export default function BusinessProfile() {
           email={businessInfo.email}
         />
 
-        {/* 2. Catalog Content Presentation Sections */}
-        <div className="space-y-16">
-          {services.length > 0 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-black tracking-tight">
-                Available Treatments & Services
-              </h2>
+        {/* 💡 FIXED: Layman-friendly fallback displays if services or products collection array evaluates empty */}
+        <div className="space-y-16 mt-12">
+          {/* TREATMENT SERVICES RENDERING ROW */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-black tracking-tight">
+              Available Treatments & Services
+            </h2>
+            {services.length > 0 ? (
               <ServiceCatalogGrid services={services} />
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-12 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-2">
+                <p className="text-sm font-bold text-foreground">
+                  No Services Available
+                </p>
+                <p className="text-xs text-muted-foreground font-medium max-w-xs mx-auto">
+                  {
+                    "This workspace provider has not added any treatments or styling services to their profile grid yet."
+                  }
+                </p>
+              </div>
+            )}
+          </div>
 
-          {products.length > 0 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                <ShoppingBagIcon className="w-5 h-5 text-primary" /> Available
-                Products
-              </h2>
+          {/* RETAIL PRODUCTS RENDERING ROW */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+              <ShoppingBagIcon className="w-5 h-5 text-primary" /> Available
+              Products
+            </h2>
+            {products.length > 0 ? (
               <ProductCatalogGrid products={products} />
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-12 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-2">
+                <p className="text-sm font-bold text-foreground">
+                  No Products Listed
+                </p>
+                <p className="text-xs text-muted-foreground font-medium max-w-xs mx-auto">
+                  {
+                    "This vendor has not made any retail products or items available for customer checkout orders yet."
+                  }
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

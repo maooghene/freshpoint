@@ -1,34 +1,48 @@
 import * as React from "react";
 import { notFound } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { BookingStatus, OrderStatus } from "@prisma/client";
 import { computeTimelineData, mergeActivities } from "@/lib/dashboard-helpers";
-import { MetricsGrid } from "@/components/business/dashboard/MetricsGrid";
 import PerformanceCharts from "./PerformanceCharts";
 import RecentActivityFeed from "./RecentActivityFeed";
-
-interface PageProps {
-  params: Promise<{ slug: string }>;
-}
+import DashboardHeader from "./DashboardHeader";
+import DashboardMetricsWrapper from "./DashboardMetricsWrapper";
+import {
+  PageProps,
+  FullDashboardBusinessData,
+  RichBookingTimelineRecord,
+  RichOrderTimelineRecord,
+} from "./types";
 
 export default async function BusinessDashboardPage({ params }: PageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
   const { userId: clerkId } = await auth();
 
   if (!clerkId) notFound();
 
-  // 1️⃣ SCOPE VARIABLES OUTSIDE: Isolate your data layer parameters from your JSX tree
-  let business;
-  let latestBookings = [];
-  let latestOrders = [];
+  const clerkUser = await currentUser();
+  const ownerName = clerkUser?.firstName ? `, ${clerkUser.firstName}` : "";
+
+  let business: FullDashboardBusinessData | null = null;
+  let latestBookings: RichBookingTimelineRecord[] = [];
+  let latestOrders: RichOrderTimelineRecord[] = [];
 
   try {
-    business = await prisma.business.findFirst({
-      where: { slug },
-      include: {
+    const systemUser = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { id: true },
+    });
+
+    if (!systemUser) notFound();
+
+    // Context Fallback Check
+    const initialFetch = await prisma.business.findUnique({
+      where: { slug: rawSlug },
+      select: {
+        id: true,
+        ownerId: true,
         staff: { where: { isActive: true }, select: { id: true } },
-        items: { where: { isActive: true }, select: { id: true, type: true } },
+        items: { select: { id: true, type: true } },
         bookings: {
           select: {
             id: true,
@@ -48,14 +62,67 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
       },
     });
 
+    business = initialFetch as FullDashboardBusinessData | null;
+
+    if (!business) {
+      const sanitizedSlug = rawSlug.startsWith("-")
+        ? rawSlug.slice(1)
+        : rawSlug;
+
+      const fallbackFetch = await prisma.business.findUnique({
+        where: { slug: sanitizedSlug },
+        select: {
+          id: true,
+          ownerId: true,
+          staff: { where: { isActive: true }, select: { id: true } },
+          items: { select: { id: true, type: true } },
+          bookings: {
+            select: {
+              id: true,
+              status: true,
+              totalAmount: true,
+              createdAt: true,
+            },
+          },
+          orders: {
+            select: {
+              id: true,
+              status: true,
+              totalAmount: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      business = fallbackFetch as FullDashboardBusinessData | null;
+    }
+
     if (!business) notFound();
 
-    [latestBookings, latestOrders] = await Promise.all([
+    // Multi-tenant Security Scope Boundary Validation
+    if (business.ownerId !== systemUser.id) {
+      const isRosteredStaff = await prisma.staffProfile.findFirst({
+        where: {
+          userId: systemUser.id,
+          businessId: business.id,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!isRosteredStaff) notFound();
+    }
+
+    const [bookingsRaw, ordersRaw] = await Promise.all([
       prisma.booking.findMany({
         where: { businessId: business.id },
         take: 3,
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          totalAmount: true,
+          createdAt: true,
           user: { select: { firstName: true, lastName: true, email: true } },
         },
       }),
@@ -63,12 +130,19 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
         where: { businessId: business.id },
         take: 3,
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          totalAmount: true,
+          createdAt: true,
           user: { select: { firstName: true, lastName: true, email: true } },
         },
       }),
     ]);
-  } catch (error) {
+
+    latestBookings = bookingsRaw as RichBookingTimelineRecord[];
+    latestOrders = ordersRaw as RichOrderTimelineRecord[];
+  } catch (error: unknown) {
     console.error("Dashboard database fetch failure:", error);
     return (
       <div className="mx-auto flex min-h-[50vh] w-full max-w-3xl items-center justify-center px-4">
@@ -84,68 +158,22 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
     );
   }
 
-  // 2️⃣ METRIC COMPUTATIONS: Process data calculations safely outside try/catch boundaries
-  const totalServicesCount = business.items.filter(
-    (i) => i.type === "SERVICE",
-  ).length;
-  const totalProductsCount = business.items.filter(
-    (i) => i.type === "PRODUCT",
-  ).length;
-  const totalStaffCount = business.staff.length;
-
-  const bookingRevenue = business.bookings
-    .filter((b) => b.status === BookingStatus.COMPLETED)
-    .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-  const orderRevenue = business.orders
-    .filter((o) => o.status === OrderStatus.DELIVERED)
-    .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
-  const formattedRevenue = `₦${(bookingRevenue + orderRevenue).toLocaleString()}`;
-
-  const activeBookingsCount = business.bookings.filter(
-    (b) =>
-      b.status === BookingStatus.CONFIRMED ||
-      b.status === BookingStatus.PENDING,
-  ).length;
-
-  const activeOrdersCount = business.orders.filter(
-    (o) =>
-      o.status === OrderStatus.PENDING ||
-      o.status === OrderStatus.PROCESSING ||
-      o.status === OrderStatus.SHIPPED,
-  ).length;
-
   const performanceTimelineData = computeTimelineData(
     business.bookings,
     business.orders,
   );
   const unifiedActivities = mergeActivities(latestBookings, latestOrders);
 
-  // 3️⃣ UNBLOCKED CLEAN JSX RETURN: No try/catch boundaries wrapping this layout tree
   return (
     <div className="space-y-8 w-full max-w-7xl mx-auto min-w-0">
-      <div className="flex flex-col gap-1 border-b border-border pb-6 min-w-0">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground truncate">
-          Workspace Overview
-        </h1>
-        <p className="text-muted-foreground text-sm font-medium truncate">
-          Monitor real-time analytics indicators, revenue yields, and active
-          staff.
-        </p>
-      </div>
+      <DashboardHeader ownerName={ownerName} />
 
-      <MetricsGrid
-        formattedRevenue={formattedRevenue}
-        activeBookingsCount={activeBookingsCount}
-        activeOrdersCount={activeOrdersCount}
-        totalStaffCount={totalStaffCount}
-        totalServicesCount={totalServicesCount}
-        totalProductsCount={totalProductsCount}
-      />
+      <DashboardMetricsWrapper business={business} />
 
       <div className="w-full min-w-0">
         <PerformanceCharts data={performanceTimelineData} />
       </div>
+
       <div className="w-full min-w-0">
         <RecentActivityFeed activities={unifiedActivities} />
       </div>

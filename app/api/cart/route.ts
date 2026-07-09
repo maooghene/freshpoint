@@ -1,11 +1,11 @@
-import { getAuth } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // FIXED: Core default Prisma v7 import instance
+import prisma from "@/lib/prisma";
 
 // ✅ POST: Synchronize and persist client-side basket states to the database
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
 
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 // ✅ GET: Retrieve active cart and nested stock items for a specific tenant shop
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
 
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

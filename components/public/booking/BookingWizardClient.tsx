@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Sparkles, ClockIcon, MapPinIcon, Calendar, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useBookingState } from "@/hooks/useBookingState";
 import { BookingSlotsGrid } from "@/components/BookingSlotsGrid";
 import { SpecialistSidebar } from "@/components/SpecialistSidebar";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface StaffScheduleDetails {
   day: string;
@@ -72,7 +72,6 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
       return;
     }
 
-    // 🚨 ABSOLUTE HARD BLOCK: Specialist is off duty
     if (isSelectedSpecialistOffDuty) {
       alert(
         "This professional is scheduled to be off duty on this day. You cannot proceed to checkout with this selection.",
@@ -101,14 +100,14 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
 
   return (
     <div className="w-full space-y-8 py-12 animate-in fade-in duration-300">
-      {/* HERO HEADER ROW */}
       <div className="bg-card border border-border rounded-[2rem] p-6 flex flex-col sm:flex-row gap-6 items-center shadow-xs">
         <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-muted border border-border shrink-0">
-          <Image
-            src={item.image || "/placeholder-service.jpg"}
+          <ImageWithFallback
+            src={item.image}
             alt={item.name}
-            fill
-            className="object-cover"
+            icon={Sparkles}
+            label="Treatment"
+            sizes="96px"
           />
         </div>
 
@@ -158,10 +157,8 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
         </div>
       </div>
 
-      {/* MATRIX SELECTOR GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-card border border-border rounded-[2rem] p-6 space-y-8 shadow-xs">
-          {/* CALENDAR SELECTOR */}
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-extrabold text-lg tracking-tight">
@@ -189,7 +186,6 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
             </div>
           </div>
 
-          {/* DYNAMIC TIME SLOTS */}
           <BookingSlotsGrid
             fetchingHours={fetchingHours}
             isSelectedSpecialistOffDuty={isSelectedSpecialistOffDuty}
@@ -199,7 +195,6 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
           />
         </div>
 
-        {/* SIDEBAR SECTOR */}
         <div className="space-y-6">
           <SpecialistSidebar
             selectedStaff={selectedStaff}
@@ -208,7 +203,6 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
             evaluatedStaffRoster={evaluatedStaffRoster}
           />
 
-          {/* CTA ACTIONS CONTAINER */}
           <div className="bg-card border border-border rounded-[2rem] p-5 shadow-xs space-y-4">
             {isSelectedSpecialistOffDuty && (
               <div className="flex gap-2 text-xs text-destructive bg-destructive/5 p-3 rounded-xl border border-destructive/20 items-start">

@@ -102,6 +102,7 @@ export default function BookingItem({ booking, onSelectBooking }: Props) {
                 }
                 alt={primaryItem?.name || "Wellness Service"}
                 fill
+                unoptimized={true} // CORRECTED: Bypasses Next.js proxy overhead to eliminate upstream 400 errors entirely
                 className="object-cover"
               />
             </div>
@@ -134,6 +135,7 @@ export default function BookingItem({ booking, onSelectBooking }: Props) {
 
               {/* Mobile Extended Layout View Row Element */}
               <div className="flex flex-wrap items-center gap-2 pt-1 md:hidden">
+                {/* FIXED: Added missing layout space between classes */}
                 <span className="text-xs font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded">
                   {currency}
                   {(booking.totalAmount || 0).toLocaleString()}

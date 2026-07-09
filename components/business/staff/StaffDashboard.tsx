@@ -1,23 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { UsersIcon, PlusIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import InviteStaffForm from "./InviteStaffForm";
 import StaffMemberRow from "./StaffMemberRow";
 import StaffScheduleEditor from "./StaffScheduleEditor";
+
+// Clean modular sub-module component mappings
+import { DashboardHeaderCard } from "./components/DashboardHeaderCard";
+import { EmptyStaffState } from "./components/EmptyStaffState";
 import { Business, StaffMember } from "./types";
 
-interface Props {
+interface StaffDashboardProps {
   business: Business;
+  businessId: string;
   businessSlug: string;
 }
 
-export default function StaffDashboard({ business, businessSlug }: Props) {
+export default function StaffDashboard({
+  business,
+  businessId,
+  businessSlug,
+}: StaffDashboardProps): React.JSX.Element {
   const [staff, setStaff] = useState<StaffMember[]>(business.staff);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addingStaff, setAddingStaff] = useState(false);
+  const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [addingStaff, setAddingStaff] = useState<boolean>(false);
   const [selectedStaffForSchedule, setSelectedStaffForSchedule] =
     useState<StaffMember | null>(null);
 
@@ -25,21 +32,21 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
     name: string,
     email: string,
     role: string,
-  ) => {
+  ): Promise<void> => {
     setAddingStaff(true);
     try {
-      const res = await fetch(`/api/businesses/${business.id}/staff`, {
+      const res = await fetch(`/api/businesses/${businessId}/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email: email.toLowerCase(),
+          email: email.toLowerCase().trim(),
           role,
-          businessId: business.id,
+          businessId: businessId,
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { staff: StaffMember; error?: string };
       if (!res.ok) throw new Error(data.error || "Failed to add staff");
 
       setStaff((prev) => [
@@ -48,26 +55,30 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
       ]);
       setShowAddForm(false);
       toast.success(`Invitation delivered safely to ${email.toLowerCase()}!`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to invite teammate.",
-      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to invite teammate.";
+      toast.error(msg);
     } finally {
       setAddingStaff(false);
     }
   };
 
-  const handleToggleActive = async (staffId: string, current: boolean) => {
+  const handleToggleActive = async (
+    staffId: string,
+    current: boolean,
+  ): Promise<void> => {
     try {
       const res = await fetch(
-        `/api/businesses/${business.id}/staff/${staffId}`,
+        `/api/businesses/${businessId}/staff/${staffId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isActive: !current }),
         },
       );
-      if (!res.ok) throw new Error("Failed to update staff");
+      if (!res.ok) throw new Error("Failed validation schema update");
+
       setStaff((prev) =>
         prev.map((m) => (m.id === staffId ? { ...m, isActive: !current } : m)),
       );
@@ -77,17 +88,21 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
     }
   };
 
-  const handleUpdateName = async (staffId: string, newName: string) => {
+  const handleUpdateName = async (
+    staffId: string,
+    newName: string,
+  ): Promise<void> => {
     try {
       const res = await fetch(
-        `/api/businesses/${business.id}/staff/${staffId}`,
+        `/api/businesses/${businessId}/staff/${staffId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: newName }),
         },
       );
-      if (!res.ok) throw new Error("Failed to update name");
+      if (!res.ok) throw new Error("Failed name adjustment update transaction");
+
       setStaff((prev) =>
         prev.map((m) => (m.id === staffId ? { ...m, name: newName } : m)),
       );
@@ -97,14 +112,15 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
     }
   };
 
-  const handleDeleteStaff = async (staffId: string) => {
+  const handleDeleteStaff = async (staffId: string): Promise<void> => {
     if (!confirm("Are you sure you want to remove this staff member?")) return;
     try {
       const res = await fetch(
-        `/api/businesses/${business.id}/staff/${staffId}`,
+        `/api/businesses/${businessId}/staff/${staffId}`,
         { method: "DELETE" },
       );
-      if (!res.ok) throw new Error("Failed to delete staff");
+      if (!res.ok) throw new Error("Deletion failed");
+
       setStaff((prev) => prev.filter((m) => m.id !== staffId));
       toast.success("Staff member removed");
     } catch {
@@ -113,29 +129,12 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-7xl">
-      <div className="flex items-center justify-between border border-border bg-card p-4 rounded-2xl shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <UsersIcon className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="font-bold text-foreground">
-              {staff.length} Team Member{staff.length !== 1 ? "s" : ""}{" "}
-              registered
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {staff.filter((s) => s.isActive).length} active workspace profiles
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="rounded-xl font-bold gap-2 cursor-pointer shadow-sm"
-        >
-          <PlusIcon className="w-4 h-4" /> Add Teammate
-        </Button>
-      </div>
+    <div className="space-y-6 w-full max-w-7xl animate-in fade-in duration-200">
+      <DashboardHeaderCard
+        staffList={staff}
+        showAddForm={showAddForm}
+        onToggleAddForm={() => setShowAddForm(!showAddForm)}
+      />
 
       {showAddForm && (
         <InviteStaffForm
@@ -146,18 +145,9 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
       )}
 
       {staff.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-muted/30">
-          <UsersIcon className="mx-auto w-10 h-10 text-muted-foreground/40 mb-3" />
-          <h3 className="text-base font-bold text-foreground mb-1">
-            No Staff Members Onboarded Yet
-          </h3>
-          <p className="text-sm text-muted-foreground font-medium max-w-sm mx-auto">
-            Click the button above to type an employee&apos;s email address and
-            shoot out your first secure workspace invitation token.
-          </p>
-        </div>
+        <EmptyStaffState />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 w-full">
           {staff.map((member) => (
             <StaffMemberRow
               key={member.id}
@@ -174,6 +164,8 @@ export default function StaffDashboard({ business, businessSlug }: Props) {
       {selectedStaffForSchedule && (
         <StaffScheduleEditor
           staff={selectedStaffForSchedule}
+          businessId={businessId}
+          businessSlug={businessSlug}
           onClose={() => setSelectedStaffForSchedule(null)}
           onUpdate={(updatedSchedules) => {
             setStaff((prev) =>

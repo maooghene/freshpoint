@@ -1,45 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { OrderStatus } from "@prisma/client";
-import { format } from "date-fns"; 
-
-interface CheckoutPayloadItem {
-  itemId: string;
-  quantity: number;
-  price: number;
-}
-
-interface PaystackVerifyResponse {
-  status: boolean;
-  message: string;
-  data?: {
-    status: string;
-    amount: number;
-    reference: string;
-  };
-}
-
-// Senior type-safe friendly random code generator (FP-356 format)
-function createSecureTrackCode(): string {
-  const characters = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // 32 secure, highly clear uppercase parameters
-  let randomPayload = "";
-
-  // Create a 5-character high-density string snippet
-  for (let i = 0; i < 5; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    randomPayload += characters.charAt(randomIndex);
-  }
-
-  // Calculate dynamic date markers natively (e.g. July 2026 becomes "2607")
-  const now = new Date();
-  const yearShort = String(now.getFullYear()).slice(-2);
-  const monthRaw = now.getMonth() + 1;
-  const monthShort = monthRaw < 10 ? `0${monthRaw}` : String(monthRaw);
-
-  return `FP-${yearShort}${monthShort}-${randomPayload}`;
-}
-
+import { prisma } from "@/lib/prisma"; // Enforce shared named instance token
+import {
+  createSecureTrackCode,
+  CheckoutRequestBody,
+  CheckoutPayloadItem,
+} from "./utils";
+import { verifyPaystackPayment } from "./services";
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,10 +22,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => null);
+    const body = (await request
+      .json()
+      .catch(() => null)) as CheckoutRequestBody | null;
     if (!body) {
       console.error(
-        "❌ [FreshPoint API] Failed to extract request body. Payload is empty or malformed.",
+        "❌ [FreshPoint API] Failed to extract request body. Payload is empty.",
       );
       return NextResponse.json(
         { error: "Invalid JSON body request payload" },
@@ -76,11 +46,9 @@ export async function POST(request: NextRequest) {
       deliveryFee,
     } = body;
 
-    console.log("📊 [FreshPoint API] Incoming Checkout Metadata:");
-    console.log(`   - Reference Code: ${reference}`);
-    console.log(`   - Business ID:    ${businessId}`);
-    console.log(`   - Is Delivery:    ${Boolean(isDelivery)}`);
-    console.log(`   - Final Amount:   ₦${totalAmount}`);
+    console.log(
+      `📊 [FreshPoint API] Incoming Checkout: Ref: ${reference} | Business: ${businessId} | Amount: ₦${totalAmount}`,
+    );
 
     if (
       !reference ||
@@ -98,66 +66,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // DIAGNOSTIC CHECK: Isolate local .env credentials loading thresholds
-    const secretKeyExists = !!process.env.PAYSTACK_SECRET_KEY;
-    console.log(
-      `🔑 [FreshPoint API] Environment check: Secret Key loaded? [${secretKeyExists ? "YES" : "NO"}]`,
-    );
-
-    if (!process.env.PAYSTACK_SECRET_KEY) {
-      console.error(
-        "❌ [FreshPoint API] CRITICAL ERROR: PAYSTACK_SECRET_KEY is missing from system environment variables.",
-      );
-      return NextResponse.json(
-        {
-          error:
-            "Internal Server Configuration Error: Missing Secret Authorization Key",
-        },
-        { status: 500 },
-      );
-    }
-
-    const verifyUrl = `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`;
-    console.log(
-      `📡 [FreshPoint API] Outbound fetch dispatching to: ${verifyUrl}`,
-    );
-
-    // DIAGNOSTIC WRAPPER: Catch raw low-level Node network stream connection crashes or system timeouts
-    const verifyResponse = await fetch(verifyUrl, {
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-      },
-    }).catch((fetchError: unknown) => {
-      const systemErrorMessage =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Socket network connection dropped";
-      console.error(
-        "💥 [FreshPoint API] CORE FETCH EXCEPTION ENCOUNTERED DURING OUTBOUND PIPELINE:",
-      );
-      console.error(`   - Error Message: ${systemErrorMessage}`);
-      throw new Error(
-        `Outbound socket execution failed: ${systemErrorMessage}`,
-      );
-    });
-
-    console.log(
-      `📥 [FreshPoint API] Outbound fetch status code returned: ${verifyResponse.status}`,
-    );
-    const verifyData = (await verifyResponse.json()) as PaystackVerifyResponse;
-
-    if (
-      !verifyResponse.ok ||
-      !verifyData?.status ||
-      !verifyData?.data ||
-      verifyData.data.status !== "success"
-    ) {
-      console.error(
-        "❌ [FreshPoint API] Paystack Transaction validation rejected by remote gateway:",
-      );
-      console.error(`   - Status Payload:  `, verifyData?.status);
-      console.error(`   - Message Payload: `, verifyData?.message);
-      console.error(`   - Data Signature:  `, verifyData?.data);
+    // 1. Fire Outbound Remote Payment Gate Verification Checks
+    const isPaymentValid = await verifyPaystackPayment(reference);
+    if (!isPaymentValid) {
       return NextResponse.json(
         { error: "Payment verification failed or was declined by Paystack" },
         { status: 400 },
@@ -168,6 +79,7 @@ export async function POST(request: NextRequest) {
       "✅ [FreshPoint API] Paystack verification cleared cleanly. Resolving User record...",
     );
 
+    // 2. Identify and validate the user context profile record
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true },
@@ -175,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       console.error(
-        `❌ [FreshPoint API] Database reference mismatch: Clerk user ID ${clerkId} lacks a valid User profile record.`,
+        `❌ [FreshPoint API] Database reference mismatch: Clerk ID ${clerkId} lacks user profile.`,
       );
       return NextResponse.json(
         { error: "User identity profile not found" },
@@ -183,7 +95,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clear falling property defaults matrix alignment paths
+    // Normalize incoming multi-tenant physical shipping structures
     const activeIsDelivery = Boolean(isDelivery);
     const activeAddress =
       activeIsDelivery && deliveryAddress
@@ -194,14 +106,7 @@ export async function POST(request: NextRequest) {
     const activeFee =
       activeIsDelivery && deliveryFee ? Number(deliveryFee) : 0.0;
 
-    // Generate our fresh short friendly order code token
-        
-
-    console.log(
-      "💾 [FreshPoint API] Committing record atomic write operation to Neon Postgres..."
-    );
-
-        // 🎫 ATOMIC INTERACTION CHECK: Infinite Scale Protection
+    // 3. Execute unique code-collision fallback resolution loops
     let friendlyCode = "";
     let isUniqueFound = false;
     let collisionSafetyAttempts = 0;
@@ -209,48 +114,69 @@ export async function POST(request: NextRequest) {
 
     while (!isUniqueFound && collisionSafetyAttempts < maxSafetyThreshold) {
       friendlyCode = createSecureTrackCode();
-      
-      // 🚀 CRITICAL REFACTOR: Changed from .findUnique to .findFirst to bypass cached type constraints
+
       const duplicateCheck = await prisma.order.findFirst({
         where: { code: friendlyCode },
-        select: { id: true }
+        select: { id: true },
       });
-      
+
       if (!duplicateCheck) {
         isUniqueFound = true;
       } else {
         collisionSafetyAttempts++;
         console.warn(
-          `⚠️ [FreshPoint API] Code collision detected for code [${friendlyCode}]. Attempting re-generation [${collisionSafetyAttempts}/${maxSafetyThreshold}]...`
+          `⚠️ [FreshPoint API] Collision for code [${friendlyCode}]. Retry attempt [${collisionSafetyAttempts}/${maxSafetyThreshold}]...`,
         );
       }
     }
 
-    // Fallback emergency safety net if maximum retry attempts are breached
     if (!isUniqueFound) {
       const emergencyTimeMarker = String(Date.now()).slice(-4);
       friendlyCode = `${friendlyCode}-${emergencyTimeMarker}`;
     }
 
     console.log(
-      `🎫 [FreshPoint API] Generated bulletproof order identifier: ${friendlyCode}`
+      `🎫 [FreshPoint API] Generated tracking identifier: ${friendlyCode}`,
+    );
+    console.log(
+      "💾 [FreshPoint API] Committing record atomic upsert operation to Neon Postgres...",
     );
 
+    // CORRECTED: If this reference already hit the database on a previous request attempt,
+    // clear out the line items for this specific order first to avoid relational primary key collisions.
+    await prisma.orderItem.deleteMany({
+      where: { orderId: reference },
+    });
 
-    const order = await prisma.order.create({
-      data: {
-        id: reference as string,
-        code: friendlyCode, // Maps short code straight into our new schema database slot
-        userId: user.id,
-        businessId: businessId as string,
-        totalAmount: Number(totalAmount),
+    // 4. Commit atomic records using Upsert to safely handle concurrent retries cleanly
+    const order = await prisma.order.upsert({
+      where: { id: reference },
+      update: {
         status: OrderStatus.PROCESSING,
-
+        totalAmount: Number(totalAmount),
         isDelivery: activeIsDelivery,
         deliveryAddress: activeAddress,
         deliveryNotes: activeNotes,
         deliveryFee: activeFee,
-
+        items: {
+          create: items.map((item: CheckoutPayloadItem) => ({
+            itemId: item.itemId,
+            quantity: Number(item.quantity),
+            price: Number(item.price),
+          })),
+        },
+      },
+      create: {
+        id: reference,
+        code: friendlyCode,
+        userId: user.id,
+        businessId: businessId,
+        totalAmount: Number(totalAmount),
+        status: OrderStatus.PROCESSING,
+        isDelivery: activeIsDelivery,
+        deliveryAddress: activeAddress,
+        deliveryNotes: activeNotes,
+        deliveryFee: activeFee,
         items: {
           create: items.map((item: CheckoutPayloadItem) => ({
             itemId: item.itemId,
@@ -262,11 +188,10 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(
-      `🎉 [FreshPoint API] TRANSACTION RECORD LOCKED SUCCESSFUL: Order ID ${order.id} | Friendly Code: ${order.code}`,
+      `🎉 [FreshPoint API] TRANSACTION RECORD LOCKED: Order ID ${order.id} | Code: ${order.code}`,
     );
     console.log("------------------------------------------------");
 
-    // CRITICAL UPDATE: Pass both parameters so the frontend client layout can render the shortcode
     return NextResponse.json(
       {
         success: true,
@@ -278,12 +203,11 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown server crash";
     console.error(
-      "🚨 [FreshPoint API] CRITICAL UNHANDLED ERROR IN CONFIRMATION CONTROLLER:",
+      `🚨 [FreshPoint API] CRITICAL UNHANDLED ERROR IN CONFIRMATION CONTROLLER: ${msg}`,
     );
-    console.error(`   - Details: ${msg}`);
     console.log("------------------------------------------------");
     return NextResponse.json(
-      { error: `Internal transaction parsing server error: ${msg}` },
+      { error: `Internal transaction server error: ${msg}` },
       { status: 500 },
     );
   }

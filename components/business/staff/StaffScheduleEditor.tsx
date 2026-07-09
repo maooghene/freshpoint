@@ -1,10 +1,18 @@
-// components/business/staff/StaffScheduleEditor.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
 import { XIcon, SaveIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StaffMember, StaffSchedule } from "./types";
+
+interface StaffScheduleEditorProps {
+  staff: StaffMember;
+  businessId: string;
+  businessSlug: string;
+  onClose: () => void;
+  onUpdate: (schedules: StaffSchedule[]) => void;
+}
 
 const DAYS = [
   "MONDAY",
@@ -16,36 +24,18 @@ const DAYS = [
   "SUNDAY",
 ];
 
-interface StaffSchedule {
-  id?: string;
-  day: string;
-  startTime: string;
-  endTime: string;
-  isOff: boolean;
-}
-
-interface StaffMember {
-  id: string;
-  name: string;
-  businessId?: string; // Optional helper mapping parameter
-  schedules: StaffSchedule[];
-}
-
-interface Props {
-  staff: StaffMember;
-  onClose: () => void;
-  onUpdate: (schedules: StaffSchedule[]) => void;
-}
-
 export default function StaffScheduleEditor({
   staff,
+  businessId,
+  businessSlug,
   onClose,
   onUpdate,
-}: Props) {
-  const buildInitialSchedule = () => {
+}: StaffScheduleEditorProps): React.JSX.Element {
+  const buildInitialSchedule = (): StaffSchedule[] => {
     return DAYS.map((day) => {
       const existing = staff.schedules.find((s) => s.day === day);
       return {
+        id: existing?.id || "",
         day,
         startTime: existing?.startTime || "09:00",
         endTime: existing?.endTime || "17:00",
@@ -54,51 +44,57 @@ export default function StaffScheduleEditor({
     });
   };
 
-  // 🔑 Your true local state tracking array variable hook
-  const [schedule, setSchedule] = useState(buildInitialSchedule());
-  const [saving, setSaving] = useState(false);
+  const [schedule, setSchedule] = useState<StaffSchedule[]>(
+    buildInitialSchedule(),
+  );
+  const [saving, setSaving] = useState<boolean>(false);
 
   const updateDay = (
     day: string,
     field: "startTime" | "endTime" | "isOff",
     value: string | boolean,
-  ) => {
+  ): void => {
     setSchedule((prev) =>
       prev.map((s) => (s.day === day ? { ...s, [field]: value } : s)),
     );
   };
 
-  const handleSaveSchedules = async () => {
+  const handleSaveSchedules = async (): Promise<void> => {
+    // Robust validation parameter shield
+    if (!businessId || !businessSlug) {
+      toast.error(
+        "Unable to locate parent business contextual path parameters.",
+      );
+      return;
+    }
+
     try {
       setSaving(true);
 
-      // 🛠️ CRITICAL VARIABLE FIX: Binds request body payload to your true state tracking name 'schedule'
-      // Grabs the business identifier from your active URL bar dynamically as a backup safety net
-      const fallbackBusinessId =
-        staff.businessId || "cmr09c70h0000r8igj2u9yh11";
-
       const res = await fetch(
-        `/api/businesses/${fallbackBusinessId}/staff/${staff.id}`,
+        `/api/businesses/${businessId}/staff/${staff.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            schedules: schedule, // 🛠️ Fix: Target the real local state variable array hook name
+            schedules: schedule,
           }),
         },
       );
 
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = (await res.json()) as { error?: string };
         throw new Error(errorData.error || "Failed to update shift logs");
       }
 
       toast.success("Teammate shifts updated successfully!");
-      onUpdate(schedule); // Passes your clean updates state back up to the parent component table
+      onUpdate(schedule);
       onClose();
-    } catch (error) {
-      console.error("Schedule sync error:", error);
-      toast.error("Could not synchronize shift hours");
+    } catch (error: unknown) {
+      const logMessage =
+        error instanceof Error ? error.message : "Network failure";
+      console.error("Schedule synchronization error:", logMessage);
+      toast.error(logMessage);
     } finally {
       setSaving(false);
     }
@@ -111,10 +107,11 @@ export default function StaffScheduleEditor({
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="font-black text-lg text-foreground">
-              {staff.name}&apos;s Schedule
+              {staff.name}
+              {"'s Schedule"}
             </h2>
             <p className="text-xs text-muted-foreground font-medium">
-              Set working hours for each day of the week
+              {"Set working hours for each day of the week"}
             </p>
           </div>
           <button
@@ -166,7 +163,7 @@ export default function StaffScheduleEditor({
                     className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition cursor-pointer"
                   />
                   <span className="text-xs text-muted-foreground shrink-0 select-none">
-                    to
+                    {"to"}
                   </span>
                   <input
                     type="time"
@@ -185,7 +182,9 @@ export default function StaffScheduleEditor({
         {/* FOOTER */}
         <div className="flex gap-3 p-6 border-t border-border">
           <Button
-            onClick={handleSaveSchedules}
+            onClick={() => {
+              void handleSaveSchedules();
+            }}
             disabled={saving}
             className="flex-1 rounded-xl font-bold gap-2 cursor-pointer"
           >
@@ -197,11 +196,10 @@ export default function StaffScheduleEditor({
             variant="outline"
             className="rounded-xl font-bold cursor-pointer"
           >
-            Cancel
+            {"Cancel"}
           </Button>
         </div>
       </div>
     </div>
   );
 }
-

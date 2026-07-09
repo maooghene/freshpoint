@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Image as ImageIcon, Store, UploadCloud } from "lucide-react";
+import { resolveImageUrlClient } from "@/lib/resolve-image-url-client";
 
 interface SettingsImageZoneProps {
   initialImage: string | null;
@@ -32,14 +33,7 @@ export default function SettingsImageZone({
 
   const resolveDisplayImage = (): string | null => {
     if (filePreview) return filePreview;
-    if (!initialImage || initialImage.trim().length === 0) return null;
-    if (
-      initialImage.startsWith("http://") ||
-      initialImage.startsWith("https://")
-    ) {
-      return initialImage;
-    }
-    return `https://imagekit.io{initialImage.replace(/^\//, "")}`;
+    return resolveImageUrlClient(initialImage);
   };
 
   const imageSrc = resolveDisplayImage();
@@ -51,7 +45,7 @@ export default function SettingsImageZone({
         className="flex items-center gap-2 text-foreground/90 font-medium"
       >
         <ImageIcon className="h-4 w-4 text-muted-foreground/80" />
-        {"Business Profile Logo"}
+        {"Business Profile Image"}
       </Label>
 
       <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:bg-muted/30 transition-colors">

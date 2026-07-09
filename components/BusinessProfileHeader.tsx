@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useState } from "react";
-import Image from "next/image";
 import {
   MailIcon,
   MapPinIcon,
@@ -10,11 +9,13 @@ import {
   MessageSquareIcon,
   PenLineIcon,
   XIcon,
+  Store,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
 import BusinessReviewForm from "@/components/BusinessReviewForm";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { useUser } from "@clerk/nextjs";
 
 interface BusinessHeaderProps {
@@ -43,28 +44,24 @@ export function BusinessProfileHeader({
   const { user } = useUser();
   const [showVenueReviews, setShowVenueReviews] = useState<boolean>(false);
   const [showWriteForm, setShowWriteForm] = useState<boolean>(false);
-
-  // 🌟 GOAL 2 FIXED: Real-time cache-busting state key to force the reviews list to pull fresh data
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   const handleFormSuccess = () => {
     setShowWriteForm(false);
-    // Increment the key to trigger an immediate, seamless database re-fetch on the list component
     setRefreshKey((prev: number) => prev + 1);
     setShowVenueReviews(true);
   };
 
   return (
     <div className="space-y-6 mb-16">
-      {/* ── CORE VENUE OVERLAY CARD ── */}
       <div className="relative overflow-hidden bg-card/60 backdrop-blur-xl border border-border rounded-[2.5rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 shadow-xl">
         <div className="relative shrink-0 w-44 h-44 md:w-52 md:h-52 rounded-2xl overflow-hidden border border-border bg-muted">
-          <Image
-            src={image || "/placeholder-business.jpg"}
+          <ImageWithFallback
+            src={image}
             alt={name}
-            fill
-            className="object-cover"
-            priority
+            icon={Store}
+            label="Business"
+            sizes="(max-width: 768px) 176px, 208px"
           />
         </div>
 
@@ -144,7 +141,6 @@ export function BusinessProfileHeader({
         </div>
       </div>
 
-      {/* ── 🌟 GOAL 1 FIXED: LAUNCHES AS A MODAL INTENT WITH AN ESCAPE HANDLER ── */}
       {showWriteForm && (
         <BusinessReviewForm
           businessId={id}
@@ -154,7 +150,6 @@ export function BusinessProfileHeader({
         />
       )}
 
-      {/* ── PUBLIC TIMELINE REVIEWS WALL ── */}
       {showVenueReviews && (
         <div className="bg-card/40 backdrop-blur-md border border-border/80 rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200 relative">
           <div className="flex justify-between items-center mb-4 border-b border-border/40 pb-3">
@@ -178,7 +173,6 @@ export function BusinessProfileHeader({
             </button>
           </div>
 
-          {/* 🌟 GOAL 2 FIXED: Passed refreshKey into the list component layer */}
           <BusinessReviewList
             itemId={id}
             mode="BUSINESS"

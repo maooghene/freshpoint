@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "@/app/globals.css";
-import Navbar from "@/components/Navbar";
 import Providers from "@/components/Providers";
 import ToastProvider from "@/components/ToastProvider";
 
@@ -28,8 +27,8 @@ export default function RootLayout({
           <Providers>
             {/* 🌟 FIXED: Created a locked parent node layout stretching from header to baseline layout elements */}
             <div className="flex flex-col min-h-screen w-full relative">
-              {/* Core Global Header Navigation */}
-              <Navbar />
+              
+              
 
               {/* 🌟 FIXED: main flex-grow pushes any element beneath it (like the footer) down, even during loading states */}
               <main className="flex-grow flex flex-col w-full relative">

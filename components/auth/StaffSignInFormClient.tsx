@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { SignIn, SignUp, useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   ArrowLeft,
@@ -12,32 +13,22 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 
-
-interface SyncResponseSuccess {
-  businessSlug: string;
-}
-
-interface SyncResponseError {
-  error: string;
-}
-
-export default function StaffSignInFormClient() {
-  const { isSignedIn } = useAuth();
+export default function StaffSignInFormClient(): React.JSX.Element {
+  const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
   const [viewState, setViewState] = useState<
     "gateway" | "clerk-login" | "clerk-register"
   >("gateway");
   const [syncing, setSyncing] = useState<boolean>(false);
 
-  const handleActivateStaffLink = async () => {
+  const handleActivateStaffLink = async (): Promise<void> => {
     try {
-      setSyncing(true);
       const res = await fetch("/api/auth/sync-staff-roster", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
 
-      const data = (await res.json()) as SyncResponseSuccess &
-        SyncResponseError;
+      const data = (await res.json()) as { success?: boolean; error?: string };
 
       if (!res.ok) {
         throw new Error(
@@ -46,7 +37,7 @@ export default function StaffSignInFormClient() {
       }
 
       toast.success("Profile roster connected successfully!");
-      window.location.href = `/business/${data.businessSlug}/staff`;
+      router.push("/staff/dashboard");
     } catch (error: unknown) {
       console.error(error);
       const errorMessage =
@@ -58,67 +49,51 @@ export default function StaffSignInFormClient() {
     }
   };
 
+  /* 
+    🎯 THE CASCADING RENDERING FIX:
+    Wrapped inside an explicit asynchronous handler loop execution stack 
+    to decouple the state mutation from the immediate mounting pass framework.
+  */
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (isLoaded && isSignedIn && !syncing) {
+      const scheduleSynchronization = async (): Promise<void> => {
+        setSyncing(true);
+        await handleActivateStaffLink();
+      };
 
-    const taskTimer = setTimeout(() => {
-      void handleActivateStaffLink();
-    }, 0);
+      void scheduleSynchronization();
+    }
+  }, [isSignedIn, isLoaded, syncing]);
 
-    return () => clearTimeout(taskTimer);
-  }, [isSignedIn]);
-
-  // Pass custom Tailwind layer utility names to Clerk elements to sync text perfectly
   const clerkAppearance = {
     elements: {
-      // Containers & Blocks
       card: "shadow-none border-0 bg-transparent w-full mx-auto text-foreground",
-      header: "space-y-1 text-center",
-
-      // Core Form Titles & Descriptions
-      headerTitle:
-        "text-foreground-strong font-bold tracking-tight text-xl dark:text-[var(--foreground)]",
-      headerSubtitle:
-        "text-muted-foreground text-xs dark:text-[var(--muted-foreground)]",
-
-      // Labels and Inputs
-      formFieldLabel:
-        "text-foreground-strong font-medium text-xs mb-1.5 dark:text-[var(--foreground)]",
+      header: "hidden",
+      formFieldLabel: "text-foreground font-bold text-xs mb-1.5",
       formFieldInput:
-        "h-10 w-full rounded-xl text-sm border border-border bg-card text-foreground focus:ring-2 focus:ring-ring transition-all dark:bg-[var(--secondary)] dark:border-[var(--border)] dark:text-[var(--foreground)]",
-      formFieldInputShowPasswordButton:
-        "text-muted-foreground hover:text-foreground-strong dark:text-[var(--muted-foreground)]",
-
-      // Action Elements & Social Buttons
+        "h-11 w-full rounded-xl text-sm border border-border bg-background text-foreground focus:ring-2 focus:ring-ring transition-all",
       socialButtonsBlockButton:
-        "border border-border bg-background hover:bg-surface-warm-muted transition-colors text-foreground dark:bg-[var(--secondary)] dark:text-[var(--foreground)]",
-      socialButtonsBlockButtonText:
-        "text-foreground font-medium text-xs dark:text-[var(--foreground)]",
+        "border border-border bg-background hover:bg-muted text-foreground rounded-xl h-11",
+      socialButtonsBlockButtonText: "text-foreground font-semibold text-xs",
       formButtonPrimary:
-        "w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-semibold text-xs transition-colors rounded-xl dark:bg-[var(--primary)] dark:text-[var(--primary-foreground)]",
-
-      // Links & Footers
-      footerActionText:
-        "text-muted-foreground text-xs dark:text-[var(--muted-foreground)]",
-      footerActionLink:
-        "text-primary hover:text-brand-solid transition-colors font-semibold dark:text-[var(--primary)]",
-      identityPreviewText:
-        "text-foreground font-medium dark:text-[var(--foreground)]",
-      identityPreviewEditButtonIcon: "text-primary dark:text-[var(--primary)]",
+        "w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md",
+      footerActionText: "text-muted-foreground text-xs font-medium",
+      footerActionLink: "text-primary hover:underline font-bold text-xs",
     },
   };
 
-  if (syncing) {
+  if (!isLoaded || syncing) {
     return (
-      <div className="flex flex-col items-center justify-center mt-28 py-16 text-center space-y-4 max-w-md mx-auto bg-surface-warm-muted dark:bg-secondary border border-surface-warm-border dark:border-border rounded-2xl shadow-sm px-6 transition-colors duration-200">
-        <Loader2 className="animate-spin text-primary h-8 w-8 dark:text-ring" />
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-foreground-strong">
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 max-w-sm mx-auto bg-muted/30 border border-border rounded-2xl px-6 animate-in fade-in duration-200">
+        <Loader2 className="animate-spin text-primary h-7 w-7" />
+        <div className="space-y-1">
+          <p className="text-sm font-black text-foreground">
             Syncing Team Workspace
           </p>
-          <p className="text-xs text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
-            Locking your security credentials directly into your shop identity
-            roster profile.
+          <p className="text-xs text-muted-foreground max-w-[260px] mx-auto leading-relaxed">
+            {
+              "Locking your security credentials directly into your shop identity roster profile."
+            }
           </p>
         </div>
       </div>
@@ -126,35 +101,26 @@ export default function StaffSignInFormClient() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto animate-in zoom-in-95 duration-200 mt-28 pt-4 pb-12 px-6">
-      {/* BRANDING HEADER CONTAINER */}
-      <div className="flex items-center gap-2 mb-8 select-none">
-        <div className="p-2 rounded-lg bg-surface-warm border border-surface-warm-border dark:bg-secondary dark:border-border transition-colors">
-          <Building2 className="h-5 w-5 text-primary dark:text-ring" />
-        </div>
-        <span className="text-lg font-bold tracking-tight text-primary">
-          Freshpoint Staff Portal
-        </span>
-      </div>
-
-      {/* ACCESS CONSOLE GATEWAY */}
-      {viewState === "gateway" ? (
-        <div className="w-full bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5 transition-colors duration-200">
-          <div className="space-y-1.5 text-center">
-            <h2 className="text-xl font-bold tracking-tight text-primary">
-              Workspace Invitation
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Claim your corporate profile row or link your pre-existing
-              provider access account.
-            </p>
+    <div className="w-full mx-auto animate-in zoom-in-98 duration-200">
+      {viewState === "gateway" && (
+        <div className="flex items-center justify-center gap-2 mb-6 select-none">
+          <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
+            <Building2 className="h-5 w-5 text-primary" />
           </div>
+          <span className="text-sm font-black tracking-tight text-primary">
+            Freshpoint Staff Portal
+          </span>
+        </div>
+      )}
 
-          <div className="flex items-start gap-2.5 p-3 bg-surface-warm-muted dark:bg-secondary border border-surface-warm-border dark:border-border rounded-xl text-xs text-muted-foreground leading-relaxed transition-colors">
-            <ShieldAlert className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+      {viewState === "gateway" ? (
+        <div className="w-full space-y-5 transition-all duration-200">
+          <div className="flex items-start gap-2.5 p-3.5 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground leading-relaxed">
+            <ShieldAlert className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <span>
-              Please log in using the exact email address where you received
-              your Freshpoint invitation token.
+              {
+                "Please log in using the exact email address where you received your Freshpoint invitation token."
+              }
             </span>
           </div>
 
@@ -162,7 +128,7 @@ export default function StaffSignInFormClient() {
             <button
               type="button"
               onClick={() => setViewState("clerk-register")}
-              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl font-semibold bg-primary text-primary-foreground dark:bg-ring dark:text-background hover:bg-brand-solid dark:hover:bg-primary transition-colors text-xs shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-xs shadow-md cursor-pointer"
             >
               <UserPlus size={14} />
               Create Professional Profile
@@ -171,7 +137,7 @@ export default function StaffSignInFormClient() {
             <button
               type="button"
               onClick={() => setViewState("clerk-login")}
-              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl font-semibold text-xs border border-border bg-card text-foreground hover:bg-surface-warm-muted dark:hover:bg-secondary cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl font-bold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <LogIn size={14} />
               Link Existing Account
@@ -179,17 +145,16 @@ export default function StaffSignInFormClient() {
           </div>
         </div>
       ) : (
-        /* ADAPTIVE CLERK RENDER BLOCK */
-        <div className="w-full flex flex-col items-center space-y-4 relative">
+        <div className="w-full flex flex-col items-center space-y-4 relative pt-4">
           <button
             type="button"
             onClick={() => setViewState("gateway")}
-            className="absolute -top-7 left-0 text-xs font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1 select-none z-10"
+            className="absolute -top-3 left-0 text-[11px] font-bold text-muted-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1 select-none z-10"
           >
-            <ArrowLeft size={13} /> Alternative Options
+            <ArrowLeft size={12} /> Alternative Options
           </button>
 
-          <div className="w-full flex justify-center shadow-sm rounded-2xl border border-border overflow-hidden bg-card p-4 transition-colors duration-200">
+          <div className="w-full flex justify-center overflow-hidden bg-transparent pt-4">
             {viewState === "clerk-register" ? (
               <SignUp
                 routing="hash"

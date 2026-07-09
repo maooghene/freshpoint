@@ -1,18 +1,18 @@
-import { getAuth } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server"; // CORRECTED: Added missing top-level import and updated to async auth
 import { NextRequest, NextResponse } from "next/server";
-import authOwner from "@/lib/authOwner"; // FIXED: Points to database-safe utility folder location
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
-import { OrderStatus } from "@prisma/client"; // Safe type-safe enum directly from Prisma
+import authOwner from "@/lib/authOwner";
+import prisma from "@/lib/prisma";
+import { OrderStatus } from "@prisma/client";
 
 interface OrderUpdatePayload {
   orderId: string;
-  status: OrderStatus; // Enforces strict enum limits matching your database constraints
+  status: OrderStatus;
 }
 
 // ✅ GET: Fetch all historic and active physical product orders registered under a specific owner's workspace
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const orders = await prisma.order.findMany({
       where: {
-        businessId, // FIXED: Enforces strict data multi-tenant isolation guard bounds
+        businessId,
       },
       include: {
         user: {
@@ -40,10 +40,10 @@ export async function GET(request: NextRequest) {
             image: true,
           },
         },
-        address: true, // Shipping endpoint variables
+        address: true,
         items: {
           include: {
-            item: true, // FIXED: This "item" accurately resolves the retail PRODUCT specifications
+            item: true,
           },
         },
       },
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 // ✅ PATCH: Update Order Status (PENDING -> SHIPPED -> DELIVERED) with strict role authorization
 export async function PATCH(request: NextRequest) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

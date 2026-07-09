@@ -34,9 +34,12 @@ export async function updateBusinessSettings(
       };
     }
 
+    // Verified via Prisma Schema: Fetch internal User cuid using unique clerkId index
     const systemUser = await prisma.user.findUnique({
       where: { clerkId: userId },
+      select: { id: true },
     });
+
     if (!systemUser) {
       return {
         success: false,
@@ -46,7 +49,10 @@ export async function updateBusinessSettings(
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
+      select: { id: true, ownerId: true, image: true },
     });
+
+    // Verified via Prisma Schema: ownerId references internal User.id (cuid)
     if (!business || business.ownerId !== systemUser.id) {
       return {
         success: false,
@@ -59,13 +65,11 @@ export async function updateBusinessSettings(
     const address = formData.get("address")?.toString().trim() || "";
     const description = formData.get("description")?.toString().trim() || null;
 
-    // 🌟 FIXED: Extracts the direct raw media file wrapper binary block from the SettingsForm channel
     const file = formData.get("imageFile") as File | null;
     let savedImagePath = business.image;
 
     const errors: Record<string, string[]> = {};
 
-    // Validate if a new file asset was explicitly attached by the provider
     if (file && file.size > 0) {
       if (file.size > 4 * 1024 * 1024) {
         errors.image = [
@@ -87,7 +91,6 @@ export async function updateBusinessSettings(
 
       if (Object.keys(errors).length === 0) {
         try {
-          // Push binary directly into the isolated upload function block
           savedImagePath = await uploadToImageKit(file);
         } catch (uploadError: unknown) {
           console.error("IMAGE_UPLOAD_FAILURE:", uploadError);
@@ -134,7 +137,7 @@ export async function updateBusinessSettings(
         sittingCapacity,
         categories,
         description,
-        image: savedImagePath, // 🌟 FIXED: Writes the clean ImageKit string token path securely back to Postgres
+        image: savedImagePath,
       },
     });
 

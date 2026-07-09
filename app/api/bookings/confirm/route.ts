@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
-import { BookingStatus, DayOfWeek } from "@prisma/client";
-import { getDayNameFromDateString } from "@/lib/dateUtils";
+import { BookingStatus } from "@prisma/client";
+import { verifyPaystackPayment } from "@/lib/paystack"; // Single shared utility source
+import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 
 interface PaystackWebhookData {
   status: string;
@@ -35,45 +36,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    if (!paystackSecret) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 },
-      );
-    }
-
-    // 1️⃣ Verify payment with Paystack
-    const verifyResponse = await fetch(
-      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      {
-        headers: { Authorization: `Bearer ${paystackSecret}` },
-      },
-    );
-
-    const verifyData = await verifyResponse.json();
-
-    if (
-      !verifyResponse.ok ||
-      !verifyData?.data ||
-      verifyData.data.status !== "success"
-    ) {
+    // 1️⃣ Verify payment using the central gateway utility
+    const isPaymentValid = await verifyPaystackPayment(reference);
+    if (!isPaymentValid) {
       return NextResponse.json(
         { error: "Payment verification failed" },
         { status: 400 },
       );
     }
 
+    // Fetch full verified context directly from the provider database ledger
+    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    const verifyResponse = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      },
+    );
+    const verifyData = await verifyResponse.json();
+
     const payment: PaystackWebhookData = verifyData.data;
     const metadata = payment.metadata;
 
     console.log("PAYSTACK METADATA RECEIVED:", metadata);
-    console.log("REQUEST BODY RECEIVED:", {
-      bodyBusinessId,
-      bodyItemId,
-      bodyStartTime,
-      bodyStaffId,
-    });
 
     // Resolve all fields — Paystack metadata takes priority, body is fallback
     const resolvedUserId = metadata?.userId;
@@ -104,27 +89,19 @@ export async function POST(request: NextRequest) {
 
     // 🛡️ STAFF OFF-DUTY HARD REJECTION
     if (resolvedStaffId && resolvedStaffId !== "any") {
-      const dateOnly = resolvedDateTime.split("T")[0];
-      const targetDayName = getDayNameFromDateString(dateOnly);
-
-      const staffSchedule = await prisma.staffSchedule.findUnique({
-        where: {
-          staffId_day: {
-            staffId: resolvedStaffId,
-            day: targetDayName as DayOfWeek,
-          },
-        },
-      });
-
-      if (staffSchedule && staffSchedule.isOff) {
+      const scheduleStatus = await isStaffOffDuty(
+        resolvedStaffId,
+        resolvedDateTime,
+      );
+      if (scheduleStatus.isOff) {
         console.warn(
-          `🚫 Staff ${resolvedStaffId} is off duty on ${targetDayName}. Booking rejected.`,
+          `🚫 Staff ${resolvedStaffId} is off duty on ${scheduleStatus.dayName}. Booking rejected.`,
         );
         return NextResponse.json(
           {
             error: "Staff member is off duty on the selected day.",
             code: "STAFF_OFF_DUTY",
-            day: targetDayName,
+            day: scheduleStatus.dayName,
           },
           { status: 422 },
         );
@@ -189,27 +166,8 @@ export async function POST(request: NextRequest) {
 
     console.log("💰 Fee breakdown:", fees);
 
-    // 7️⃣ Generate unique queue code
-    let uniqueQueueCode = "";
-    let isCodeUnique = false;
-
-    while (!isCodeUnique) {
-      const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      const randomLetter = characters.charAt(
-        Math.floor(Math.random() * characters.length),
-      );
-      const randomNumber = Math.floor(10 + Math.random() * 90);
-      uniqueQueueCode = `FP-${randomLetter}${randomNumber}`;
-
-      const collisionCheck = await prisma.booking.findFirst({
-        where: { queueCode: uniqueQueueCode },
-        select: { id: true },
-      });
-
-      if (!collisionCheck) {
-        isCodeUnique = true;
-      }
-    }
+    // 7️⃣ Generate unique queue code via helper component
+    const uniqueQueueCode = await generateUniqueQueueCode();
 
     // 8️⃣ Create booking with BookingItem join and fee breakdown
     const booking = await prisma.booking.create({
@@ -242,15 +200,7 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("✅ Booking created successfully:", booking.id);
-    console.log(`   Service price:   ₦${fees.servicePrice.toLocaleString()}`);
-    console.log(`   FreshPoint fee:  ₦${fees.freshpointFee.toLocaleString()}`);
-    console.log(`   Provider payout: ₦${fees.providerPayout.toLocaleString()}`);
-    console.log(`   FreshPoint net:  ₦${fees.freshpointNet.toLocaleString()}`);
-
-    return NextResponse.json({
-      success: true,
-      bookingId: booking.id,
-    });
+    return NextResponse.json({ success: true, bookingId: booking.id });
   } catch (error: unknown) {
     console.error("❌ Booking confirmation handler exception:", error);
     const errorMessage =

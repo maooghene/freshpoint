@@ -1,7 +1,7 @@
 import * as React from "react";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-// 💡 FIXED: Pointing to the standardized named connection instance wrapper
+// Standardized named connection instance wrapper
 import { prisma } from "@/lib/prisma";
 import StaffDashboard from "@/components/business/staff/StaffDashboard";
 
@@ -70,8 +70,12 @@ export default async function StaffPageRoute({ params }: PageProps) {
         </p>
       </div>
 
-      {/* Renders your refactored dashboard component smoothly */}
-      <StaffDashboard business={serializedBusiness} businessSlug={slug} />
+      {/* Renders your refactored dashboard component smoothly passing business parameters */}
+      <StaffDashboard
+        business={serializedBusiness}
+        businessId={serializedBusiness.id}
+        businessSlug={slug}
+      />
     </div>
   );
 }

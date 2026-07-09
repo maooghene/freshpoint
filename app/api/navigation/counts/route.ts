@@ -32,7 +32,12 @@ export async function GET() {
     }
 
     let bookingCount = 0;
-    const now = new Date();
+
+    // CORRECTED: Calculate an explicit West Africa Time (WAT - UTC+1) timestamp
+    // to prevent server runtime timezone drift for Nigerian marketplace users
+    const serverTime = new Date();
+    const watOffsetMs = 1 * 60 * 60 * 1000;
+    const nowInNigeria = new Date(serverTime.getTime() + watOffsetMs);
 
     // DYNAMIC METRIC AGGREGATION BASED ON DB ROLE
     if (user.role === UserRole.BUSINESS_OWNER) {
@@ -43,7 +48,7 @@ export async function GET() {
             ownerId: user.id,
           },
           status: BookingStatus.CONFIRMED,
-          startTime: { gte: now },
+          startTime: { gte: nowInNigeria },
         },
       });
     } else if (user.role === UserRole.STAFF) {
@@ -52,7 +57,7 @@ export async function GET() {
         where: {
           staffId: user.id,
           status: BookingStatus.CONFIRMED,
-          startTime: { gte: now },
+          startTime: { gte: nowInNigeria },
         },
       });
     } else {
@@ -61,7 +66,7 @@ export async function GET() {
         where: {
           userId: user.id,
           status: BookingStatus.CONFIRMED,
-          startTime: { gte: now },
+          startTime: { gte: nowInNigeria },
         },
       });
     }

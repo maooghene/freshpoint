@@ -14,7 +14,9 @@ export function RedirectFeedback({ slug }: RedirectFeedbackProps) {
 
   React.useEffect(() => {
     // Fire the replacement router shift straight onto your /business/[slug] parameter layout tree
-    router.replace(`/business/${slug}`);
+    if (slug) {
+      router.replace(`/business/${slug}`);
+    }
   }, [slug, router]);
 
   return (

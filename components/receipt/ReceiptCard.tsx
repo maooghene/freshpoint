@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import {
   ShoppingBagIcon,
   MapPinIcon,
@@ -13,6 +12,7 @@ import {
 import ReceiptHeader from "./ReceiptHeader";
 import ReceiptFulfillment from "./ReceiptFulfillment";
 import { OrderData, OrderItem } from "./types";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface ReceiptCardProps {
   order: OrderData;
@@ -32,7 +32,6 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
     );
   }
 
-  // 🌟 FIXED: Pull the flat 'price' property directly from the lineItem object where our API maps it
   const subtotal =
     order.items?.reduce(
       (acc, lineItem) =>
@@ -42,18 +41,15 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
 
   return (
     <div className="bg-card border border-border rounded-[2rem] shadow-xl overflow-hidden transition-all duration-200">
-      {/* Feeds your human-readable tracker code into our updated receipt header widget */}
       <ReceiptHeader orderId={order.id} orderCode={order.code} />
 
       <div className="p-6 space-y-6">
-        {/* Dynamic Fulfillment Selection Block */}
         <ReceiptFulfillment
           isDelivery={order.isDelivery}
           deliveryAddress={order.deliveryAddress}
           deliveryNotes={order.deliveryNotes}
         />
 
-        {/* ── MERCHANT INFO ── */}
         <div className="flex items-start gap-4 p-4 rounded-2xl bg-muted/30 border border-border">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <ShoppingBagIcon className="w-5 h-5 text-primary" />
@@ -82,7 +78,6 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </div>
         </div>
 
-        {/* ── ITEMS PURCHASED MULTI-MAPPING LOOP ── */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <PackageIcon className="w-4 h-4 text-muted-foreground" />
@@ -93,7 +88,6 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
 
           <div className="space-y-2">
             {order.items?.map((lineItem: OrderItem) => {
-              // 🌟 FIXED: Safely parse the real item line price
               const unitPrice = Number(lineItem.price) || 0;
               const lineTotal = unitPrice * lineItem.quantity;
 
@@ -103,11 +97,12 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
                   className="flex items-center gap-3 p-3.5 rounded-2xl border border-border bg-background/60 hover:bg-muted/20 transition-colors"
                 >
                   <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0 border border-border">
-                    <Image
-                      src={lineItem.item?.image || "/placeholder-product.jpg"}
+                    <ImageWithFallback
+                      src={lineItem.item?.image ?? null}
                       alt={lineItem.item?.name || "Product"}
-                      fill
-                      className="object-cover"
+                      icon={PackageIcon}
+                      label=""
+                      sizes="56px"
                     />
                   </div>
 
@@ -131,14 +126,12 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </div>
         </div>
 
-        {/* ── DOT LAYOUT DIVIDER ── */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-border" />
           <div className="w-2 h-2 rounded-full bg-border" />
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* ── FINANCIAL SUMMARY PANEL ── */}
         <div className="space-y-3">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground font-medium">Subtotal</span>
@@ -168,7 +161,6 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </div>
         </div>
 
-        {/* ── TOTAL HERO BANNER ── */}
         <div className="flex items-center justify-between p-5 rounded-2xl bg-primary/5 dark:bg-primary/10 border border-primary/20">
           <div className="space-y-0.5">
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -184,7 +176,6 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </span>
         </div>
 
-        {/* ── FOOTER SYSTEM MARKERS ── */}
         <div className="text-center pt-2 border-t border-border/50 space-y-1">
           <p className="text-[10px] text-muted-foreground/50 font-mono text-sm tracking-tight break-all">
             Reference Tracking ID: {order.id}

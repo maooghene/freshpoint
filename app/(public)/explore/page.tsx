@@ -9,9 +9,11 @@ import {
   Flower2,
   Sparkle,
   Stethoscope,
+  MoreHorizontal,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import BusinessesGrid, { GridItem } from "./BusinessesGrid";
+import { BUSINESS_CATEGORIES } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -19,28 +21,19 @@ interface PageProps {
   searchParams: Promise<{ search?: string; category?: string }>;
 }
 
+// Icons live here only (presentation concern), values come from the shared list
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  "": <Store className="w-3.5 h-3.5" />,
+  SALON: <Scissors className="w-3.5 h-3.5" />,
+  SPA: <Flower2 className="w-3.5 h-3.5" />,
+  CLINIC: <Sparkle className="w-3.5 h-3.5" />,
+  WELLNESS: <Stethoscope className="w-3.5 h-3.5" />,
+  OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
+};
+
 const CATEGORIES = [
-  {
-    label: "All Providers",
-    value: "",
-    icon: <Store className="w-3.5 h-3.5" />,
-  },
-  {
-    label: "Salons",
-    value: "SALON",
-    icon: <Scissors className="w-3.5 h-3.5" />,
-  },
-  { label: "Spas", value: "SPA", icon: <Flower2 className="w-3.5 h-3.5" /> },
-  {
-    label: "Aesthetics",
-    value: "CLINIC",
-    icon: <Sparkle className="w-3.5 h-3.5" />,
-  },
-  {
-    label: "Wellness & Health",
-    value: "WELLNESS",
-    icon: <Stethoscope className="w-3.5 h-3.5" />,
-  },
+  { label: "All Providers", value: "" },
+  ...BUSINESS_CATEGORIES,
 ];
 
 export default async function ExplorePage({ searchParams }: PageProps) {
@@ -48,7 +41,6 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   const searchQuery = resolvedParams.search?.trim() || "";
   const selectedCategory = resolvedParams.category?.trim().toUpperCase() || "";
 
-  // Base visibility filters matching approved entries
   const baseConditions: Prisma.BusinessWhereInput[] = [
     {
       status: {
@@ -66,42 +58,14 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     },
   ];
 
-  // If a category ribbon is active, match it dynamically via array hasSome OR partial text fallback strings
   if (selectedCategory) {
-    const capitalizedCategory =
-      selectedCategory.charAt(0) + selectedCategory.slice(1).toLowerCase();
-    const lowercaseCategory = selectedCategory.toLowerCase();
-
     baseConditions.push({
-      OR: [
-        {
-          categories: {
-            hasSome: [
-              selectedCategory,
-              capitalizedCategory,
-              lowercaseCategory,
-              `${lowercaseCategory} `,
-            ],
-          },
-        },
-        // Fallback: If array parameters fail, check if the word is found anywhere inside text definitions
-        {
-          name: {
-            contains: lowercaseCategory,
-            mode: "insensitive",
-          },
-        },
-        {
-          description: {
-            contains: lowercaseCategory,
-            mode: "insensitive",
-          },
-        },
-      ],
+      categories: {
+        hasSome: [selectedCategory],
+      },
     });
   }
 
-  // Layer search queries if active
   if (searchQuery) {
     baseConditions.push({
       OR: [
@@ -113,9 +77,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   }
 
   const businesses = await prisma.business.findMany({
-    where: {
-      AND: baseConditions,
-    },
+    where: { AND: baseConditions },
     select: {
       id: true,
       name: true,
@@ -130,12 +92,12 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   });
 
   const normalizedBusinesses: GridItem[] = businesses.map((b) => {
-    let displayedCategory = "Shop";
-    if (Array.isArray(b.categories) && b.categories.length > 0) {
-      displayedCategory = String(b.categories[0]);
-    } else if (b.categories) {
-      displayedCategory = String(b.categories);
-    }
+    const validCategories = Array.isArray(b.categories)
+      ? b.categories.filter((c) => typeof c === "string" && c.trim().length > 0)
+      : [];
+
+    const displayedCategory =
+      validCategories.length > 0 ? validCategories[0] : "Shop";
 
     return {
       id: b.id,
@@ -169,7 +131,6 @@ export default async function ExplorePage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {/* Dynamic Category Selector Ribbon Bar */}
         <div className="flex items-center justify-start md:justify-center gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x snap-mandatory">
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.value;
@@ -188,13 +149,12 @@ export default async function ExplorePage({ searchParams }: PageProps) {
                     : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                {cat.icon} <span>{cat.label}</span>
+                {CATEGORY_ICONS[cat.value]} <span>{cat.label}</span>
               </Link>
             );
           })}
         </div>
 
-        {/* Dynamic Sub-component Grid Matrix Render */}
         {normalizedBusinesses.length === 0 ? (
           <div className="text-center py-24 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
             <Store className="mx-auto w-10 h-10 text-muted-foreground/30 animate-pulse" />

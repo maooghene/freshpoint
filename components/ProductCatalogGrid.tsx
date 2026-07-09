@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ShoppingBagIcon, ChevronDown, ChevronUp, Box } from "lucide-react";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface ProductItem {
   id: string;
@@ -22,12 +22,10 @@ interface ProductCatalogGridProps {
 
 export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
   const router = useRouter();
+
   const [expandedReviews, setExpandedReviews] = useState<
     Record<string, boolean>
   >({});
-
-  // 🌟 FIXED: Track which specific product IDs have broken images in real-time
-  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const toggleReviewsExpansion = (
     id: string,
@@ -38,32 +36,6 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
       ...prev,
       [id]: !prev[id],
     }));
-  };
-
-  const handleImageError = (id: string) => {
-    setBrokenImages((prev) => ({
-      ...prev,
-      [id]: true,
-    }));
-  };
-
-  const resolveProductImage = (
-    savedPath: string | null | undefined,
-  ): string | null => {
-    if (!savedPath || savedPath.trim().length === 0) {
-      return null;
-    }
-
-    if (
-      savedPath.startsWith("http://") ||
-      savedPath.startsWith("https://") ||
-      savedPath.includes("imagekit.io")
-    ) {
-      return savedPath;
-    }
-
-    const cleanToken = savedPath.replace(/^\//, "");
-    return `https://imagekit.io{cleanToken}`;
   };
 
   if (products.length === 0) {
@@ -83,11 +55,7 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {products.map((product: ProductItem) => {
-        const displayImage = resolveProductImage(product.image);
         const isReviewsOpen = !!expandedReviews[product.id];
-
-        // 🌟 FIXED: Check if the image path is null OR if it failed to load during the browser session
-        const isImageBroken = !displayImage || !!brokenImages[product.id];
 
         return (
           <div
@@ -95,26 +63,14 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
             onClick={() => router.push(`/products/${product.id}`)}
             className="cursor-pointer flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-2xs hover:shadow-md hover:border-primary/20 transition-all duration-200 h-fit"
           >
-            {/* Image Frame Section Container */}
             <div className="relative aspect-[4/3] w-full bg-muted border-b border-border/40 overflow-hidden flex items-center justify-center">
-              {!isImageBroken && displayImage ? (
-                <Image
-                  src={displayImage}
-                  alt={product.name}
-                  fill
-                  sizes="(max-w-7xl) 50vw"
-                  className="object-cover group-hover:scale-103 transition-transform duration-300"
-                  onError={() => handleImageError(product.id)} // 🌟 FIXED: Triggers immediately if ImageKit returns a 404
-                />
-              ) : (
-                // Your beautiful, high-utility pure CSS backup box component
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 text-primary/40 p-2 text-center select-none animate-in fade-in duration-200">
-                  <Box className="w-5 h-5 mb-1 text-primary/30" />
-                  <span className="text-[9px] font-bold tracking-wider uppercase opacity-80">
-                    Wellness Item
-                  </span>
-                </div>
-              )}
+              <ImageWithFallback
+                src={product.image}
+                alt={product.name}
+                icon={Box}
+                label="Wellness Item"
+                sizes="(max-w-7xl) 50vw"
+              />
             </div>
 
             <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
