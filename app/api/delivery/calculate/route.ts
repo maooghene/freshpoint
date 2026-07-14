@@ -1,63 +1,138 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
+import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
+
+interface DeliveryCalculateRequestBody {
+  businessId: string;
+  destinationAddress?: string;
+  destinationLatitude?: number;
+  destinationLongitude?: number;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: "Invalid JSON request structure" }, { status: 400 });
+    const body: DeliveryCalculateRequestBody = await req.json();
+
+    const businessId = body.businessId?.trim();
+    const destinationAddress = body.destinationAddress?.trim();
+    const destinationLatitude = body.destinationLatitude;
+    const destinationLongitude = body.destinationLongitude;
+
+    if (!businessId) {
+      return NextResponse.json(
+        { error: "Business ID is required." },
+        { status: 400 },
+      );
     }
 
-    const { businessId, destinationAddress } = body;
+    const hasDirectCoordinates =
+      typeof destinationLatitude === "number" &&
+      typeof destinationLongitude === "number" &&
+      !Number.isNaN(destinationLatitude) &&
+      !Number.isNaN(destinationLongitude);
 
-    if (!businessId || !destinationAddress || !destinationAddress.trim()) {
-      return NextResponse.json({ error: "Missing calculation criteria parameters" }, { status: 400 });
+    if (!hasDirectCoordinates && !destinationAddress) {
+      return NextResponse.json(
+        {
+          error:
+            "Provide either destinationLatitude/destinationLongitude (preferred) or a destinationAddress.",
+        },
+        { status: 400 },
+      );
     }
 
-    // 1. Pull the business context profile to get default metrics if needed
     const business = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: { address: true }
+      where: {
+        id: businessId,
+      },
+      select: {
+        latitude: true,
+        longitude: true,
+        baseDeliveryFee: true,
+        deliveryFeePerKm: true,
+      },
     });
 
     if (!business) {
-      return NextResponse.json({ error: "Merchant record not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Business not found." },
+        { status: 404 },
+      );
     }
 
-    /* 
-      PRODUCTION ARCHITECTURE INTEGRATION:
-      This is where we dispatch an internal fetch call to standard mapping layers:
-      const mapsUrl = `https://googleapis.com{encodeURIComponent(business.address)}&destinations=${encodeURIComponent(destinationAddress)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-    */
+    // Preferred path: frontend autocomplete picker already resolved exact
+    // coordinates. This avoids Nominatim entirely (rate limits + poor
+    // coverage of informal Nigerian/campus addresses are the reason the
+    // fee was silently falling back to baseDeliveryFee on every request).
+    let customerCoordinates: { latitude: number; longitude: number } | null =
+      hasDirectCoordinates
+        ? {
+            latitude: destinationLatitude as number,
+            longitude: destinationLongitude as number,
+          }
+        : null;
 
-    // Senior simulated deterministic algorithm based on address character layout
-    // This serves as an excellent zero-cost placeholder tracking pipeline
-    const pseudoDistanceKm = Math.min(
-      Math.max((destinationAddress.trim().length % 15) + 3, 2), 
-      25
+    // Legacy fallback path only: used if a raw address string is sent
+    // without coordinates. Should become rare/unused once the frontend
+    // picker is fully wired in.
+    if (!customerCoordinates && destinationAddress) {
+      customerCoordinates = await geocodeAddress(destinationAddress);
+    }
+
+    if (!customerCoordinates) {
+      console.warn("DELIVERY_GEOCODE_FALLBACK_HIT", {
+        businessId,
+        destinationAddress,
+      });
+
+      return NextResponse.json({
+        success: true,
+        distanceKm: 0,
+        deliveryFee: Math.round(business.baseDeliveryFee || 0),
+        isFallback: true,
+        message:
+          "Unable to determine delivery location. Base delivery fee applied.",
+      });
+    }
+
+    const businessCoordinates = {
+      latitude: business.latitude,
+      longitude: business.longitude,
+    };
+
+    const distanceKm = calculateHaversineDistance(
+      businessCoordinates,
+      customerCoordinates,
     );
 
-    // Business Pricing Parameter Matrix 
-    const baseFee = 500; // ₦500 Base start cost fee line
-    const costPerKm = 120; // ₦120 per calculated road Kilometer distance
+    const roundedDistance = Number(distanceKm.toFixed(2));
 
-    const calculatedFee = baseFee + (pseudoDistanceKm * costPerKm);
+    const deliveryFee =
+      Number(business.baseDeliveryFee) +
+      roundedDistance * Number(business.deliveryFeePerKm);
 
     return NextResponse.json({
       success: true,
-      distanceKm: pseudoDistanceKm,
-      deliveryFee: Math.round(calculatedFee)
-    }, { status: 200 });
+      distanceKm: roundedDistance,
+      deliveryFee: Math.round(deliveryFee),
+      isFallback: false,
+    });
+  } catch (error) {
+    console.error("DELIVERY_CALCULATION_ERROR:", error);
 
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: `Calculation pipeline drop: ${msg}` }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unable to calculate delivery fee.",
+      },
+      { status: 500 },
+    );
   }
 }
-

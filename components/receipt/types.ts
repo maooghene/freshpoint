@@ -32,11 +32,9 @@ export interface OrderData {
   isDelivery: boolean;
   deliveryAddress: string | null;
   deliveryNotes?: string | null;
+  deliveryFee: number; // ADD THIS
 
-  // 🌟 ADDED: Register the creation timestamp string so your receipt prints dates accurately
   createdAt: string;
-
-  // 🌟 ADDED: Connect user properties loop mappings safely
   user: UserDetails;
 
   business: {

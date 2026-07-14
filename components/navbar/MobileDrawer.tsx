@@ -24,7 +24,6 @@ interface MobileDrawerProps {
   isSignedIn: boolean | undefined;
   cartItemsCount: number;
   hasBusinessAccess: boolean;
-  // ✅ string | null — matches useNavbarRouting()'s real return type.
   merchantDashboardHref: string | null;
   closeMenu: () => void;
 }
@@ -43,7 +42,7 @@ export function MobileDrawer({
 }: MobileDrawerProps) {
   return (
     <div className="md:hidden fixed inset-0 top-16 left-0 w-full h-[calc(100vh-4rem)] bg-background/98 backdrop-blur-md z-40 flex flex-col p-6 animate-fadeIn transition-all border-t border-border">
-      <div className="w-full max-w-sm mx-auto space-y-8 pt-4">
+      <div className="w-full max-w-sm mx-auto space-y-6 pt-4">
         <form
           onSubmit={handleMobileSearch}
           className="flex items-center gap-3 bg-muted/80 border border-border rounded-xl px-4 py-3.5 focus-within:border-primary w-full"
@@ -163,18 +162,15 @@ export function MobileDrawer({
           </div>
         </div>
 
-        {/* ✅ FIX: Evaluating hasBusinessAccess directly renders the CTA layout immediately for owners while background states load safely */}
         {hasBusinessAccess && (
           <Button
             asChild
             disabled={!merchantDashboardHref}
-            className="w-full py-6 rounded-xl font-black text-sm shadow-md disabled:opacity-60"
+            className="w-full py-6 rounded-xl font-black text-sm shadow-md disabled:opacity-60 mt-2"
             onClick={closeMenu}
           >
             <Link href={merchantDashboardHref || "#"}>
-              {!merchantDashboardHref
-                ? "Loading Workspace..."
-                : "My Shop"}
+              {!merchantDashboardHref ? "Loading Workspace..." : "My Shop"}
             </Link>
           </Button>
         )}

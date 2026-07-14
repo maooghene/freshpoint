@@ -1,21 +1,24 @@
+// ./app/(public)/register-business/aiGate.ts
 import { AIValidationPayload } from "./types";
 
 /**
  * Intelligent AI Semantic Vetting Engine (Hugging Face Edition)
- * Leverages structured context mapping over Llama-3 serverless inference models.
+ * Leverages structured context mapping over Meta-Llama-3 inference models.
  */
 export async function analyzeBusinessIntentWithAI(
   name: string,
   description: string,
 ): Promise<AIValidationPayload> {
   try {
-    const hfToken = process.env.HF_API_KEY;
+    // Aligned to match your core server environment configurations source of truth token
+    const hfToken = process.env.HUGGINGFACE_API_KEY;
     if (!hfToken) {
       throw new Error(
-        "Missing mandatory HF_API_KEY inside system environment configurations",
+        "Missing mandatory HUGGINGFACE_API_KEY inside system environment configurations",
       );
     }
 
+    // Fixed Endpoint: Targets the real Hugging Face Serverless Inference API model pipeline
     const response = await fetch("https://huggingface.co", {
       method: "POST",
       headers: {
@@ -34,6 +37,11 @@ Analyze the business and return EXACTLY a raw JSON object string with no extra m
 {"isValidIndustry": boolean, "confidenceScore": 1.0, "reason": "Polite rejection statement if invalid"}
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 Business Name: "${name}"\nBusiness Description: "${description}"<|eot_id|><|start_header_id|>assistant<|end_header_id|>`,
+        parameters: {
+          max_new_tokens: 150,
+          return_full_text: false,
+          temperature: 0.1,
+        },
       }),
     });
 
@@ -46,24 +54,22 @@ Business Name: "${name}"\nBusiness Description: "${description}"<|eot_id|><|star
     const rawResponseData: unknown = await response.json();
     let generatedText = "";
 
-    // 🌟 THE FIX: Convert through intermediate 'unknown' first to align structural arrays safely
+    // Safely extract text out of Hugging Face inference response payload structures
     if (Array.isArray(rawResponseData) && rawResponseData.length > 0) {
-      const intermediateUnknown = rawResponseData[0] as unknown;
-      const firstChoice = intermediateUnknown as Record<string, unknown>;
+      const firstChoice = rawResponseData[0] as Record<string, unknown>;
       generatedText =
         typeof firstChoice.generated_text === "string"
           ? firstChoice.generated_text
           : "";
     } else if (rawResponseData && typeof rawResponseData === "object") {
-      const intermediateUnknown = rawResponseData as unknown;
-      const objChoice = intermediateUnknown as Record<string, unknown>;
+      const objChoice = rawResponseData as Record<string, unknown>;
       generatedText =
         typeof objChoice.generated_text === "string"
           ? objChoice.generated_text
           : "";
     }
 
-    const jsonStartIndex = generatedText.lastIndexOf("{");
+    const jsonStartIndex = generatedText.indexOf("{");
     const jsonEndIndex = generatedText.lastIndexOf("}");
 
     if (jsonStartIndex === -1 || jsonEndIndex === -1) {

@@ -16,6 +16,8 @@ export interface ActionState {
     categories?: string[];
     description?: string[];
     image?: string[];
+    baseDeliveryFee?: string[]; // New validation track
+    deliveryFeePerKm?: string[]; // New validation track
   };
 }
 
@@ -64,6 +66,17 @@ export async function updateBusinessSettings(
     const phone = formData.get("phone")?.toString().trim() || "";
     const address = formData.get("address")?.toString().trim() || "";
     const description = formData.get("description")?.toString().trim() || null;
+
+    // New Delivery Pricing Parameters
+    const baseDeliveryFeeRaw = formData.get("baseDeliveryFee");
+    const baseDeliveryFee = baseDeliveryFeeRaw
+      ? parseFloat(baseDeliveryFeeRaw.toString())
+      : 0;
+
+    const deliveryFeePerKmRaw = formData.get("deliveryFeePerKm");
+    const deliveryFeePerKm = deliveryFeePerKmRaw
+      ? parseFloat(deliveryFeePerKmRaw.toString())
+      : 0;
 
     const file = formData.get("imageFile") as File | null;
     let savedImagePath = business.image;
@@ -124,6 +137,27 @@ export async function updateBusinessSettings(
     if (isNaN(sittingCapacity) || sittingCapacity < 1)
       errors.sittingCapacity = ["Sitting capacity must be at least 1."];
 
+    // Validate delivery fee parameters safely
+    if (isNaN(baseDeliveryFee) || baseDeliveryFee < 0) {
+      errors.baseDeliveryFee = [
+        "Base delivery fee must be a valid number greater than or equal to 0.",
+      ];
+    }
+    if (isNaN(deliveryFeePerKm) || deliveryFeePerKm < 0) {
+      errors.deliveryFeePerKm = [
+        "Delivery fee per KM must be a valid number greater than or equal to 0.",
+      ];
+    }
+    console.log("VALIDATION_ERRORS_DEBUG:", errors);
+    console.log("SUBMITTED_VALUES_DEBUG:", {
+      name,
+      phone,
+      address,
+      sittingCapacity,
+      baseDeliveryFee,
+      deliveryFeePerKm,
+    });
+
     if (Object.keys(errors).length > 0) {
       return { success: false, message: "Validation failed.", errors };
     }
@@ -138,6 +172,8 @@ export async function updateBusinessSettings(
         categories,
         description,
         image: savedImagePath,
+        baseDeliveryFee, // Persisting new delivery field
+        deliveryFeePerKm, // Persisting new delivery field
       },
     });
 

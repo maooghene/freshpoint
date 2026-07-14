@@ -142,6 +142,26 @@ export default function ReceiptCard({ order }: ReceiptCardProps) {
           </div>
 
           <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground font-medium">Subtotal</span>
+            <span className="font-bold text-foreground">
+              {currency}
+              {subtotal.toLocaleString()}
+            </span>
+          </div>
+
+          {order.isDelivery && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground font-medium">
+                Delivery fee
+              </span>
+              <span className="font-bold text-foreground">
+                {currency}
+                {Number(order.deliveryFee || 0).toLocaleString()}
+              </span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground font-medium flex items-center gap-1.5">
               <CreditCardIcon className="w-3.5 h-3.5 text-muted-foreground/60" />
               Payment method

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { notFound } from "next/navigation";
+import { notFound, unstable_rethrow } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { computeTimelineData, mergeActivities } from "@/lib/dashboard-helpers";
@@ -7,6 +7,7 @@ import PerformanceCharts from "./PerformanceCharts";
 import RecentActivityFeed from "./RecentActivityFeed";
 import DashboardHeader from "./DashboardHeader";
 import DashboardMetricsWrapper from "./DashboardMetricsWrapper";
+import { CopyBusinessLink } from "./components/CopyBusinessLink";
 import {
   PageProps,
   FullDashboardBusinessData,
@@ -35,11 +36,12 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
 
     if (!systemUser) notFound();
 
-    // Context Fallback Check
+    // Core Business Selective Retrieval
     const initialFetch = await prisma.business.findUnique({
       where: { slug: rawSlug },
       select: {
         id: true,
+        slug: true,
         ownerId: true,
         staff: { where: { isActive: true }, select: { id: true } },
         items: { select: { id: true, type: true } },
@@ -62,7 +64,7 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
       },
     });
 
-    business = initialFetch as FullDashboardBusinessData | null;
+    business = initialFetch as unknown as FullDashboardBusinessData | null;
 
     if (!business) {
       const sanitizedSlug = rawSlug.startsWith("-")
@@ -73,6 +75,7 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
         where: { slug: sanitizedSlug },
         select: {
           id: true,
+          slug: true,
           ownerId: true,
           staff: { where: { isActive: true }, select: { id: true } },
           items: { select: { id: true, type: true } },
@@ -95,7 +98,7 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
         },
       });
 
-      business = fallbackFetch as FullDashboardBusinessData | null;
+      business = fallbackFetch as unknown as FullDashboardBusinessData | null;
     }
 
     if (!business) notFound();
@@ -140,9 +143,11 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
       }),
     ]);
 
-    latestBookings = bookingsRaw as RichBookingTimelineRecord[];
-    latestOrders = ordersRaw as RichOrderTimelineRecord[];
+    latestBookings = bookingsRaw as unknown as RichBookingTimelineRecord[];
+    latestOrders = ordersRaw as unknown as RichOrderTimelineRecord[];
   } catch (error: unknown) {
+    unstable_rethrow(error);
+
     console.error("Dashboard database fetch failure:", error);
     return (
       <div className="mx-auto flex min-h-[50vh] w-full max-w-3xl items-center justify-center px-4">
@@ -165,8 +170,11 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
   const unifiedActivities = mergeActivities(latestBookings, latestOrders);
 
   return (
-    <div className="space-y-8 w-full max-w-7xl mx-auto min-w-0">
+    <div className="space-y-8 w-full max-w-7xl mx-auto min-w-0 px-4 py-2">
       <DashboardHeader ownerName={ownerName} />
+
+      {/* Aligns link copies straight to the public explore profile layout */}
+      <CopyBusinessLink slug={business.slug} />
 
       <DashboardMetricsWrapper business={business} />
 

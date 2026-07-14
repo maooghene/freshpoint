@@ -3,10 +3,11 @@
 import Banner from "@/components/Banner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { AiSupportWidget } from "@/components/AiSupportWidget"; // Shared source of truth widget import
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useAppDispatch } from "@/lib/store"; // FIXED: Uses type-safe custom hook from central store
-import { fetchItemsByBusiness } from "@/lib/features/itemSlice"; // FIXED: Uses unified item handler
+import { useAppDispatch } from "@/lib/store";
+import { fetchItemsByBusiness } from "@/lib/features/itemSlice";
 
 export default function PublicLayout({
   children,
@@ -34,6 +35,9 @@ export default function PublicLayout({
         {children}
       </main>
       <Footer />
+
+      {/* Task 3 Global Float Anchor Position Insertion Point */}
+      <AiSupportWidget />
     </>
   );
 }

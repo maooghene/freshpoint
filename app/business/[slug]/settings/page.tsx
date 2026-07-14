@@ -38,7 +38,7 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     redirect("/dashboard");
   }
 
-  // 💡 TYPE RECONCILIATION: Fixed to map cleanly from business.image
+  // 💡 TYPE RECONCILIATION: Fixed to map cleanly from business.image and included delivery parameters
   const serializedBusinessForForm = {
     id: business.id,
     name: business.name,
@@ -49,6 +49,8 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     categories: business.categories,
     description: business.description,
     image: business.image ?? null, // FIXED: Changed business.imageUrl to business.image
+    baseDeliveryFee: business.baseDeliveryFee ?? 0, // New bridge payload data injected safely
+    deliveryFeePerKm: business.deliveryFeePerKm ?? 0, // New bridge payload data injected safely
   };
 
   // Look at your page.tsx file and update this section to inject fallback numbers:

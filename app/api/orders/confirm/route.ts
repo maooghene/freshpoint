@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { OrderStatus } from "@prisma/client";
-import { prisma } from "@/lib/prisma"; // Enforce shared named instance token
+import { prisma } from "@/lib/prisma";
 import {
   createSecureTrackCode,
   CheckoutRequestBody,
@@ -142,8 +142,7 @@ export async function POST(request: NextRequest) {
       "💾 [FreshPoint API] Committing record atomic upsert operation to Neon Postgres...",
     );
 
-    // CORRECTED: If this reference already hit the database on a previous request attempt,
-    // clear out the line items for this specific order first to avoid relational primary key collisions.
+    // Safe transaction cleaner to avoid duplication key constraint drops on retry loops
     await prisma.orderItem.deleteMany({
       where: { orderId: reference },
     });

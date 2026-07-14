@@ -32,6 +32,10 @@ export interface DashboardStaffSubset {
 
 export interface DashboardItemSubset {
   id: string;
+  name: string; // Added to support public shop rendering
+  price: number; // Added to support pricing displays
+  description: string | null; // Added to support catalog listings
+  image: string | null; // Added to support product/service visuals
   type: string;
 }
 
@@ -51,6 +55,12 @@ export interface DashboardOrderSubset {
 
 export interface FullDashboardBusinessData {
   id: string;
+  name: string; // Added for owner branding / customer storefront header
+  slug: string; // Added for absolute URL resolution
+  phone: string; // Added to enable international WhatsApp links
+  address: string; // Added for customer map/location matching
+  description: string | null; // Added for customer profile info
+  image: string | null; // Added for storefront cover images
   ownerId: string;
   staff: DashboardStaffSubset[];
   items: DashboardItemSubset[];

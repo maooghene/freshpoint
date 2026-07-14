@@ -13,6 +13,7 @@ export interface RegisterState {
   message: string;
   isRejectedByFilter?: boolean;
   errors?: RegisterErrors;
+  finalizedSlug?: string; // Explicit source of truth for the client
 }
 
 export async function createBusiness(
@@ -39,17 +40,20 @@ export async function createBusiness(
     let systemUser = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
-    if (!systemUser)
+    if (!systemUser) {
       systemUser = await prisma.user.findUnique({
         where: { email: primaryEmail },
       });
-    if (!systemUser)
+    }
+    if (!systemUser) {
       return {
         success: false,
         message: "User account records missing. Please refresh.",
       };
+    }
 
     const name = formData.get("name")?.toString().trim() || "";
+    // Clean and validate configuration variables
     const slug = formData.get("slug")?.toString().trim().toLowerCase() || "";
     const email = formData.get("email")?.toString().trim() || "";
     const phone = formData.get("phone")?.toString().trim() || "";
@@ -67,9 +71,10 @@ export async function createBusiness(
     const errors: RegisterErrors = {};
     if (name.length < 2)
       errors.name = "Shop name must be at least 2 characters long.";
-    if (!/^[a-z0-9-]+$/.test(slug))
+    if (!/^[a-z0-9-]+$/.test(slug)) {
       errors.slug =
         "Slug can only contain lowercase letters, numbers, and hyphens.";
+    }
     if (!email.includes("@"))
       errors.email = "Please input a valid email address.";
     if (phone.length < 7)
@@ -134,30 +139,35 @@ export async function createBusiness(
       ],
     });
 
-    await prisma.business.create({
-      data: {
-        name,
-        slug,
-        email,
-        phone,
-        address,
-        sittingCapacity,
-        description: description || null,
-        image: optimizedImageUrl,
-        status: "approved",
-        isActive: true,
-        ownerId: systemUser.id,
-        categories: [category],
-      },
-    });
+    // Enforce an atomic transaction model to prevent data fragmentation or half-updated roles
+    await prisma.$transaction([
+      prisma.business.create({
+        data: {
+          name,
+          slug,
+          email,
+          phone,
+          address,
+          sittingCapacity,
+          description: description || null,
+          image: optimizedImageUrl,
+          status: "approved",
+          isActive: true,
+          ownerId: systemUser.id,
+          categories: [category],
+        },
+      }),
+      prisma.user.update({
+        where: { id: systemUser.id },
+        data: { role: UserRole.BUSINESS_OWNER },
+      }),
+    ]);
 
-    // ✅ NEW: promote the user to BUSINESS_OWNER now that they actually own a business
-    await prisma.user.update({
-      where: { id: systemUser.id },
-      data: { role: UserRole.BUSINESS_OWNER },
-    });
-
-    return { success: true, message: slug };
+    return {
+      success: true,
+      message: "Registration completed successfully.",
+      finalizedSlug: slug,
+    };
   } catch (error: unknown) {
     const msg =
       error instanceof Error ? error.message : "Unknown error occurred.";

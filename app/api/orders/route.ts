@@ -94,9 +94,13 @@ export async function GET(request: NextRequest) {
             code: singleOrderLookup.code,
             status: singleOrderLookup.status,
             totalAmount: singleOrderLookup.totalAmount,
+            isDelivery: singleOrderLookup.isDelivery,
+            deliveryAddress: singleOrderLookup.deliveryAddress,
+            deliveryNotes: singleOrderLookup.deliveryNotes,
+            deliveryFee: singleOrderLookup.deliveryFee,
             createdAt: singleOrderLookup.createdAt.toISOString(),
             user: singleOrderLookup.user,
-            business: singleOrderLookup.business, // Sends it cleanly to the receipt component!
+            business: singleOrderLookup.business,
             items: singleOrderLookup.items.map((line) => ({
               id: line.id,
               quantity: line.quantity,
