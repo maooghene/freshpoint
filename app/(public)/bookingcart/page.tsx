@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useAppSelector, useAppDispatch } from "@/lib/store";
 import { clearBookingFlow } from "@/lib/features/bookingSlice";
 import { Button } from "@/components/ui/button";
-import BookingSummary from "@/components/BookingSummary";
+import { BookingSummary } from "@/components/BookingSummary";
 
 export default function BookingCart() {
   const currency = "₦";

@@ -6,15 +6,356 @@ datasource db {
   provider = "postgresql"
 }
 
-// ==========================================
-// ENUMS & CONFIGURATION
-// ==========================================
+model User {
+  id           String        @id @default(cuid())
+  clerkId      String        @unique
+  role         UserRole      @default(CUSTOMER)
+  firstName    String?
+  lastName     String?
+  email        String        @unique
+  phone        String?
+  image        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  addresses    Address[]
+  bookings     Booking[]
+  businesses   Business[]    @relation("BusinessOwner")
+  carts        Cart[]
+  complaints   Complaint[]
+  orders       Order[]
+  ratings      Rating[]
+  staffProfile StaffProfile?
+  platformAdminProfile PlatformAdminProfile?
+
+  @@index([email])
+  @@index([clerkId])
+}
+
+model Business {
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  email             String
+  phone             String
+  address           String
+  sittingCapacity   Int                @default(1)
+  categories        String[]           @default([])
+  description       String?
+  image             String?
+  status            String             @default("pending")
+  isActive          Boolean            @default(false)
+  latitude          Float              @default(6.5244)
+  longitude         Float              @default(3.3792)
+  ownerId           String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  bufferTimeMinutes Int                @default(0)
+  cancelWindowHours Int                @default(24)
+  currencyCode      String             @default("NGN")
+  customInvoiceNote String?
+  depositPercentage Int                @default(0)
+  emailAlertsActive Boolean            @default(true)
+  maxAheadDays      Int                @default(30)
+  minNoticeHours    Int                @default(2)
+  requireDeposit    Boolean            @default(false)
+  smsAlertsActive   Boolean            @default(false)
+  timezone          String             @default("Africa/Lagos")
+  baseDeliveryFee   Float              @default(0)
+  deliveryFeePerKm  Float              @default(0)
+  bookings          Booking[]
+  owner             User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  schedules         BusinessSchedule[]
+  carts             Cart[]
+  complaints        Complaint[]
+  items             Item[]
+  orders            Order[]
+  ratings           Rating[]
+  staff             StaffProfile[]
+
+  @@index([ownerId])
+}
+
+model StaffProfile {
+  id         String          @id @default(cuid())
+  name       String
+  role       String          @default("Specialist")
+  email      String
+  isActive   Boolean         @default(false)
+  userId     String?         @unique
+  businessId String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  bookings   Booking[]
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User?           @relation(fields: [userId], references: [id])
+  schedules  StaffSchedule[]
+
+  @@unique([businessId, email])
+  @@index([businessId])
+}
+
+model StaffSchedule {
+  id        String       @id @default(cuid())
+  staffId   String
+  day       DayOfWeek
+  startTime String
+  endTime   String
+  isOff     Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  staff     StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, day])
+}
+
+model BusinessSchedule {
+  id         String    @id @default(cuid())
+  businessId String
+  day        DayOfWeek
+  openTime   String
+  closeTime  String
+  isClosed   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, day])
+}
+
+model PlatformAdminProfile {
+  id        String            @id @default(cuid())
+  userId    String            @unique
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  adminRole PlatformAdminRole @default(SUPPORT_AGENT)
+  isActive  Boolean           @default(true)
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model Item {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  stock       Int?          @default(0)
+  sku         String?
+  costPrice   Float?
+  weight      Float?
+  duration    Int?          @default(30)
+  isActive    Boolean       @default(true)
+  type        ItemType      @default(SERVICE)
+  image       String?
+  businessId  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  bookings    BookingItem[]
+  cartItems   CartItem[]
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  ratings     Rating[]
+
+  @@index([businessId])
+  @@index([businessId, type, isActive])
+}
+
+model Booking {
+  id                String        @id @default(cuid())
+  startTime         DateTime
+  endTime           DateTime
+  status            BookingStatus @default(CONFIRMED)
+  locationType      LocationType  @default(IN_SHOP)
+  notes             String?
+  paymentReference  String?       @unique
+  paymentStatus     String?       @default("pending")
+  totalAmount       Float?
+  freshpointFee     Float?
+  providerPayout    Float?
+  freshpointNet     Float?
+  queueCode         String?
+  isVerifiedByStaff Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  addressId         String?
+  businessId        String
+  userId            String
+  staffId           String?
+  address           Address?      @relation(fields: [addressId], references: [id])
+  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staff             StaffProfile? @relation(fields: [staffId], references: [id])
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items             BookingItem[]
+  ratings           Rating[]
+
+  @@index([businessId, staffId, startTime, endTime])
+  @@index([userId])
+  @@index([addressId])
+}
+
+model BookingItem {
+  id        String  @id @default(cuid())
+  bookingId String
+  itemId    String
+  price     Float
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  item      Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([itemId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  code            String      @unique
+  userId          String
+  businessId      String
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
+  isDelivery      Boolean     @default(false)
+  deliveryAddress String?
+  deliveryNotes   String?
+  deliveryFee     Float       @default(0.0)
+  addressId       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  address         Address?    @relation(fields: [addressId], references: [id])
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([addressId])
+}
+
+model OrderItem {
+  id       String @id @default(cuid())
+  orderId  String
+  itemId   String
+  quantity Int
+  price    Float
+  item     Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([itemId])
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  rating     Int
+  review     String?
+  isApproved Boolean  @default(true)
+  userId     String
+  itemId     String?
+  businessId String
+  bookingId  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  booking    Booking? @relation(fields: [bookingId], references: [id])
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  item       Item?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([itemId])
+  @@index([userId])
+  @@index([bookingId])
+}
+
+model Address {
+  id        String    @id @default(cuid())
+  street    String
+  city      String
+  state     String?
+  zipCode   String
+  isDefault Boolean   @default(false)
+  userId    String
+  latitude  Float?
+  longitude Float?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+  orders    Order[]
+
+  @@index([userId])
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String
+  businessId String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  business   Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+
+  @@unique([userId, businessId])
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  itemId     String
+  quantity   Int      @default(1)
+  priceAtAdd Float?
+  createdAt  DateTime @default(now())
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+  @@index([itemId])
+}
+
+model Complaint {
+  id         String            @id @default(cuid())
+  userId     String
+  businessId String?
+  orderCode  String?
+  bookingId  String?
+  category   ComplaintCategory
+  severity   ComplaintSeverity
+  assignedTo ComplaintAssignee
+  status     ComplaintStatus   @default(OPEN)
+  summary    String
+  rawMessage String
+  createdAt  DateTime          @default(now())
+  resolvedAt DateTime?
+  business   Business?         @relation(fields: [businessId], references: [id])
+  user       User              @relation(fields: [userId], references: [id])
+
+  @@index([businessId, status])
+  @@index([assignedTo, status])
+}
+
+model SystemSetting {
+  id                     String   @id @default("singleton")
+  bookingCommissionPct   Int      @default(8)     // Commission percentage on bookings (0-100)
+  productCommissionPct   Int      @default(5)     // Commission percentage on product sales (0-100)
+  minGlobalDeliveryFee   Float    @default(200)   // Minimum threshold limit floor for delivery
+  platformPayoutFloor    Float    @default(2000)  // Minimum balance needed before a vendor can withdraw funds
+  maintenanceModeActive  Boolean  @default(false) // Safe mode breaker
+  allowNewRegistrations  Boolean  @default(true)  // Onboarding breaker
+  enforceInstantApproval Boolean  @default(true)  // Automation bypass breaker
+  maxDailyBookingsPerUser Int     @default(5)     // Security rate limit
+  maxDistanceLimitKm     Float    @default(35.0)  // Delivery radius cap
+
+  updatedAt              DateTime @updatedAt
+}
 
 enum UserRole {
   CUSTOMER
   BUSINESS_OWNER
   STAFF
   ADMIN
+}
+
+enum PlatformAdminRole {
+  SUPER_ADMIN      // Complete destructive access across the platform
+  PLATFORM_MANAGER // Management privileges excluding emergency system parameters
+  SUPPORT_AGENT    // Exclusively manages and updates Complaints boards
+  LOGISTICS_AUDITOR// Audits business location coordinates and delivery configurations
 }
 
 enum DayOfWeek {
@@ -76,396 +417,4 @@ enum ComplaintStatus {
 enum ComplaintAssignee {
   ADMIN
   BUSINESS_OWNER
-}
-
-// ==========================================
-// CORE USERS & TENANTS
-// ==========================================
-
-model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  role      UserRole @default(CUSTOMER)
-  firstName String?
-  lastName  String?
-  email     String   @unique
-  phone     String?
-  image     String?
-
-  bookings     Booking[]
-  ratings      Rating[]
-  addresses    Address[]
-  businesses   Business[]    @relation("BusinessOwner")
-  staffProfile StaffProfile?
-  carts        Cart[]
-  orders       Order[]
-  complaints   Complaint[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([email])
-  @@index([clerkId])
-}
-
-model Business {
-  // ── 1️⃣ EXISTING PRODUCTION CORE SYSTEM SLATES ──
-  id              String   @id @default(cuid())
-  name            String
-  slug            String   @unique // Essential for tenant subdomains or clean URL parameters
-  email           String
-  phone           String
-  address         String
-  sittingCapacity Int      @default(1)
-  categories      String[] @default([])
-  description     String?
-  image           String?
-  status          String   @default("pending")
-  isActive        Boolean  @default(false)
-  latitude        Float    @default(6.5244)
-  longitude       Float    @default(3.3792)
-
-  // ── 2️⃣ ADVANCED BOOKING TIMELINE BOUNDARY CONTROLS ──
-  minNoticeHours    Int @default(2) // Block last-minute bookings (e.g., must book 2 hours ahead)
-  maxAheadDays      Int @default(30) // Caps future calendar visibility (e.g., maximum 30 days out)
-  cancelWindowHours Int @default(24) // Cut-off time threshold for safe client cancellations
-  bufferTimeMinutes Int @default(0) // Mandatory station/worker cooldown buffer injected after slots
-
-  // New Delivery Configuration Fields
-  baseDeliveryFee   Float @default(0)   // Flat base starting charge
-  deliveryFeePerKm  Float @default(0)   // Charge per kilometer distance
-
-  // ── 3️⃣ LOCALIZATION & OPERATIONAL PARAMETERS ──
-  timezone     String @default("Africa/Lagos") // Prevents serverless-vs-client hydration drift
-  currencyCode String @default("NGN") // Defaults to Naira, adaptable for platform growth
-
-  // ── 4️⃣ NOTIFICATION & TRANSACTION ENGINE CONTROLS ──
-  emailAlertsActive Boolean @default(true) // Toggles Resend SDK transaction block triggers
-  smsAlertsActive   Boolean @default(false) // Ready for future local SMS gateway integration
-  customInvoiceNote String? // Appends specialized gate codes or parking instructions
-
-  // ── 5️⃣ DEPOSIT & PAYMENT SECURITY PARAMETERS ──
-  requireDeposit    Boolean @default(false) // Toggle to enforce upfront commitment deposits
-  depositPercentage Int     @default(0) // Percentage integer bound rule (e.g., 20 for 20% down-payment)
-
-  // ── 6️⃣ EXISTING PRODUCTION RELATIONSHIPS ──
-  ownerId String
-  owner   User   @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-
-  items      Item[]
-  bookings   Booking[]
-  ratings    Rating[]
-  orders     Order[]
-  schedules  BusinessSchedule[]
-  staff      StaffProfile[]
-  carts      Cart[]
-  complaints Complaint[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ownerId])
-}
-
-// ==========================================
-// SALON STAFF & AVAILABILITY
-// ==========================================
-
-model StaffProfile {
-  id       String  @id @default(cuid())
-  name     String
-  role     String  @default("Specialist") // 🔑 ADDED: Tracks the employee's title (e.g., "Barber", "Stylist")
-  email    String // 🔑 ADDED: Tracks the exact invitation address string before account registration
-  isActive Boolean @default(false) // 🔑 MODIFIED: Starts as false until they claim their invitation link!
-
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  bookings  Booking[]
-  schedules StaffSchedule[] // Track individual barber shifts/days off
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([businessId, email]) // 🔒 Prevents a manager from accidentally sending double invites to the same person
-  @@index([businessId])
-}
-
-model StaffSchedule {
-  id      String       @id @default(cuid())
-  staffId String
-  staff   StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  day       DayOfWeek
-  startTime String // e.g., "09:00"
-  endTime   String // e.g., "18:00"
-  isOff     Boolean   @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([staffId, day])
-}
-
-model BusinessSchedule {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  day       DayOfWeek
-  openTime  String
-  closeTime String
-  isClosed  Boolean   @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([businessId, day])
-}
-
-// ==========================================
-// SALON RETAIL & SERVICES
-// ==========================================
-
-model Item {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-
-  // Product Inventory (Retail items like pomades, oils)
-  stock     Int?    @default(0)
-  sku       String?
-  costPrice Float?
-  weight    Float?
-
-  // Service Booking (E.g., Haircut, Color treatments)
-  duration Int? @default(30)
-
-  isActive Boolean  @default(true)
-  type     ItemType @default(SERVICE)
-  image    String?
-
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  bookings   BookingItem[] // Transitioned to support single or multi-service salon slots
-  ratings    Rating[]
-  cartItems  CartItem[]
-  orderItems OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([businessId])
-  @@index([businessId, type, isActive]) // Speeds up client catalog and scheduling engine checks
-}
-
-// ==========================================
-// TRANSACTIONAL BOOKINGS & ORDERS
-// ==========================================
-
-model Booking {
-  id           String        @id @default(cuid())
-  startTime    DateTime
-  endTime      DateTime
-  status       BookingStatus @default(CONFIRMED)
-  locationType LocationType  @default(IN_SHOP)
-  notes        String?
-
-  paymentReference String? @unique
-  paymentStatus    String? @default("pending")
-  totalAmount      Float?
-
-  // FreshPoint fee breakdown
-  freshpointFee  Float? // 8% commission
-  providerPayout Float? // What provider receives after commission
-  freshpointNet  Float? // FreshPoint profit after Paystack fees
-
-  queueCode         String? // E.g., "FP-56" or "FP-102"
-  isVerifiedByStaff Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  addressId String?
-  address   Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
-
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  staffId String?
-  staff   StaffProfile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
-
-  items   BookingItem[]
-  ratings Rating[]
-
-  @@index([businessId, staffId, startTime, endTime])
-  @@index([userId])
-  @@index([addressId])
-}
-
-// Join table to unlock multiple bundled salon services in a single checkout session
-model BookingItem {
-  id        String  @id @default(cuid())
-  bookingId String
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  itemId    String
-  item      Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  price     Float // Snapshots the service cost historical accuracy
-
-  @@index([bookingId])
-  @@index([itemId])
-}
-
-model Order {
-  id         String   @id @default(cuid())
-  code       String   @unique
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  items       OrderItem[]
-  totalAmount Float
-  status      OrderStatus @default(PENDING)
-
-  isDelivery      Boolean @default(false)
-  deliveryAddress String?
-  deliveryNotes   String?
-
-  // NEW: Captures explicit delivery surcharge split out from subtotal lines
-  deliveryFee Float @default(0.0)
-
-  addressId String?
-  address   Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([businessId])
-  @@index([userId])
-  @@index([addressId])
-}
-
-model OrderItem {
-  id       String @id @default(cuid())
-  orderId  String
-  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  itemId   String
-  item     Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  quantity Int
-  price    Float
-
-  @@index([orderId])
-  @@index([itemId])
-}
-
-model Rating {
-  id     String  @id @default(cuid())
-  rating Int
-  review String?
-
-  // 🌟 ADDED FOR VENDOR MODERATION TOGGLE
-  isApproved Boolean @default(true)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // 🌟 FIXED: Made optional (?) to safely support general venue-wide reviews without a foreign key crash
-  itemId String?
-  item   Item?   @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  bookingId String?
-  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([businessId])
-  @@index([itemId])
-  @@index([userId])
-  @@index([bookingId])
-}
-
-model Address {
-  id        String    @id @default(cuid())
-  street    String
-  city      String
-  state     String?
-  zipCode   String
-  latitude  Float?    // New: Stored after geocoding
-  longitude Float?    // New: Stored after geocoding
-  isDefault Boolean   @default(false)
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookings  Booking[]
-  orders    Order[]
-
-  @@index([userId])
-}
-
-
-model Cart {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  items     CartItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-
-  @@unique([userId, businessId])
-}
-
-model CartItem {
-  id         String   @id @default(cuid())
-  cartId     String
-  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  itemId     String
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  quantity   Int      @default(1)
-  priceAtAdd Float?
-  createdAt  DateTime @default(now())
-
-  @@index([cartId])
-  @@index([itemId])
-}
-
-model Complaint {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  businessId String?
-  business   Business? @relation(fields: [businessId], references: [id])
-
-  orderCode String?
-  bookingId String?
-
-  category   ComplaintCategory
-  severity   ComplaintSeverity
-  assignedTo ComplaintAssignee
-  status     ComplaintStatus   @default(OPEN)
-
-  summary    String
-  rawMessage String @db.Text
-
-  createdAt  DateTime  @default(now())
-  resolvedAt DateTime?
-
-  @@index([businessId, status])
-  @@index([assignedTo, status])
 }

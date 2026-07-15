@@ -19,7 +19,7 @@ function Footer() {
               <span>Freshpoint</span>
             </div>
             <p className="text-muted-foreground font-medium leading-relaxed">
-              Multi-tenant ecosystem for modern wellness businesses. Manage
+              Multi-tenant Admin Stafffor modern wellness businesses. Manage
               appointments, staff schedules, and retail items effortlessly.
             </p>
           </div>

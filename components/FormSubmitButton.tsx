@@ -18,7 +18,7 @@ export function FormSubmitButton({ isPending }: FormSubmitButtonProps) {
       {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {isPending
         ? "Setting up your digital shop......"
-        : "Provision Freshpoint Workspace"}
+        : "Provision FreshPointWorkspace"}
     </Button>
   );
 }

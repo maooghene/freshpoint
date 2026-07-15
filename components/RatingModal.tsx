@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface RatingModalProps {
   ratingModal: {
     bookingId: string;
-    businessId: string; // 🚀 FIXED: Shifted from salonId to align with Freshpoint core schema
+    businessId: string; // 🚀 FIXED: Shifted from salonId to align with FreshPointcore schema
   } | null;
   setRatingModal: (value: null) => void;
 }
@@ -29,7 +29,7 @@ const RatingModal = ({ ratingModal, setRatingModal }: RatingModalProps) => {
     }
 
     try {
-      // 🚀 Connect to your Freshpoint dynamic review endpoint
+      // 🚀 Connect to your FreshPointdynamic review endpoint
       const response = await fetch("/api/ratings/create", {
         method: "POST",
         headers: {

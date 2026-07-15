@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     const order = await prisma.order.upsert({
       where: { id: reference },
       update: {
-        status: OrderStatus.PROCESSING,
+        status: OrderStatus.PENDING,
         totalAmount: Number(totalAmount),
         isDelivery: activeIsDelivery,
         deliveryAddress: activeAddress,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         businessId: businessId,
         totalAmount: Number(totalAmount),
-        status: OrderStatus.PROCESSING,
+        status: OrderStatus.PENDING,
         isDelivery: activeIsDelivery,
         deliveryAddress: activeAddress,
         deliveryNotes: activeNotes,

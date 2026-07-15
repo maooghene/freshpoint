@@ -26,7 +26,7 @@ export default function LandingFeaturesMatrix() {
         </h2>
         <p className="text-sm text-muted-foreground max-w-xl mx-auto mt-2 font-medium">
           {
-            "Explore how Freshpoint unifies luxury self-care convenience for clients with institutional management suites for shop operators."
+            "Explore how FreshPointunifies luxury self-care convenience for clients with institutional management suites for shop operators."
           }
         </p>
       </div>

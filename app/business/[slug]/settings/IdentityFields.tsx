@@ -38,7 +38,7 @@ export function IdentityFields({
           name="name"
           type="text"
           defaultValue={business.name}
-          placeholder="Freshpoint Store"
+          placeholder="FreshPointStore"
           disabled={isPending}
           required
           className="bg-background"

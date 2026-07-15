@@ -1,3 +1,4 @@
+// components/BookingSummary.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -27,13 +28,25 @@ interface BookingSummaryProps {
   onSuccess?: (reference: string) => void;
 }
 
-const BookingSummary = ({
+// 🔐 Type-Safe Shape Definition for Dynamic Split Checkout Objects
+interface PaystackTransactionConfig {
+  key: string;
+  email: string;
+  amount: number;
+  currency: string;
+  ref: string;
+  onSuccess: (transaction: { reference: string }) => void;
+  onCancel: () => void;
+  subaccount?: string;
+  transaction_charge?: number;
+}
+
+export function BookingSummary({
   totalPrice,
-  items,
   userEmail = "customer@freshpoint.app",
   subaccountCode,
   onSuccess,
-}: BookingSummaryProps) => {
+}: BookingSummaryProps) {
   const currency = "₦";
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -77,7 +90,8 @@ const BookingSummary = ({
       const { totalKobo, platformChargeKobo } =
         calculatePaystackSplitSettings();
 
-      const transactionConfig: any = {
+      // Type asserted safely matching our configuration contract schema bounds
+      const transactionConfig: PaystackTransactionConfig = {
         key:
           process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ||
           "pk_test_your_key_here",
@@ -111,14 +125,15 @@ const BookingSummary = ({
 
       popup.newTransaction(transactionConfig);
     } catch (error) {
-      console.error("PAYSTACK SYSTEM INITIALIZATION FAULT:", error);
+      const errorMsg = error instanceof Error ? error.message : "Gateway Fault";
+      console.error("PAYSTACK SYSTEM INITIALIZATION FAULT:", errorMsg);
       setIsProcessing(false);
       toast.error("Payment gateway is down. Please refresh and retry.");
     }
   };
 
   return (
-    <div className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl relative z-10">
+    <div className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl relative z-10 text-foreground">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent tracking-tight">
           Booking Summary
@@ -130,7 +145,7 @@ const BookingSummary = ({
 
       {/* PAYSTACK CHANNEL BANNER */}
       <div className="space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Payment Processing Channel
         </p>
         <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary bg-primary/10 text-primary ring-1 ring-primary/20">
@@ -173,7 +188,7 @@ const BookingSummary = ({
       </div>
 
       {/* SECURITY AND NO-SHOW PROTECTION INFO BOX */}
-      <div className="flex gap-2 text-[11px] text-muted-foreground bg-muted/50 border border-border/80 rounded-xl p-3 mb-6 items-start leading-relaxed">
+      <div className="flex gap-2 text-[11px] text-muted-foreground bg-muted rounded-xl p-3 mb-6 items-start leading-relaxed border border-border">
         <InfoIcon size={14} className="text-primary shrink-0 mt-0.5" />
         <span>
           <strong>Booking Assurance Policy:</strong> Complete payment upfront to
@@ -195,7 +210,7 @@ const BookingSummary = ({
             })}
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-1 rounded-md">
+        <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
           <ShieldCheckIcon size={12} />
           SECURE
         </div>
@@ -207,7 +222,7 @@ const BookingSummary = ({
           onClick={handlePaystackCheckout}
           disabled={isProcessing}
           size="lg"
-          className="w-full py-7 rounded-2xl font-bold text-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full py-7 rounded-2xl font-bold text-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer bg-primary text-primary-foreground"
         >
           {isProcessing ? (
             <span className="text-sm">Connecting Paystack Engine...</span>
@@ -222,10 +237,8 @@ const BookingSummary = ({
 
       <p className="text-[10px] text-center text-muted-foreground mt-6 leading-relaxed">
         By authorizing payment, you lock this calendar timeframe slot. <br />
-        Freshpoint secure transactional clearing portal.
+        FreshPoint secure transactional clearing portal.
       </p>
     </div>
   );
-};
-
-export default BookingSummary;
+}

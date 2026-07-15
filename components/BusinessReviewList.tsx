@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { StarIcon } from "lucide-react";
+import { StarIcon, UserRound } from "lucide-react";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
+
 
 interface UserProfileMetadata {
   firstName: string | null;
@@ -111,11 +112,12 @@ export function BusinessReviewList({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <div className="relative w-6 h-6 rounded-full overflow-hidden bg-muted border">
-                      <Image
-                        src={item.user.image || "/placeholder-avatar.jpg"}
+                      <ImageWithFallback
+                        src={item.user.image}
                         alt={displayName}
-                        fill
-                        className="object-cover"
+                        icon={UserRound}
+                        label=""
+                        sizes="24px"
                       />
                     </div>
                     <div>

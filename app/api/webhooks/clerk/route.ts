@@ -1,6 +1,7 @@
+// app/api/webhooks/clerk/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
-import { WebhookEvent } from "@clerk/nextjs/server";
+import { WebhookEvent, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    await prisma.user.upsert({
+    const localUser = await prisma.user.upsert({
       where: { clerkId: id },
       update: {
         email: email.toLowerCase().trim(),
@@ -71,7 +72,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         firstName: first_name ?? "",
         lastName: last_name ?? "",
         image: image_url ?? null,
-        role: "CUSTOMER", // Maintain your standard default application fallback enum roles
+        role: "CUSTOMER",
+      },
+    });
+
+    // Mirror roles to public metadata using the pre-configured singleton client instance
+    const client = await clerkClient();
+    await client.users.updateUserMetadata(id, {
+      publicMetadata: {
+        role: localUser.role,
       },
     });
   }
@@ -81,28 +90,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { id: clerkId } = data;
 
     if (clerkId) {
-      // Find the local user first to extract the primary relational system ID
       const internalUser = await prisma.user.findUnique({
         where: { clerkId },
         select: { id: true },
       });
 
       if (internalUser) {
-        /*
-          🔥 PERMANENT MULTI-TENANT CLEANUP:
-          Manually delete all businesses owned by this internal user record
-          before purging the user to prevent orphaned data strings in Postgres.
-        */
         await prisma.business.deleteMany({
           where: { ownerId: internalUser.id },
         });
 
-        // Delete the user record now that dependencies are clear
         await prisma.user.delete({
           where: { id: internalUser.id },
         });
       } else {
-        // Fallback catch-all in case the internal mapping context is already partially purged
         await prisma.user.deleteMany({
           where: { clerkId },
         });

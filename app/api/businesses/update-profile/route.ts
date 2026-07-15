@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest) {
     const { name, phone, address, description, email, sittingCapacity } = body;
 
     // Build the database mutation update payload dynamically based on incoming variables
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
 
     if (typeof name === "string") updateData.name = name.trim();
     if (typeof phone === "string") updateData.phone = phone.trim();

@@ -1,9 +1,9 @@
+// app/api/businesses/[id]/staff/[staffId]/schedule/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { DayOfWeek } from "@prisma/client";
 
-// 1️⃣ Fix: Updated interface properties to match your schema naming ('day' and 'isOff')
 interface SchedulePayloadItem {
   day: DayOfWeek;
   startTime: string;
@@ -11,21 +11,31 @@ interface SchedulePayloadItem {
   isOff: boolean;
 }
 
+// Next.js 15 Context Interface contract rules require wrapping dynamic params in a Promise
+interface RouteContext {
+  params: Promise<{
+    id: string;
+    staffId: string;
+  }>;
+}
+
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string; staffId: string } },
-) {
+  context: RouteContext,
+): Promise<NextResponse> {
   try {
     const { userId } = await auth();
-    if (!userId)
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const { id: businessId, staffId } = params;
+    // 🚀 Await the promise explicitly to extract route layout properties safely
+    const { id: businessId, staffId } = await context.params;
 
     const body = await req.json();
     const schedules: SchedulePayloadItem[] = body.schedules;
 
-    // Authorization: Verify permissions safely
+    // Authorization Verification Check
     const hasPermission = await prisma.business.findFirst({
       where: {
         id: businessId,
@@ -36,10 +46,11 @@ export async function PUT(
       },
     });
 
-    if (!hasPermission)
+    if (!hasPermission) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-    // 2️⃣ Fix: Using your exact model property fields ('staffId', 'day', 'isOff')
+    // Atomically reset and override schedules inside a safe db transaction
     await prisma.$transaction([
       prisma.staffSchedule.deleteMany({
         where: {
@@ -48,7 +59,7 @@ export async function PUT(
       }),
       prisma.staffSchedule.createMany({
         data: schedules.map((s: SchedulePayloadItem) => ({
-          staffId: staffId, // Matches your foreign key string perfectly
+          staffId: staffId,
           day: s.day,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -58,10 +69,13 @@ export async function PUT(
     ]);
 
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    console.error("Staff schedule processing failure:", error);
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Database Transaction Error";
+    console.error("Staff schedule processing failure:", errorMsg);
+
     return NextResponse.json(
-      { error: "Failed to sync schedule rules" },
+      { error: "Failed to sync schedule rules", details: errorMsg },
       { status: 500 },
     );
   }

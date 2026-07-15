@@ -28,7 +28,7 @@ export default function StatCard({
             - Kept tabular-nums to prevent text alignment shifts during real-time database updates.
             - Kept break-words to ensure clean wrapping behavior across all screens.
           */}
-          <h2 className="text-2xl font-extrabold tracking-tight sm:text-2xl xl:text-3xl break-words text-foreground tabular-nums leading-none mt-1">
+          <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl xl:text-2xl whitespace-nowrap text-foreground tabular-nums leading-none mt-1">
             {value}
           </h2>
         </div>

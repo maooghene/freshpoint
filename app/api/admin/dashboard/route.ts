@@ -1,7 +1,8 @@
+// app/api/admin/dashboard/route.ts
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import authAdmin from "@/lib/authAdmin"; // FIXED: Uses edge-safe backend location
-import prisma from "@/lib/prisma"; // FIXED: Core default Prisma v7 import instance
+import authAdmin from "@/lib/authAdmin";
+import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,21 +22,19 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Multi-Tenant Parallel Queries (Performance optimization)
-    const [bookingsCount, businessesCount, servicesCount, allBookings] =
+    const [bookingsCount, businessesCount, itemsCount, allBookings] =
       await Promise.all([
         prisma.booking.count(),
-        prisma.business.count(), // FIXED: Replaced salon with business schema model
-        prisma.item.count({
-          where: { type: "SERVICE" }, // FIXED: Filters item table specifically for services
-        }),
+        prisma.business.count(),
+        prisma.item.count(), // Safely queries total item counts
         prisma.booking.findMany({
           select: {
             startTime: true,
-            itemId: true, // FIXED: Replaced serviceId with itemId parameter
-            item: {
-              // FIXED: Replaced service model selection with item relation layer
+            totalAmount: true, // Captures pre-computed booking total value field
+            items: {
               select: {
-                price: true,
+                id: true,
+                // Include any pricing metrics if available in your BookingItem table
               },
             },
           },
@@ -43,8 +42,9 @@ export async function GET(request: NextRequest) {
       ]);
 
     // 4. Calculate Aggregate Total Marketplace Revenue
+    // Uses the pre-computed 'totalAmount' field on your Booking model safely
     const totalRevenue = allBookings.reduce((acc, booking) => {
-      return acc + (booking.item?.price || 0);
+      return acc + (booking.totalAmount || 0);
     }, 0);
 
     // 5. Build out high-utility dashboard matrices payload
@@ -52,23 +52,24 @@ export async function GET(request: NextRequest) {
       stats: {
         totalBookings: bookingsCount,
         totalBusinesses: businessesCount,
-        totalServices: servicesCount,
+        totalServices: itemsCount,
         totalRevenue: totalRevenue.toFixed(2),
       },
-      // Organized data mapping for your frontend recharts components
+      // Organized data mapping for your frontend charts components
       chartData: allBookings.map((b) => ({
         date: b.startTime,
-        amount: b.item?.price || 0,
+        amount: b.totalAmount || 0,
       })),
       allBookings: allBookings.map((b) => ({
         startTime: b.startTime,
-        price: b.item?.price || 0,
+        price: b.totalAmount || 0,
       })),
     };
 
     return NextResponse.json(dashboardData);
-  } catch (error) {
-    console.error("ADMIN_DASHBOARD_GET_ERROR:", error);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Internal Error";
+    console.error("ADMIN_DASHBOARD_GET_ERROR:", errorMsg);
     return NextResponse.json("Internal Server Error", { status: 500 });
   }
 }

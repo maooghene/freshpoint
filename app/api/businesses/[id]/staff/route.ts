@@ -90,7 +90,7 @@ export async function POST(
     // 2️⃣ RESEND EMAIL BLOCK: Fires a notification packet directly to the invited professional
     try {
       await resend.emails.send({
-        from: "Freshpoint Team <onboarding@resend.dev>",
+        from: "FreshPointTeam <onboarding@resend.dev>",
         to: cleanEmail,
         subject: `Join ${business.name} on Freshpoint!`,
         html: `
@@ -98,7 +98,7 @@ export async function POST(
             <h2 style="color: #6d28d9; margin-bottom: 4px; font-weight: 900; tracking: -0.05em;">Workspace Invitation</h2>
             <p style="font-size: 14px; color: #475569; margin-top: 0;">Hello ${name},</p>
             <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-              You have been invited by the manager of <strong>${business.name}</strong> to join their digital roster space on Freshpoint as a <strong>${role || "Specialist"}</strong>.
+              You have been invited by the manager of <strong>${business.name}</strong> to join their digital roster space on FreshPointas a <strong>${role || "Specialist"}</strong>.
             </p>
             <div style="margin: 24px 0; text-align: center;">
               <a href="${secureOnboardingLink}" style="background-color: #6d28d9; color: white; padding: 12px 24px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 12px; display: inline-block;">

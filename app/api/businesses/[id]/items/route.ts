@@ -40,12 +40,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       { success: true, data: services },
       { status: 200 },
     );
-  } catch (error: any) {
-    console.error("💥 public catalog lookup crashed:", error.message || error);
-    return NextResponse.json(
-      { error: "Internal service listing compilation crash" },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Database Execution Drop";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
 
@@ -100,14 +98,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       { message: `${parsedData.type} created successfully!`, item: newItem },
       { status: 201 },
     );
-  } catch (error: any) {
-    console.error("CREATE_ITEM_ROUTE_ERROR:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Database Execution Drop";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
-}
+  }
 
 // 🔐 PUT: Modify properties for an existing service or product row element
 export async function PUT(request: NextRequest, { params }: RouteContext) {
@@ -167,12 +163,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       { message: "Updated successfully", item: updatedItem },
       { status: 200 },
     );
-  } catch (error: any) {
-    console.error("PUT_ITEM_ROUTE_ERROR:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Database Execution Drop";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
 
@@ -214,11 +208,9 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       { message: "Item deleted successfully" },
       { status: 200 },
     );
-  } catch (error: any) {
-    console.error("DELETE_ITEM_ROUTE_ERROR:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Database Execution Drop";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

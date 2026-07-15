@@ -1,18 +1,16 @@
+// app/(public)/checkout/page.tsx
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
-import PaystackBtn from "@/components/PaystackButton";
 import { Button } from "@/components/ui/button";
-import {
-  Calendar,
-  Clock,
-  Sparkles,
-  CreditCard,
-  ArrowLeft,
-  Loader2,
-} from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2 } from "lucide-react";
+
+// Import broken-down SOLID structures
+import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
+import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
+import { PaymentSection } from "@/components/checkout/PaymentSection";
 
 interface ItemDetails {
   id: string;
@@ -27,26 +25,30 @@ interface ItemDetails {
 
 const convertTo24Hour = (time: string) => {
   const [timePart, modifier] = time.split(" ");
-  let [hours, minutes] = timePart.split(":");
-  if (modifier === "PM" && hours !== "12") {
-    hours = String(parseInt(hours) + 12);
-  }
+  const [hoursString, minutes] = timePart.split(":");
+  let hours = hoursString;
+
   if (modifier === "AM" && hours === "12") {
     hours = "00";
+  } else if (modifier === "PM" && hours !== "12") {
+    hours = String(Number(hours) + 12).padStart(2, "0");
   }
+
   return `${hours}:${minutes}`;
 };
 
+// Kept exactly as a named internal implementation to avoid path drops
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { userId } = useAuth();
   const { user } = useUser();
 
-  const itemId = searchParams.get("itemId");
-  const businessId = searchParams.get("businessId");
-  const date = searchParams.get("date");
-  const rawTime = searchParams.get("time");
+  const itemId = searchParams?.get("itemId");
+  const businessId = searchParams?.get("businessId");
+  const date = searchParams?.get("date");
+  const rawTime = searchParams?.get("time");
+  
   const decodedTime = rawTime ? decodeURIComponent(rawTime) : null;
   const time24 = decodedTime ? convertTo24Hour(decodedTime) : null;
   const dateTime = date && time24 ? `${date}T${time24}:00` : null;
@@ -84,8 +86,6 @@ function CheckoutContent() {
     : null;
 
   const handlePaymentSuccess = async (reference: string) => {
-    console.log("PAYMENT SUCCESS TRIGGERED, reference:", reference);
-
     if (!userId) {
       alert("Please log in to complete your transaction.");
       return;
@@ -93,7 +93,6 @@ function CheckoutContent() {
 
     try {
       setPaying(true);
-
       const response = await fetch("/api/bookings/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,13 +105,10 @@ function CheckoutContent() {
       });
 
       const result = await response.json();
-
       if (result.success || response.ok) {
         router.push(`/bookings/success?reference=${reference}`);
       } else {
-        alert(
-          "Payment successful but booking confirmation failed. Please contact support.",
-        );
+        alert("Payment successful but booking confirmation failed. Please contact support.");
       }
     } catch (err) {
       console.error("CONFIRMATION ERROR:", err);
@@ -157,127 +153,32 @@ function CheckoutContent() {
         <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
       </div>
 
-      {/* Booking Summary Card */}
-      <div className="border border-border rounded-2xl p-6 mb-6 bg-card shadow-xs">
-        <h2 className="text-lg font-bold mb-6 flex items-center gap-2 tracking-tight">
-          <Sparkles className="w-5 h-5 text-primary" />
-          Treatment Summary
-        </h2>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-start gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Provider
-            </span>
-            <span className="font-bold text-foreground text-right tracking-tight">
-              {item.business.name}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-start gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Service
-            </span>
-            <span className="font-bold text-foreground text-right tracking-tight">
-              {item.name}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Price Rate
-            </span>
-            <span className="font-black text-primary text-lg">
-              ₦{Number(item.price).toLocaleString()}
-            </span>
-          </div>
-
-          {item.duration && (
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-muted-foreground text-sm font-medium">
-                Duration
-              </span>
-              <span className="font-semibold text-sm text-foreground bg-muted px-2.5 py-1 rounded-md">
-                {item.duration} mins
-              </span>
-            </div>
-          )}
-
-          {formattedDate && (
-            <div className="flex justify-between items-center pt-4 border-t border-border">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
-                <Calendar className="w-4 h-4 text-primary/70" />
-                Date
-              </div>
-              <span className="font-semibold text-sm text-foreground">
-                {formattedDate}
-              </span>
-            </div>
-          )}
-
-          {decodedTime && (
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
-                <Clock className="w-4 h-4 text-primary/70" />
-                Time Slot
-              </div>
-              <span className="font-semibold text-sm text-foreground">
-                {decodedTime}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Total */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-8 shadow-xs">
-        <div className="flex justify-between items-center">
-          <span className="font-bold text-sm text-muted-foreground uppercase tracking-wider">
-            Total Amount
-          </span>
-          <span className="font-black text-2xl text-foreground tracking-tight">
-            ₦{Number(item.price).toLocaleString()}
-          </span>
-        </div>
-      </div>
-
-      {/* Paystack Button */}
-      <div className="relative">
-        {paying ? (
-          <Button
-            disabled
-            className="w-full py-6 rounded-xl font-bold text-base flex items-center justify-center gap-2"
-          >
-            <Loader2 className="animate-spin h-5 w-5" />
-            Securing Reservation...
-          </Button>
-        ) : (
-          <PaystackBtn
-            amount={Number(item.price)}
-            email={
-              user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
-            }
-            name={user?.fullName || item.business.name}
-            metadata={{
-              itemId: item.id,
-              dateTime: dateTime,
-              businessId: businessId,
-              userId: userId,
-            }}
-            onSuccess={handlePaymentSuccess}
-            onClose={() => setPaying(false)}
-          />
-        )}
-      </div>
+      <TreatmentSummary item={item} formattedDate={formattedDate} decodedTime={decodedTime} />
+      <TotalAmountCard price={Number(item.price)} />
+      
+      <PaymentSection 
+        paying={paying}
+        price={Number(item.price)}
+        email={user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"}
+        name={user?.fullName || item.business.name}
+        metadata={{
+          itemId: item.id,
+          dateTime: dateTime,
+          businessId: businessId,
+          userId: userId ?? null,
+        }}
+        onSuccess={handlePaymentSuccess}
+        onClose={() => setPaying(false)}
+      />
 
       <p className="text-center text-[11px] text-muted-foreground mt-6 font-medium">
-        Secured encrypted by Paystack • Your appointment will be confirmed
-        instantly.
+        Secured encrypted by Paystack • Your appointment will be confirmed instantly.
       </p>
     </div>
   );
 }
 
+// Kept exactly matching your target destination URL path routing rules
 export default function CheckoutPage() {
   return (
     <Suspense

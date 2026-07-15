@@ -87,7 +87,7 @@ export default function CTA(): React.JSX.Element {
               </h2>
               <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
                 {
-                  "Whether you run a luxury salon needing live calendar schedules, an automated beauty storefront shipping products, or want to offer your clients distance-based doorstep delivery options—Freshpoint acts as your financial command engine. Let clients choose between in-store pickup or delivery, and we automatically calculate and collect logistics fees for you."
+                  "Whether you run a luxury salon needing live calendar schedules, an automated beauty storefront shipping products, or want to offer your clients distance-based doorstep delivery options—FreshPointacts as your financial command engine. Let clients choose between in-store pickup or delivery, and we automatically calculate and collect logistics fees for you."
                 }
               </p>
             </div>

@@ -108,7 +108,7 @@ export default function StaffSignInFormClient(): React.JSX.Element {
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <span className="text-sm font-black tracking-tight text-primary">
-            Freshpoint Staff Portal
+            FreshPointStaff Portal
           </span>
         </div>
       )}
@@ -119,7 +119,7 @@ export default function StaffSignInFormClient(): React.JSX.Element {
             <ShieldAlert className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <span>
               {
-                "Please log in using the exact email address where you received your Freshpoint invitation token."
+                "Please log in using the exact email address where you received your FreshPointinvitation token."
               }
             </span>
           </div>

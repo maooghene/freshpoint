@@ -34,12 +34,11 @@ export default function MobileDrawer({
   setTheme,
   user,
 }: MobileDrawerProps) {
-  const [hasMounted, setHasMounted] = React.useState(false);
+  const [hasMounted] = React.useState(() => typeof window !== "undefined");
+
   const isDark = (theme ?? "light") === "dark";
 
-  React.useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  
 
   return (
     <>

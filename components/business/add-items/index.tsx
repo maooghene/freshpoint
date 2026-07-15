@@ -54,13 +54,13 @@ export default function FreshpointAddItemDashboard({
     setImagePreview(null);
   }
 
-   const onChangeHandler = (
-     e: React.ChangeEvent<
-       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-     >,
-   ): void => {
-     setServiceInfo((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-   };
+  const onChangeHandler = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ): void => {
+    setServiceInfo((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
@@ -109,7 +109,7 @@ export default function FreshpointAddItemDashboard({
       const displayLabel = type === "SERVICE" ? "Service" : "Product";
       toast.success(`${displayLabel} added successfully!`);
     } catch (error: unknown) {
-      console.error("Freshpoint Submit Error Logger:", error);
+      console.error("FreshPointSubmit Error Logger:", error);
       if (axios.isAxiosError(error) && error.response?.data?.message) {
         toast.error(error.response.data.message);
       } else {

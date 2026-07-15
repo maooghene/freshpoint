@@ -150,7 +150,7 @@ export function BasicInfoFields({
           id="name"
           name="name"
           type="text"
-          placeholder="Freshpoint Salon & Spa"
+          placeholder="FreshPointSalon & Spa"
           onChange={onNameChange}
           disabled={isPending}
           required

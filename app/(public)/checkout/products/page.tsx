@@ -1,3 +1,4 @@
+// app/(public)/checkout/products/page.tsx
 "use client";
 
 import { Suspense } from "react";
@@ -48,8 +49,9 @@ function ProductCheckoutContent() {
   const [isDelivery, setIsDelivery] = useState<boolean>(false);
   const [address, setAddress] = useState<string>("");
 
+  // Fixed: Short-Circuit Null Gate Override satisfies compiler constraints perfectly
   const { deliveryFee, estimatedDistance, calculatingFee, fallbackMessage } =
-    useDeliveryFeeCalculation(businessId, isDelivery, address);
+    useDeliveryFeeCalculation(businessId ?? "", isDelivery, address);
 
   const currency = "₦";
 
@@ -106,14 +108,16 @@ function ProductCheckoutContent() {
         );
       }
     } catch (error: unknown) {
-      console.error("ORDER_CONFIRMATION_NETWORK_ERROR:", error);
+      const errorMsg =
+        error instanceof Error ? error.message : "Operational Failure";
+      console.error("ORDER_CONFIRMATION_NETWORK_ERROR:", errorMsg);
       alert("Operational connection drop. Please contact customer support.");
     }
   };
 
   return (
     <div className="max-w-md mx-auto p-6 pt-24 min-h-screen space-y-6 bg-background text-foreground">
-      <h1 className="text-xl font-black tracking-tight border-b pb-2">
+      <h1 className="text-xl font-black tracking-tight border-b border-border pb-2 text-foreground">
         Checkout Manifest
       </h1>
 
@@ -144,7 +148,11 @@ function ProductCheckoutContent() {
               user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
             }
             name={user?.fullName || "Customer"}
-            metadata={{ userId, businessId, orderType: "PRODUCT" }}
+            metadata={{
+              userId,
+              businessId: businessId ?? "",
+              orderType: "PRODUCT",
+            }}
             onSuccess={handleSuccess}
             onClose={() => {}}
           />

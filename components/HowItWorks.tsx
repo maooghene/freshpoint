@@ -41,7 +41,7 @@ function HowItWorks() {
 
         <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
           {
-            "Freshpoint makes it effortless to find local wellness spaces, book premium treatments, buy products, and select your preferred delivery or pick-up methods — all in one centralized app."
+            "FreshPointmakes it effortless to find local wellness spaces, book premium treatments, buy products, and select your preferred delivery or pick-up methods — all in one centralized app."
           }
         </p>
       </div>

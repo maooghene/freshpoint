@@ -9,7 +9,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    console.log("📌 Freshpoint Inventory API called with item ID:", id);
+    console.log("📌 FreshPointInventory API called with item ID:", id);
 
     if (!id) {
       return NextResponse.json(

@@ -12,6 +12,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { NavigationItemShape, BusinessInfo } from "./types";
+import { useState } from "react";
 
 interface DesktopSidebarProps {
   businessInfo: BusinessInfo | null;
@@ -36,12 +37,11 @@ export default function DesktopSidebar({
   user,
 }: DesktopSidebarProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const [hasMounted, setHasMounted] = React.useState(false);
+ const [hasMounted] = React.useState(() => typeof window !== "undefined");
+
   const resolvedTheme = theme ?? "light";
 
-  React.useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  
 
   return (
     <aside

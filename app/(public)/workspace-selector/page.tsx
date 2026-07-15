@@ -67,7 +67,7 @@ export default async function WorkspaceSelectorPage() {
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/10 mb-4 select-none">
           <Sparkles className="h-4 w-4 text-primary" />
           <span className="text-[10px] font-black uppercase tracking-wider text-primary">
-            {"Freshpoint Workspace Router"}
+            {"FreshPointWorkspace Router"}
           </span>
         </div>
 

@@ -34,7 +34,7 @@ export default function LoadingPage() {
         {/* REBRANDED INTERFACE CAPTIONS */}
         <div className="text-center space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary">
-            Freshpoint Secure Gate
+            FreshPointSecure Gate
           </p>
           <p className="text-xs text-muted-foreground font-medium">
             Synchronizing your multi-tenant workspace profile...
