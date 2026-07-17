@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+// ✅ FIXED: Remove 'new PrismaClient()' and import your pre-configured global singleton instance
+import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 
-const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET(request: Request) {
