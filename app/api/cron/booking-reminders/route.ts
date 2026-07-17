@@ -1,3 +1,6 @@
+
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 // ✅ FIXED: Remove 'new PrismaClient()' and import your pre-configured global singleton instance
 import { prisma } from "@/lib/prisma";
