@@ -1,4 +1,3 @@
-// app/api/auth/onboarding-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -14,10 +13,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ destination: "/register-business" });
     }
 
-    // 🍪 READ THE BREAKOUT TOKEN SECURELY FROM THE NETWORK LAYER COOKIES
     const exitCookie = request.cookies.get("freshpoint_exit_clearance")?.value;
 
-    // If the network level clearance cookie is active, let them view the market unhindered
     if (exitCookie === "true") {
       return NextResponse.json(
         { destination: null },
@@ -65,29 +62,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       activeStaffWorkspace && activeStaffWorkspace.business?.slug
     );
 
-    /* =========================================================================
-       🔀 TESTING MATRIX TELEMETRY
-       ========================================================================= */
-    console.log("📊 [FreshPoint Debug Core Tracking Metrics]:", {
-      email: emailAddress,
-      isAdminUser,
-      isBusinessOwner,
-      isStaffMember,
-    });
-
     const identityCount = [isAdminUser, isBusinessOwner, isStaffMember].filter(
       Boolean,
     ).length;
-    console.log(
-      `🔢 [FreshPoint Identity Resolution]: Counted ${identityCount} tracks.`,
-    );
 
+    // ✅ FIX: Injected metadata markers explicitly so select-workspace view resolves links correctly
     if (identityCount >= 2) {
-      console.log(
-        "➡️ [Routing Trigger]: Routing straight to /select-workspace",
-      );
       return NextResponse.json(
-        { destination: "/select-workspace" },
+        {
+          destination: "/select-workspace",
+          isAdmin: isAdminUser,
+          isBusinessOwner,
+          isStaffMember,
+          businessSlug: existingBusiness?.slug || null,
+          staffBusinessSlug: activeStaffWorkspace?.business?.slug || null,
+        },
         {
           headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" },
         },

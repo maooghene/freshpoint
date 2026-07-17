@@ -1,7 +1,6 @@
-// app/(public)/select-workspace/page.tsx
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, LayoutDashboard, Store, Users } from "lucide-react";
 
@@ -14,7 +13,6 @@ interface RolePayload {
 }
 
 export default function SelectWorkspacePage() {
-  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState<boolean>(true);
   const [roles, setRoles] = useState<RolePayload>({
     isAdminUser: false,
@@ -25,19 +23,28 @@ export default function SelectWorkspacePage() {
   useEffect(() => {
     let isMounted = true;
 
-    // Direct, dynamic non-cached check to map true backend roles
     fetch("/api/auth/check-onboarding", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!isMounted) return;
 
-        // Simulating role evaluation based on endpoint mappings safely
-        // In production, update your GET endpoint to return these boolean flags explicitly in the body!
+        // ✅ FIX: Extract parameters from data.metadata or custom parameters sent by your endpoint
+        // Safely fallback if data payload properties are directly attached
+        const actualBusinessSlug =
+          data?.businessSlug || data?.slug || data?.metadata?.businessSlug;
+        const actualStaffSlug =
+          data?.staffBusinessSlug || data?.metadata?.staffBusinessSlug;
+
         setRoles({
-          isAdminUser: data?.destination === "/admin" || true, // Maps testing flags from your database
-          isBusinessOwner: true,
-          isStaffMember: false, // Toggle true/false to see the layout automatically adapt!
-          businessSlug: data?.destination?.split("/").pop(),
+          // ✅ FIX: Determine true admin access based on explicit backend role properties rather than hardcoding true
+          isAdminUser:
+            data?.isAdmin ||
+            data?.role === "ADMIN" ||
+            data?.destination === "/admin",
+          isBusinessOwner: data?.isBusinessOwner || !!actualBusinessSlug,
+          isStaffMember: data?.isStaffMember || !!actualStaffSlug,
+          businessSlug: actualBusinessSlug || undefined,
+          staffBusinessSlug: actualStaffSlug || undefined,
         });
         setLoading(false);
       })
@@ -59,7 +66,6 @@ export default function SelectWorkspacePage() {
     );
   }
 
-  // 📐 Compute layout constraints step-by-step
   const activeIdentities = [
     roles.isAdminUser,
     roles.isBusinessOwner,
@@ -67,7 +73,6 @@ export default function SelectWorkspacePage() {
   ].filter(Boolean);
   const identityCount = activeIdentities.length;
 
-  // Dynamic Tailwind layout variable assignment based on role count
   let gridStyle = "grid-cols-1";
   if (identityCount === 2) gridStyle = "md:grid-cols-2 max-w-3xl";
   if (identityCount >= 3) gridStyle = "md:grid-cols-3 max-w-5xl";
@@ -85,7 +90,6 @@ export default function SelectWorkspacePage() {
         </p>
       </div>
 
-      {/* 🚀 FLEXIBLE ADAPTIVE LAYOUT GRID: Scaled dynamically to center cards without empty slots */}
       <div
         className={`grid grid-cols-1 gap-6 w-full ${gridStyle} transition-all duration-300 mx-auto justify-center`}
       >
@@ -171,8 +175,7 @@ export default function SelectWorkspacePage() {
         )}
       </div>
 
-      {/* Modern Centerpiece Escape Hatch Option */}
-      <div className="text-center border-t border-border pt-6 w-full max-w-md mt-10 animate-in fade-in duration-300">
+      <div className="text-center border-t border-border pt-6 w-full max-w-md mt-10">
         <p className="text-xs text-muted-foreground">
           Just want to check out storefront products?{" "}
           <Link
