@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 // Standardized named connection instance wrapper
 import { prisma } from "@/lib/prisma";
 import StaffDashboard from "@/components/business/staff/StaffDashboard";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -14,6 +15,13 @@ export default async function StaffPageRoute({ params }: PageProps) {
   const { userId: clerkId } = await auth();
 
   if (!clerkId) notFound();
+
+  const systemUser = await prisma.user.findUnique({
+    where: { clerkId },
+    select: { id: true },
+  });
+
+  if (!systemUser) notFound();
 
   // Resolve the business profile along with its full nested staff structure
   const business = await prisma.business.findUnique({
@@ -40,16 +48,14 @@ export default async function StaffPageRoute({ params }: PageProps) {
   if (!business) notFound();
 
   // Verify absolute ownership guard rails to prevent cross-tenant leaks
-  if (business.ownerId !== clerkId) {
-    const ownerProfile = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
+  // (allows real owner, real rostered staff, or a verified admin impersonation session)
+  const authorized = await authorizeBusinessAccess({
+    businessId: business.id,
+    ownerId: business.ownerId,
+    systemUserId: systemUser.id,
+  });
 
-    if (!ownerProfile || business.ownerId !== ownerProfile.id) {
-      notFound();
-    }
-  }
+  if (!authorized) notFound();
 
   // Safe JSON serialization to cleanly pass Date timestamps to Client Component trees
   const serializedBusiness = JSON.parse(JSON.stringify(business));

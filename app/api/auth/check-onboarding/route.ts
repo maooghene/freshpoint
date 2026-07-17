@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAdminSession } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,14 @@ export async function GET(): Promise<NextResponse> {
 
     if (!emailAddress) {
       return NextResponse.json({ destination: "/register-business" });
+    }
+
+    // 0. PRIORITY 0: PLATFORM ADMIN INTERCEPT
+    // Admins and platform staff always land in the control center, regardless
+    // of whether they also happen to own or work at a business.
+    const { isAdmin, isPlatformStaff } = await verifyAdminSession();
+    if (isAdmin || isPlatformStaff) {
+      return NextResponse.json({ destination: "/admin" });
     }
 
     // Resolve or sync basic account data profile matrices safely

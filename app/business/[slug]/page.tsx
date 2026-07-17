@@ -14,6 +14,8 @@ import {
   RichBookingTimelineRecord,
   RichOrderTimelineRecord,
 } from "./types";
+import { getImpersonationContext } from "@/lib/actions/admin-impersonate";
+import { verifyAdminSession } from "@/lib/admin";
 
 export default async function BusinessDashboardPage({ params }: PageProps) {
   const { slug: rawSlug } = await params;
@@ -66,41 +68,6 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
 
     business = initialFetch as unknown as FullDashboardBusinessData | null;
 
-    if (!business) {
-      const sanitizedSlug = rawSlug.startsWith("-")
-        ? rawSlug.slice(1)
-        : rawSlug;
-
-      const fallbackFetch = await prisma.business.findUnique({
-        where: { slug: sanitizedSlug },
-        select: {
-          id: true,
-          slug: true,
-          ownerId: true,
-          staff: { where: { isActive: true }, select: { id: true } },
-          items: { select: { id: true, type: true } },
-          bookings: {
-            select: {
-              id: true,
-              status: true,
-              totalAmount: true,
-              createdAt: true,
-            },
-          },
-          orders: {
-            select: {
-              id: true,
-              status: true,
-              totalAmount: true,
-              createdAt: true,
-            },
-          },
-        },
-      });
-
-      business = fallbackFetch as unknown as FullDashboardBusinessData | null;
-    }
-
     if (!business) notFound();
 
     // Multi-tenant Security Scope Boundary Validation
@@ -113,9 +80,25 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
         },
         select: { id: true },
       });
-      if (!isRosteredStaff) notFound();
-    }
 
+      if (!isRosteredStaff) {
+        // Allow access if an admin has a verified, active impersonation
+        // session scoped to this exact business
+        const impersonation = await getImpersonationContext();
+        const isValidImpersonation =
+          impersonation.isImpersonating &&
+          impersonation.businessId === business.id;
+
+        if (isValidImpersonation) {
+          const adminSession = await verifyAdminSession();
+          if (!adminSession.isAdmin && !adminSession.isPlatformStaff) {
+            notFound();
+          }
+        } else {
+          notFound();
+        }
+      }
+    }
     const [bookingsRaw, ordersRaw] = await Promise.all([
       prisma.booking.findMany({
         where: { businessId: business.id },

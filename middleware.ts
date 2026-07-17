@@ -1,3 +1,4 @@
+// middleware.ts
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -15,7 +16,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/user/sync(.*)",
   "/api/businesses/slug/(.*)",
   "/api/businesses/(.*)/items",
-  "/api/businesses/items(.*)", // ← add this
+  "/api/businesses/items(.*)",
   "/api/bookings(.*)",
   "/api/bookings/reference/(.*)",
   "/api/webhooks/(.*)",
@@ -25,7 +26,13 @@ const isPublicRoute = createRouteMatcher([
   "/checkout/products(.*)",
   "/orders/success(.*)",
   "/api/orders/(.*)",
+  "/banned",
 ]);
+
+interface ClerkSessionMetadata {
+  role?: string;
+  isBanned?: boolean;
+}
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const url = req.nextUrl.clone();
@@ -37,8 +44,23 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // B. Trigger Clerk authentication guards if accessing a protected route
+  const authSession = await auth();
   if (!isPublicRoute(req)) {
-    await auth.protect();
+    if (!authSession.userId) {
+      return authSession.redirectToSignIn({ returnBackUrl: req.url });
+    }
+  }
+
+  // SECURITY PROTECTION STEP: Check ban state from the JWT — no DB call on Edge
+  if (authSession.userId && url.pathname !== "/banned") {
+    const metadata = authSession.sessionClaims?.metadata as
+      | ClerkSessionMetadata
+      | undefined;
+
+    if (metadata?.isBanned) {
+      url.pathname = "/banned";
+      return NextResponse.redirect(url);
+    }
   }
 
   // C. Guard loopback instance testing frameworks

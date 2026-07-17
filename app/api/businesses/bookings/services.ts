@@ -1,3 +1,4 @@
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { prisma } from "@/lib/prisma";
 import { BookingStatus, Booking, User, BookingItem } from "@prisma/client";
 
@@ -65,10 +66,6 @@ interface ServiceErrorResult {
 
 type ServiceResult = ServiceSuccessResult | ServiceErrorResult;
 
-export function sanitizeSlug(rawSlug: string): string {
-  return rawSlug.startsWith("-") ? rawSlug.slice(1) : rawSlug;
-}
-
 /**
  * Multi-Tenant Security Scope Verification
  */
@@ -83,26 +80,19 @@ export async function verifyUserAccess(
 
   if (!systemUser) return false;
 
-  const exactOwnerCheck = await prisma.business.findFirst({
-    where: {
-      id: businessId,
-      ownerId: systemUser.id,
-    },
-    select: { id: true },
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    select: { ownerId: true },
   });
 
-  if (exactOwnerCheck) return true;
+  if (!business) return false;
 
-  const staffProfileCheck = await prisma.staffProfile.findFirst({
-    where: {
-      userId: systemUser.id,
-      businessId: businessId,
-      isActive: true,
-    },
-    select: { id: true },
+  return authorizeBusinessAccess({
+    businessId,
+    ownerId: business.ownerId,
+    systemUserId: systemUser.id,
+    allowStaff: true,
   });
-
-  return !!staffProfileCheck;
 }
 
 /**
@@ -175,32 +165,10 @@ export async function getFormattedBookings(
 ): Promise<ServiceResult> {
   const normalSlug = slug.toLowerCase().trim();
 
-  let business = await prisma.business.findUnique({
+  const business = await prisma.business.findUnique({
     where: { slug: normalSlug },
     select: { id: true },
   });
-
-  if (!business) {
-    const rawHyphenSlug = normalSlug.startsWith("-")
-      ? normalSlug
-      : `-${normalSlug}`;
-    business = await prisma.business.findUnique({
-      where: { slug: rawHyphenSlug },
-      select: { id: true },
-    });
-  }
-
-  if (!business) {
-    business = await prisma.business.findFirst({
-      where: {
-        OR: [
-          { slug: { equals: normalSlug, mode: "insensitive" } },
-          { slug: { equals: `-${normalSlug}`, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true },
-    });
-  }
 
   if (!business) {
     return {

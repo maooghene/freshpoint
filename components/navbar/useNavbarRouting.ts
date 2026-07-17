@@ -68,7 +68,11 @@ export function useNavbarRouting() {
 
             // Only mount the path href pointer if the background onboarding worker
             // successfully resolves a live active portal route context!
-            if (dest.startsWith("/business") || dest.startsWith("/staff")) {
+            if (
+              dest.startsWith("/business") ||
+              dest.startsWith("/staff") ||
+              dest.startsWith("/admin")
+            ) {
               setMerchantDashboardHref(dest);
             } else {
               setMerchantDashboardHref(null);

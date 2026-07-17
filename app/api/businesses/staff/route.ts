@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,17 +31,35 @@ export async function POST(req: NextRequest) {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { ownerId: true },
+      select: { id: true, ownerId: true },
     });
 
-    if (!business || business.ownerId !== dbUser.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
     }
 
+    const authorized = await authorizeBusinessAccess({
+      businessId: business.id,
+      ownerId: business.ownerId,
+      systemUserId: dbUser.id,
+      allowStaff: false,
+    });
+
+    if (!authorized) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 },
+      );
+    }
     const staff = await prisma.staffProfile.create({
       data: {
         name: name.trim(),
-        businessId,
+        // include required email field and connect to business relation
+        email: "",
+        business: { connect: { id: businessId } },
         isActive: true,
       },
     });

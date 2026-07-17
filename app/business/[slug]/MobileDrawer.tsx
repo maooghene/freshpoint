@@ -44,7 +44,7 @@ export default function MobileDrawer({
     <>
       {/* Sidebar Mobile Drawer Container */}
       <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 transform bg-card shadow-2xl transition-transform duration-300 ease-in-out border-r border-border flex flex-col ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 transform bg-card shadow-2xl transition-transform duration-300 ease-in-out border-r border-border flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

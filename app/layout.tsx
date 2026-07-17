@@ -1,13 +1,15 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "@/app/globals.css";
 import Providers from "@/components/Providers";
 import ToastProvider from "@/components/ToastProvider";
+import { ImpersonationStickyBanner } from "@/components/admin/ImpersonationStickyBanner";
 
 export const metadata: Metadata = {
-  title: "FreshPoint| Wellness Platform",
+  title: "FreshPoint | Wellness Platform",
   description:
-    "Multi-tenant workspace Admin Stafffor modern wellness businesses",
+    "Multi-tenant workspace Admin Staff for modern wellness businesses",
 };
 
 export default function RootLayout({
@@ -22,11 +24,13 @@ export default function RootLayout({
         suppressHydrationWarning
         className="scroll-smooth antialiased h-full"
       >
-        {/* 🌟 FIXED: Added h-full and layout rules to force the HTML body framework to occupy 100% vertical view space */}
         <body className="font-sans bg-background text-foreground flex flex-col min-h-screen h-full">
           <Providers>
             {/* 🌟 FIXED: Created a locked parent node layout stretching from header to baseline layout elements */}
             <div className="flex flex-col min-h-screen w-full relative">
+              {/* 🌟 IMPERSONATION INJECTION: Drops at the top layer, pushing the frame down cleanly if active */}
+              <ImpersonationStickyBanner />
+
               {/* 🌟 FIXED: main flex-grow pushes any element beneath it (like the footer) down, even during loading states */}
               <main className="flex-grow flex flex-col w-full relative">
                 {children}

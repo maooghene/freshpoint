@@ -2,7 +2,6 @@ import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAut
 import { NextRequest, NextResponse } from "next/server";
 import {
   BookingUpdatePayload,
-  sanitizeSlug,
   processBookingStatusUpdate,
   getFormattedBookings,
 } from "./services";
@@ -65,8 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const slug = sanitizeSlug(rawSlug);
-    const result = await getFormattedBookings(slug, clerkId);
+    const result = await getFormattedBookings(rawSlug, clerkId);
 
     if (!result.success) {
       return NextResponse.json(

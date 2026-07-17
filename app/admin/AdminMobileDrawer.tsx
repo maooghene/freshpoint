@@ -5,6 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import { Users } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
@@ -17,16 +18,22 @@ import {
   LogOut,
   Sun,
   Moon,
+  Megaphone,
+  ScrollText,
 } from "lucide-react";
 
 // Matches your master sidebar layout items with simple English labels
 const NAV_ITEMS = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
-  { name: "Check New Stores", href: "/admin/businesses", icon: Store },
-  { name: "User Complaints", href: "/admin/complaints", icon: AlertCircle },
-  { name: "App Settings", href: "/admin/settings", icon: Settings2 },
+  { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+  { name: "Vendor Verification", href: "/admin/businesses", icon: Store },
+  { name: "Customers", href: "/admin/users", icon: Users },
+  { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
+  { name: "Complaints", href: "/admin/complaints", icon: AlertCircle },
+  { name: "Global Settings", href: "/admin/settings", icon: Settings2 },
   { name: "Admin Staff", href: "/admin/staff", icon: ShieldAlert },
+  { name: "Audit Log", href: "/admin/audit-log", icon: ScrollText },
 ];
+
 
 interface AdminMobileDrawerProps {
   isOpen: boolean;

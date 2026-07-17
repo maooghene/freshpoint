@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 export interface PolicyActionState {
   success: boolean;
@@ -48,6 +49,26 @@ export async function updateBusinessPolicies(
       select: { id: true, ownerId: true },
     });
 
+    if (!business) {
+      return {
+        success: false,
+        message: "Forbidden. You do not own this workspace.",
+      };
+    }
+
+    const authorized = await authorizeBusinessAccess({
+      businessId: business.id,
+      ownerId: business.ownerId,
+      systemUserId: systemUser.id,
+      allowStaff: false, // policies are owner-only, even for real staff
+    });
+
+    if (!authorized) {
+      return {
+        success: false,
+        message: "Forbidden. You do not own this workspace.",
+      };
+    }
     if (!business || business.ownerId !== systemUser.id) {
       return {
         success: false,

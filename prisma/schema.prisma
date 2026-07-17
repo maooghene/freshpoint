@@ -17,6 +17,7 @@ model User {
   image        String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  isBanned     Boolean       @default(false) 
   addresses    Address[]
   bookings     Booking[]
   businesses   Business[]    @relation("BusinessOwner")
@@ -26,6 +27,8 @@ model User {
   ratings      Rating[]
   staffProfile StaffProfile?
   platformAdminProfile PlatformAdminProfile?
+  createdAnnouncements    Announcement[]          @relation("AnnouncementCreator")
+  announcementDismissals  AnnouncementDismissal[]
 
   @@index([email])
   @@index([clerkId])
@@ -44,6 +47,7 @@ model Business {
   image             String?
   status            String             @default("pending")
   isActive          Boolean            @default(false)
+  isPayoutFrozen    Boolean            @default(false) // Emergency switch to freeze cash out during disputes
   latitude          Float              @default(6.5244)
   longitude         Float              @default(3.3792)
   ownerId           String
@@ -71,6 +75,7 @@ model Business {
   orders            Order[]
   ratings           Rating[]
   staff             StaffProfile[]
+  announcements Announcement[]
 
   @@index([ownerId])
 }
@@ -132,6 +137,22 @@ model PlatformAdminProfile {
 
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+}
+
+model AuditLogEntry {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorName   String
+  action      String
+  targetType  String
+  targetId    String
+  targetLabel String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
 model Item {
@@ -331,17 +352,55 @@ model Complaint {
 
 model SystemSetting {
   id                     String   @id @default("singleton")
-  bookingCommissionPct   Int      @default(8)     // Commission percentage on bookings (0-100)
-  productCommissionPct   Int      @default(5)     // Commission percentage on product sales (0-100)
-  minGlobalDeliveryFee   Float    @default(200)   // Minimum threshold limit floor for delivery
-  platformPayoutFloor    Float    @default(2000)  // Minimum balance needed before a vendor can withdraw funds
-  maintenanceModeActive  Boolean  @default(false) // Safe mode breaker
-  allowNewRegistrations  Boolean  @default(true)  // Onboarding breaker
-  enforceInstantApproval Boolean  @default(true)  // Automation bypass breaker
-  maxDailyBookingsPerUser Int     @default(5)     // Security rate limit
-  maxDistanceLimitKm     Float    @default(35.0)  // Delivery radius cap
+  bookingCommissionPct   Int      @default(8)
+  productCommissionPct   Int      @default(5)
+  minGlobalDeliveryFee   Float    @default(200)
+  platformPayoutFloor    Float    @default(2000)
+  maintenanceModeActive  Boolean  @default(false)
+  allowNewRegistrations  Boolean  @default(true)
+  enforceInstantApproval Boolean  @default(true)
+  maxDailyBookingsPerUser Int     @default(5)
+  maxDistanceLimitKm     Float    @default(35.0)
+
+  // ONLY ADD THESE TWO LINES HERE INSIDE THE ORIGINAL BLOCK:
+  payoutHoldingPeriodDays Int     @default(3)
+  absorbPaystackFees     Boolean  @default(false)
+  globalAlertBannerText   String?
 
   updatedAt              DateTime @updatedAt
+}
+
+model Announcement {
+  id               String                  @id @default(cuid())
+  title            String
+  message          String
+  severity         AnnouncementSeverity    @default(INFO)
+  targetType       AnnouncementTargetType  @default(ALL)
+  targetRole       UserRole?
+  targetBusinessId String?
+  targetBusiness   Business?               @relation(fields: [targetBusinessId], references: [id])
+  startsAt         DateTime                @default(now())
+  endsAt           DateTime?
+  isActive         Boolean                 @default(true)
+  createdById      String
+  createdBy        User                    @relation("AnnouncementCreator", fields: [createdById], references: [id])
+  dismissals       AnnouncementDismissal[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([isActive, targetType])
+  @@index([targetBusinessId])
+}
+
+model AnnouncementDismissal {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  dismissedAt    DateTime     @default(now())
+
+  @@unique([announcementId, userId])
 }
 
 enum UserRole {
@@ -356,6 +415,18 @@ enum PlatformAdminRole {
   PLATFORM_MANAGER // Management privileges excluding emergency system parameters
   SUPPORT_AGENT    // Exclusively manages and updates Complaints boards
   LOGISTICS_AUDITOR// Audits business location coordinates and delivery configurations
+}
+
+enum AnnouncementSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AnnouncementTargetType {
+  ALL
+  ROLE
+  BUSINESS
 }
 
 enum DayOfWeek {

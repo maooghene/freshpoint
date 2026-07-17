@@ -4,6 +4,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Megaphone, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { UserButton } from "@clerk/nextjs";
 import {
@@ -19,14 +20,18 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
+import { ScrollText } from "lucide-react";
 
 // Keeping your exact routes and data structures intact, only simplifying the text strings
 const NAV_ITEMS = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
-  { name: "Check New Stores", href: "/admin/businesses", icon: Store },
-  { name: "User Complaints", href: "/admin/complaints", icon: AlertCircle },
-  { name: "App Settings", href: "/admin/settings", icon: Settings2 },
+  { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+  { name: "Vendor Verification", href: "/admin/businesses", icon: Store },
+  { name: "Customers", href: "/admin/users", icon: Users },
+  { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
+  { name: "Complaints", href: "/admin/complaints", icon: AlertCircle },
+  { name: "Global Settings", href: "/admin/settings", icon: Settings2 },
   { name: "Admin Staff", href: "/admin/staff", icon: ShieldAlert },
+  { name: "Audit Log", href: "/admin/audit-log", icon: ScrollText },
 ];
 
 export default function AdminSidebar() {

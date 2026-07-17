@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // 💡 Standardized pluralized named connection instance
 import { auth } from "@clerk/nextjs/server";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 interface ToggleItemPayload {
   itemId?: string;
@@ -67,7 +68,15 @@ export async function POST(
     }
 
     // Block cross-tenant script tempering or parameters exploitation malicious leaks
-    if (business.ownerId !== systemUser.id && business.ownerId !== clerkId) {
+    // Block cross-tenant script tampering, exploitation, or unauthorized access
+    const authorized = await authorizeBusinessAccess({
+      businessId: business.id,
+      ownerId: business.ownerId,
+      systemUserId: systemUser.id,
+      allowStaff: false,
+    });
+
+    if (!authorized) {
       return NextResponse.json(
         {
           error:

@@ -16,6 +16,7 @@ import {
   LayersIcon,
   ShoppingBagIcon,
 } from "lucide-react";
+import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
 import { NavigationItemShape, BusinessInfo } from "./types";
 import DesktopSidebar from "./DesktopSidebar";
@@ -56,6 +57,7 @@ export default function BusinessLayout({
 
         if (isMounted) {
           setBusinessInfo({
+            id: data.id ? String(data.id) : businessSlug,
             name: String(data.name || "FreshPoint Workspace"),
             image: data.image ? String(data.image) : null,
             status: data.status ? String(data.status) : "pending",
@@ -168,6 +170,7 @@ export default function BusinessLayout({
 
           <main className="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto bg-background/40 custom-scrollbar">
             <div className="w-full max-w-7xl mx-auto animate-in fade-in duration-200">
+              <AnnouncementsDisplay businessId={businessInfo?.id} />
               {children}
               <BusinessAiAssistant />
             </div>

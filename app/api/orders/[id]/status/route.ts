@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { OrderStatus } from "@prisma/client";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 interface ParamsProps {
   params: Promise<{ id: string }>;
@@ -17,7 +18,6 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    // Pull internal database ID along with the email to evaluate roles and staff profiles
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true, email: true },
@@ -40,7 +40,6 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    // Verify ownership bounds before executing structural status change matrix updates
     const targetOrder = await prisma.order.findUnique({
       where: { id },
       select: { businessId: true, userId: true },
@@ -53,28 +52,26 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    // CORRECTED: Match business ownerId against the user's internal CUID profile ID, not the Clerk ID string
-    const merchantVerification = await prisma.business.findFirst({
-      where: {
-        id: targetOrder.businessId,
-        ownerId: user.id,
-      },
+    const business = await prisma.business.findUnique({
+      where: { id: targetOrder.businessId },
+      select: { ownerId: true },
     });
 
-    // Check 2: Is the current user an active staff member belonging to this business branch?
-    const staffVerification = await prisma.staffProfile.findFirst({
-      where: {
-        businessId: targetOrder.businessId,
-        email: { equals: user.email || "", mode: "insensitive" },
-        isActive: true,
-      },
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business record trace missing" },
+        { status: 404 },
+      );
+    }
+
+    const businessAuthorized = await authorizeBusinessAccess({
+      businessId: targetOrder.businessId,
+      ownerId: business.ownerId,
+      systemUserId: user.id,
+      allowStaff: true,
     });
 
-    // Master Authorization Multi-Tenant Matrix Check
-    const isAuthorized =
-      merchantVerification ||
-      staffVerification ||
-      targetOrder.userId === user.id;
+    const isAuthorized = businessAuthorized || targetOrder.userId === user.id;
 
     if (!isAuthorized) {
       console.warn(
@@ -86,7 +83,6 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    // Enforce matching capitalization schemas with database enum parameters
     const normalizedStatus = status.trim().toUpperCase() as OrderStatus;
 
     const updatedOrder = await prisma.order.update({

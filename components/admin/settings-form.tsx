@@ -78,6 +78,13 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
       maxDistanceLimitKm: parseFloat(
         formData.get("maxDistanceLimitKm") as string,
       ),
+      payoutHoldingPeriodDays: parseInt(
+        formData.get("payoutHoldingPeriodDays") as string,
+        10,
+      ),
+      globalAlertBannerText:
+        (formData.get("globalAlertBannerText") as string) || null,
+      absorbPaystackFees: formData.get("absorbPaystackFees") === "true",
     };
 
     startTransition(async () => {

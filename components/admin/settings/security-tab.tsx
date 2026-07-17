@@ -3,7 +3,7 @@ import { MasterConfigValues } from "@/lib/actions/admin-settings";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { ShieldAlert, Gauge } from "lucide-react";
+import { Megaphone, ShieldAlert, Gauge } from "lucide-react";
 
 interface SecurityProps {
   settings: MasterConfigValues;
@@ -18,7 +18,6 @@ export function SecurityTab({
 }: SecurityProps) {
   return (
     <div className="w-full space-y-8">
-      {/* Title */}
       <div className="space-y-1">
         <h2 className="text-xl font-black tracking-tight text-destructive sm:text-2xl">
           Safety Gates
@@ -29,9 +28,40 @@ export function SecurityTab({
         </p>
       </div>
 
-      {/* Cards */}
       <div className="space-y-4">
-        {/* Toggle Card: Close App */}
+        {/* NEW EMERGENCY MARQUEE NOTIFICATION CARD */}
+        <div className="group p-5 rounded-2xl border border-border bg-card shadow-sm hover:border-border/80 transition-all duration-200">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label
+                htmlFor="globalAlertBannerText"
+                className="flex items-center gap-2 font-semibold text-sm text-foreground group-focus-within:text-primary transition-colors"
+              >
+                <Megaphone className="h-4 w-4 text-muted-foreground/60" />
+                Global Alert Banner Notice
+              </Label>
+              <p className="text-xs text-muted-foreground leading-normal">
+                Type out urgent system updates here (like payment gateway
+                downtime or extreme weather alerts). Leaving this text input
+                completely empty will hide the notification area from the
+                customer app automatically.
+              </p>
+            </div>
+
+            <div className="relative w-full">
+              <Input
+                id="globalAlertBannerText"
+                name="globalAlertBannerText"
+                type="text"
+                placeholder="Type an announcement to display on the app dashboard..."
+                defaultValue={settings.globalAlertBannerText ?? ""}
+                className="w-full h-11 px-4 bg-muted/40 border-border/80 rounded-xl focus:bg-background focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Close App for Fixes Toggle Card */}
         <div className="group p-5 rounded-2xl border border-destructive/20 bg-destructive/[0.02] shadow-sm hover:border-destructive/30 transition-all duration-200">
           <div className="flex items-center justify-between gap-6">
             <div className="space-y-1 max-w-xl">
@@ -52,15 +82,15 @@ export function SecurityTab({
           </div>
         </div>
 
-        {/* Input Card: Max Bookings */}
-        <div className="group p-5 rounded-2xl border border-destructive/20 bg-destructive/[0.02] shadow-sm hover:border-destructive/30 transition-all duration-200">
+        {/* Max Daily Bookings Card */}
+        <div className="group p-5 rounded-2xl border border-border bg-card shadow-sm hover:border-border/80 transition-all duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1 max-w-md">
               <Label
                 htmlFor="maxDailyBookingsPerUser"
-                className="flex items-center gap-2 font-semibold text-sm text-destructive"
+                className="flex items-center gap-2 font-semibold text-sm text-foreground"
               >
-                <Gauge className="h-4 w-4" />
+                <Gauge className="h-4 w-4 text-muted-foreground/60" />
                 Max Daily Bookings Per User
               </Label>
               <p className="text-xs text-muted-foreground leading-normal">
@@ -75,7 +105,7 @@ export function SecurityTab({
                 type="number"
                 defaultValue={settings.maxDailyBookingsPerUser}
                 required
-                className="w-full h-11 font-mono font-semibold px-4 bg-muted/40 border-border/80 rounded-xl focus:bg-background focus:ring-1 focus:ring-destructive focus:border-destructive"
+                className="w-full h-11 font-mono font-semibold px-4 bg-muted/40 border-border/80 rounded-xl focus:bg-background focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>

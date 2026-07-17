@@ -9,8 +9,11 @@ function generateSlug(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
+    .replace(/[^a-z0-9\s-]/g, "") // strip special chars first, keep spaces/hyphens
+    .trim()
+    .replace(/\s+/g, "-") // collapse whitespace to single hyphens
+    .replace(/-+/g, "-") // collapse any repeated hyphens
+    .replace(/^-+|-+$/g, ""); // trim leading/trailing hyphens
 }
 
 // ✅ POST: Process onboarding application forms and create a new business tenant space

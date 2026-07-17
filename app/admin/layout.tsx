@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { verifyAdminSession } from "@/lib/admin";
 import AdminShell from "./AdminShell";
+import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -15,5 +16,10 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     redirect("/admin/errors/unauthorized");
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell>
+      <AnnouncementsDisplay />
+      {children}
+    </AdminShell>
+  );
 }

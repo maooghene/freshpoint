@@ -9,6 +9,7 @@ export interface BusinessInfo {
   name: string;
   image: string | null;
   status: string;
+  id: string;
 }
 
 export interface NavigationItemShape {

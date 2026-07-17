@@ -170,7 +170,11 @@ export function MobileDrawer({
             onClick={closeMenu}
           >
             <Link href={merchantDashboardHref || "#"}>
-              {!merchantDashboardHref ? "Loading Workspace..." : "My Shop"}
+              {!merchantDashboardHref
+                ? "Loading Workspace..."
+                : merchantDashboardHref.startsWith("/admin")
+                  ? "Admin Panel"
+                  : "My Shop"}
             </Link>
           </Button>
         )}

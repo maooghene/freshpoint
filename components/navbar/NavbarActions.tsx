@@ -1,3 +1,4 @@
+// components/navbar/NavbarActions.tsx
 "use client";
 
 import * as React from "react";
@@ -55,6 +56,10 @@ export function NavbarActions({
     );
   };
 
+  const isAdminDestination =
+    merchantDashboardHref?.startsWith("/admin") ?? false;
+  const portalLabel = isAdminDestination ? "Admin Panel" : "My Shop";
+
   return (
     <div className="flex flex-1 items-center justify-end md:justify-between w-full h-full min-w-0">
       {/* 1. Desktop Actions Integration */}
@@ -68,9 +73,8 @@ export function NavbarActions({
         cartItemsCount={cartItemsCount}
       />
 
-      {/* Business Portal Link Socket */}
+      {/* Business / Admin Portal Link Socket */}
       {hasBusinessAccess && merchantDashboardHref && (
-        // 🌟 SPACED OUT: Added margin utilities (ml-5 mr-3) to separate the shop button cleanly
         <div className="hidden lg:flex items-center gap-2 min-w-0 ml-5 mr-3 shrink-0 select-none">
           <div className="relative flex h-1.5 w-1.5 shrink-0 select-none">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
@@ -80,7 +84,6 @@ export function NavbarActions({
           <Button
             asChild
             variant="outline"
-            // 🌟 REDUCED DENSITY: Clamped height down to h-8.5 and text to text-[11px] for space optimization
             className="relative overflow-hidden group h-8.5 rounded-xl border border-zinc-200/80 bg-white/70 backdrop-blur-md px-3.5 text-[11px] font-bold text-zinc-800 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-emerald-600 hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 active:translate-y-0 dark:border-zinc-200/80 dark:bg-zinc-950/70 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-emerald-400 dark:hover:border-emerald-500/40 cursor-pointer"
           >
             <Link
@@ -102,7 +105,7 @@ export function NavbarActions({
                 <rect x="3" y="16" width="7" height="5" rx="1" />
               </svg>
 
-              <span className="tracking-wide">{"My Shop"}</span>
+              <span className="tracking-wide">{portalLabel}</span>
             </Link>
           </Button>
         </div>

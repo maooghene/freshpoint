@@ -1,6 +1,6 @@
 // app/admin/businesses/page.tsx
 import { getAllPlatformVendors } from "@/lib/actions/admin-vendors";
-import { VendorRow } from "@/components/admin/vendor-row";
+import { BusinessRow } from "@/components/admin/business-row";
 import {
   Table,
   TableBody,
@@ -78,7 +78,7 @@ export default async function AdminVendorsPage() {
                   </TableRow>
                 ) : (
                   vendors.map((vendor) => (
-                    <VendorRow key={vendor.id} vendor={vendor} />
+                    <BusinessRow key={vendor.id} business={vendor} />
                   ))
                 )}
               </TableBody>

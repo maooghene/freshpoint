@@ -239,5 +239,27 @@
   }
 }
 
+/* app/globals.css */
 
+/* Bind directly to shadcn/ui custom structural layers using Tailwind v4 compatible naming tokens */
+@layer components {
+  /* Force vertical cell partitioning on table header rows using native token prefixes */
+  thead tr,
+  .bg-muted\/50 tr,
+  tr[class*="hover:bg-muted/50"] {
+    @apply !divide-x !divide-border !border-b !border-border;
+  }
 
+  /* Force vertical grid lines across all body data row loops safely */
+  tbody tr,
+  tr.hover\:bg-muted\/40,
+  tr.border-b {
+    @apply !divide-x !divide-border !border-b !border-border;
+  }
+
+  /* Clear the absolute far right cell edge of double border line frames */
+  th:last-child, 
+  td:last-child {
+    @apply !border-r-0;
+  }
+}

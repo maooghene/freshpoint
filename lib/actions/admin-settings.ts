@@ -15,6 +15,10 @@ export interface MasterConfigValues {
   enforceInstantApproval: boolean;
   maxDailyBookingsPerUser: number;
   maxDistanceLimitKm: number;
+  // NEW PAYSTACK AND CASH LEVER FIELDS Added
+  payoutHoldingPeriodDays: number;
+  absorbPaystackFees: boolean;
+  globalAlertBannerText: string | null;
 }
 
 export async function getSystemSettings(): Promise<MasterConfigValues> {
@@ -37,6 +41,10 @@ export async function getSystemSettings(): Promise<MasterConfigValues> {
     enforceInstantApproval: settings?.enforceInstantApproval ?? true,
     maxDailyBookingsPerUser: settings?.maxDailyBookingsPerUser ?? 5,
     maxDistanceLimitKm: settings?.maxDistanceLimitKm ?? 35.0,
+    // Safely mapping fallback defaults
+    payoutHoldingPeriodDays: settings?.payoutHoldingPeriodDays ?? 3,
+    absorbPaystackFees: settings?.absorbPaystackFees ?? false,
+    globalAlertBannerText: settings?.globalAlertBannerText ?? null,
   };
 }
 
@@ -63,6 +71,13 @@ export async function updateSystemSettingsAction(
     };
   }
 
+  if (values.payoutHoldingPeriodDays < 0) {
+    return {
+      success: false,
+      message: "Payout holding days cannot be a negative number.",
+    };
+  }
+
   try {
     await prisma.systemSetting.upsert({
       where: { id: "singleton" },
@@ -83,5 +98,22 @@ export async function updateSystemSettingsAction(
       success: false,
       message: `Failed to persist platform modifications: ${errorMsg}`,
     };
+  }
+}
+
+/**
+ * Public action so client components can read the emergency text banner safely.
+ * Accessible to any customer visiting the home page.
+ */
+export async function getPublicAlertBannerText(): Promise<string | null> {
+  try {
+    const settings = await prisma.systemSetting.findUnique({
+      where: { id: "singleton" },
+      select: { globalAlertBannerText: true },
+    });
+    return settings?.globalAlertBannerText ?? null;
+  } catch (error) {
+    console.error("Failed to read public announcement text:", error);
+    return null;
   }
 }
