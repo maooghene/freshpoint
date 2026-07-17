@@ -1,10 +1,11 @@
+// components/orders/CustomerHistoryLedger.tsx
 "use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
 import { Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OrderCard } from "@/components/orders/OrderCard";
+import { OrderTableRow } from "./OrderTableRow";
 
 interface HistoryItem {
   id: string;
@@ -41,22 +42,18 @@ export default function CustomerHistoryLedger({
   initialOrders,
 }: CustomerHistoryLedgerProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [activeReceipt, setActiveReceipt] = useState<HistoryOrder | null>(null);
 
   const filteredOrders = initialOrders.filter((order) => {
     const rawSearch = searchQuery.trim().toLowerCase();
     if (!rawSearch) return true;
 
     const searchTokens = rawSearch.split(/\s+/);
-
-    // ✅ Parse into a real Date and read LOCAL components,
-    // instead of slicing the raw UTC ISO string. This ensures the
-    // calendar date matches what the customer actually experienced
-    // (important for orders placed late at night in WAT / UTC+1).
     const orderDate = new Date(order.createdAt);
 
     const numericYear = String(orderDate.getFullYear());
-    const monthIndex = orderDate.getMonth(); // 0-based, already local
-    const numericDay = String(orderDate.getDate()); // local day, no leading zero
+    const monthIndex = orderDate.getMonth();
+    const numericDay = String(orderDate.getDate());
     const paddedDay = numericDay.padStart(2, "0");
 
     const monthsLong = [
@@ -105,8 +102,6 @@ export default function CustomerHistoryLedger({
     return searchTokens.every((token) => {
       const isPureNumber = /^\d+$/.test(token);
 
-      // Only check ID/code for tokens that aren't short pure numbers —
-      // short digits are meant to be day/year lookups, not ID substrings.
       const vendorMatches = vendorName.includes(token);
       const idMatches =
         !isPureNumber || token.length >= 4 ? paystackId.includes(token) : false;
@@ -134,6 +129,11 @@ export default function CustomerHistoryLedger({
     });
   });
 
+  const handleOpenReceiptModal = (order: HistoryOrder) => {
+    setActiveReceipt(order);
+    console.log("Mounting full layout view receipt metadata:", order.id);
+  };
+
   if (initialOrders.length === 0) {
     return (
       <div className="text-center py-16 border border-dashed border-border rounded-3xl bg-card">
@@ -145,7 +145,10 @@ export default function CustomerHistoryLedger({
           You haven&apos;t completed any product checkouts on the Freshpoint
           marketplace platform yet.
         </p>
-        <Button asChild className="rounded-xl font-bold shadow-md">
+        <Button
+          asChild
+          className="rounded-xl font-bold shadow-md cursor-pointer"
+        >
           <Link href="/explore">Start Shopping Now</Link>
         </Button>
       </div>
@@ -173,10 +176,48 @@ export default function CustomerHistoryLedger({
           No records match your active search filters.
         </p>
       ) : (
-        <div className="space-y-4">
-          {filteredOrders.map((order) => (
-            <OrderCard key={order.id} order={order} />
-          ))}
+        /* Bounded Grid Mesh Table Frame */
+        <div className="rounded-xl border border-border overflow-hidden table-mesh bg-card w-full overflow-x-auto">
+          <table className="w-full text-sm text-left border-collapse min-w-[950px]">
+            {/* 🌟 FIXED: Formatted 8 exact header cells matching across the data row cells cleanly */}
+            <thead className="bg-muted/50 border-b border-border select-none">
+              <tr>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4 w-[140px]">
+                  Order Code
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                  Vendor Partner
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                  Quantity
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                  Lifecycle Timeline
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4 text-center">
+                  Total Paid
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                  Distribution
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                  Status
+                </th>
+                <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4 text-right pr-12">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredOrders.map((order) => (
+                <OrderTableRow
+                  key={order.id}
+                  order={order}
+                  onSelect={handleOpenReceiptModal}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

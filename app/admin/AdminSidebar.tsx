@@ -1,18 +1,19 @@
-
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Megaphone, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Store,
+  Users,
+  Megaphone,
   AlertCircle,
   Settings2,
   ShieldAlert,
+  ScrollText,
   ChevronLeftIcon,
   ChevronRightIcon,
   LogOut,
@@ -20,9 +21,8 @@ import {
   Moon,
 } from "lucide-react";
 import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
-import { ScrollText } from "lucide-react";
 
-// Keeping your exact routes and data structures intact, only simplifying the text strings
+// Keeping your exact routes and data structures intact
 const NAV_ITEMS = [
   { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
   { name: "Vendor Verification", href: "/admin/businesses", icon: Store },
@@ -39,11 +39,27 @@ export default function AdminSidebar() {
   const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [hasMounted] = React.useState(() => typeof window !== "undefined");
+  const [, startTransition] = React.useTransition();
 
   const resolvedTheme = theme ?? "light";
 
   const checkActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname?.startsWith(href);
+
+  // 🛡️ FIXED: Implemented functional breakout strategy satisfying ESLint and clearing Next client-side memory
+  const handleHardExit = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+
+    startTransition(() => {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+          document.cookie =
+            "freshpoint_exit_clearance=true; path=/; max-age=60; SameSite=Lax";
+        window.sessionStorage.setItem("freshpoint_exit_clearance", "true");
+      }
+      // Absolute programmatic window replacement wipes out cached multi-tenant workspace data locks
+      window.location.href = "/";
+    });
+  };
 
   return (
     <aside
@@ -55,7 +71,6 @@ export default function AdminSidebar() {
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
           {isCollapsed ? (
-            /* 🌟 FIXED: Placed inside a protective shrink-0 division to stop the sidebar from squeezing the asset */
             <div className="shrink-0 flex items-center justify-center w-9 h-9">
               <FreshpointLogo size={40} />
             </div>
@@ -114,7 +129,7 @@ export default function AdminSidebar() {
             onClick={() =>
               setTheme(resolvedTheme === "dark" ? "light" : "dark")
             }
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground bg-secondary/10 bg-transparent"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground bg-transparent"
             title={
               resolvedTheme === "dark"
                 ? "Turn on Light Mode"
@@ -135,6 +150,7 @@ export default function AdminSidebar() {
           {/* Exit Button */}
           <Link
             href="/"
+            onClick={handleHardExit}
             title="Leave Admin App"
             className={`group inline-flex h-8 items-center justify-center rounded-lg border border-transparent transition-all duration-200 bg-secondary/30 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/20 ${
               isCollapsed
@@ -150,7 +166,7 @@ export default function AdminSidebar() {
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground bg-secondary/10 bg-transparent"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground bg-transparent"
             title={isCollapsed ? "Make Menu Bigger" : "Make Menu Smaller"}
           >
             {isCollapsed ? (

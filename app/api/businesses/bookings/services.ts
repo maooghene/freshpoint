@@ -7,7 +7,6 @@ export interface BookingUpdatePayload {
   status: BookingStatus;
 }
 
-// Concrete type definitions matching your exact relational query output structure
 interface CustomItemMetadata {
   name: string;
   price: number;
@@ -26,12 +25,18 @@ interface CustomUserSubset {
   image: string | null;
 }
 
+// ✅ EXPLICIT TYPE ADJUSTMENT: Included relation tracker
+interface CustomReminderLog {
+  milestone: string;
+}
+
 interface RichBookingRecord extends Booking {
   user: CustomUserSubset | null;
   items?: CustomBookingItemRelation[];
+  reminderLogs?: CustomReminderLog[]; // Injected safely into memory
 }
 
-interface FormattedBookingResponse {
+export interface FormattedBookingResponse {
   id: string;
   startTime: string;
   endTime: string;
@@ -40,6 +45,7 @@ interface FormattedBookingResponse {
   createdAt: string;
   queueCode: string;
   paymentStatus: string;
+  isReminderSent: boolean; // ✅ NEW EXPOSED FLAG FOR FRONTEND
   user: {
     firstName: string;
     lastName: string;
@@ -66,9 +72,6 @@ interface ServiceErrorResult {
 
 type ServiceResult = ServiceSuccessResult | ServiceErrorResult;
 
-/**
- * Multi-Tenant Security Scope Verification
- */
 export async function verifyUserAccess(
   businessId: string,
   clerkId: string,
@@ -95,9 +98,6 @@ export async function verifyUserAccess(
   });
 }
 
-/**
- * Live Ground Mutation Status Processor
- */
 export async function processBookingStatusUpdate(
   bookingId: string,
   status: BookingStatus,
@@ -156,9 +156,6 @@ export async function processBookingStatusUpdate(
   return { success: true };
 }
 
-/**
- * High-Density Data Loader Chronologically Mapping Front-end UI Requirements
- */
 export async function getFormattedBookings(
   slug: string,
   clerkId: string,
@@ -190,7 +187,6 @@ export async function getFormattedBookings(
   let bookings: RichBookingRecord[] = [];
 
   try {
-    // STRATEGY A: Standard execution with full relational maps
     const result = await prisma.booking.findMany({
       where: { businessId: business.id },
       include: {
@@ -206,6 +202,8 @@ export async function getFormattedBookings(
         },
         address: true,
         items: { include: { item: { select: { name: true, price: true } } } },
+        // ✅ INJECTED HERE: Pulling logs into memory layout mapping
+        reminderLogs: { select: { milestone: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -216,7 +214,6 @@ export async function getFormattedBookings(
       relationError,
     );
 
-    // STRATEGY B: Drop advanced constraints to maintain runtime uptime metrics
     const fallbackResult = await prisma.booking.findMany({
       where: { businessId: business.id },
       include: {
@@ -230,6 +227,8 @@ export async function getFormattedBookings(
             image: true,
           },
         },
+        // ✅ INJECTED HERE IN FALLBACK AS WELL
+        reminderLogs: { select: { milestone: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -243,6 +242,10 @@ export async function getFormattedBookings(
       const coreItemMetadata = firstRelationRecord
         ? firstRelationRecord.item
         : null;
+
+      // ✅ COMPUTE REMINDER STATE FROM SAVED RELATION DATA STRIP
+      const foundLog =
+        b.reminderLogs?.some((log) => log.milestone === "24_HOUR") ?? false;
 
       return {
         id: b.id,
@@ -259,6 +262,7 @@ export async function getFormattedBookings(
           : new Date().toISOString(),
         queueCode: b.queueCode || "NO-CODE",
         paymentStatus: b.paymentStatus || "PENDING",
+        isReminderSent: foundLog, // ✅ RECONCILED DATA FIELD SENT DOWNSTREAM
         user: {
           firstName: b.user?.firstName || "Client",
           lastName: b.user?.lastName || "Profile",

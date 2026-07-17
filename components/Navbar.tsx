@@ -5,7 +5,8 @@ import * as React from "react";
 import { Suspense } from "react";
 import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { usePathname } from "next/navigation";
-import { NavbarContent } from "./NavbarContent"; // Points right to your orchestrator file!
+
+import { NavbarContent } from "./NavbarContent";
 
 export default function Navbar() {
   const pathname = usePathname();

@@ -1,115 +1,126 @@
+// components/navbar/useNavbarRouting.ts
 "use client";
 
-import * as React from "react";
-import { useEffect, useState, useMemo } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 
-interface NavigationCountsResponse {
-  role?: string;
-}
-
-interface OnboardingResponse {
-  destination?: string;
-}
-
 export function useNavbarRouting() {
-  const { user } = useUser();
+  const router = useRouter();
   const pathname = usePathname() || "";
+  const { user, isLoaded, isSignedIn } = useUser();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
-  // 1️⃣ DERIVED LIFECYCLE INITIALIZER: Synchronously handle reset states
-  // right inside the render phase without causing hook dependency loop crashes
-  const [serverRole, setServerRole] = useState<string>("CUSTOMER");
+  const [hasBusinessAccess, setHasBusinessAccess] = useState<boolean>(false);
   const [merchantDashboardHref, setMerchantDashboardHref] = useState<
     string | null
   >(null);
+  const [portalLabel, setPortalLabel] = useState<string>("My Space");
 
-  // Track dynamic path evaluation markers directly from browser URL
-  const pathSegments = useMemo<string[]>(() => {
-    return pathname.split("/").filter(Boolean);
-  }, [pathname]);
-
+  const pathSegments = pathname.split("/").filter(Boolean);
   const isCurrentlyInBusinessDashboard = pathname.startsWith("/business");
-
-  const businessId = useMemo<string>(() => {
-    return isCurrentlyInBusinessDashboard && pathSegments.length > 1
-      ? pathSegments[1]
-      : "";
-  }, [isCurrentlyInBusinessDashboard, pathSegments]);
-
-  // Derived user authentication tracking parameter
-  const userRole = user ? serverRole : "CUSTOMER";
+  const businessId = isCurrentlyInBusinessDashboard
+    ? pathSegments[1] || ""
+    : "";
+  const showAppNavbar = !isCurrentlyInBusinessDashboard;
 
   useEffect(() => {
-    // 2️⃣ CLEAN BAILOUT TRIGGER: Pure early exit pattern.
-    // No more calling setState() directly inside the structural boundary check block!
-    if (!user) return;
+    if (!isSignedIn) {
+      setHasBusinessAccess(false);
+      setMerchantDashboardHref(null);
+      setPortalLabel("My Space");
+      return;
+    }
 
-    // AbortController to eliminate mid-air network unmount failures
-    const controller = new AbortController();
-    const signal = controller.signal;
+    let isMounted = true;
 
-    const fetchIdentityContext = async (): Promise<void> => {
-      try {
-        const res = await fetch("/api/navigation/counts", { signal });
-        if (res.ok) {
-          const data = (await res.json()) as NavigationCountsResponse;
-          setServerRole(data.role || "CUSTOMER");
+    // 🌟 FIXED: Points straight to your true verified endpoint file folder path
+    fetch("/api/auth/check-onboarding", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data) return;
+
+        setHasBusinessAccess(true);
+
+        if (data.destination === "/select-workspace") {
+          setPortalLabel("Manage Spaces");
+          setMerchantDashboardHref("/select-workspace");
+        } else if (data.destination && data.destination.startsWith("/admin")) {
+          setPortalLabel("Admin Panel");
+          setMerchantDashboardHref(data.destination);
+        } else if (
+          data.destination &&
+          data.destination.startsWith("/business")
+        ) {
+          setPortalLabel("My Shop");
+          setMerchantDashboardHref(data.destination);
+        } else {
+          setPortalLabel("Manage Spaces");
+          setMerchantDashboardHref("/select-workspace");
         }
-
-        const onboardRes = await fetch("/api/auth/check-onboarding", {
-          signal,
-        });
-        if (onboardRes.ok) {
-          const onboardData = (await onboardRes.json()) as OnboardingResponse;
-
-          if (onboardData.destination) {
-            const dest = onboardData.destination;
-
-            // Only mount the path href pointer if the background onboarding worker
-            // successfully resolves a live active portal route context!
-            if (
-              dest.startsWith("/business") ||
-              dest.startsWith("/staff") ||
-              dest.startsWith("/admin")
-            ) {
-              setMerchantDashboardHref(dest);
-            } else {
-              setMerchantDashboardHref(null);
-            }
-          }
+      })
+      .catch((err) => {
+        console.error("Identity synchronization failure:", err);
+        if (isMounted) {
+          setHasBusinessAccess(true);
+          setPortalLabel("Manage Spaces");
+          setMerchantDashboardHref("/select-workspace");
         }
-      } catch (err: unknown) {
-        // Only log errors if the network fetch wasn't deliberately cancelled by an unmount signal
-        if (err instanceof Error && err.name !== "AbortError") {
-          console.error(
-            "Failed to initialize structural navigation states:",
-            err,
-          );
-        }
-      }
-    };
+      });
 
-    void fetchIdentityContext();
-
-    // Cleanup function runs instantly on unmount or user shift to cancel flying HTTP slots
     return () => {
-      controller.abort();
+      isMounted = false;
     };
-  }, [user]);
+  }, [isSignedIn]);
 
-  // 3️⃣ INLINE RESET GATEWAY: Instantly strips active links if a user signs out
-  // directly in the render phase, guaranteeing zero state lag or linter warnings
-  const effectiveDashboardHref = user ? merchantDashboardHref : null;
-  const hasBusinessAccess: boolean = effectiveDashboardHref !== null;
+  const handlePortalNavigation = () => {
+    if (!isLoaded || !user) {
+      router.push("/sign-in");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setError(null);
+
+        // 🌟 FIXED: Points straight to your true verified endpoint file folder path with intent param
+        const onboardRes = await fetch(
+          "/api/auth/check-onboarding?intent=manage",
+          {
+            method: "GET",
+            cache: "no-store",
+          },
+        );
+
+        if (!onboardRes.ok)
+          throw new Error("Failed to process portal routing metadata.");
+
+        const data = await onboardRes.json();
+
+        if (data && data.destination) {
+          window.location.href = data.destination;
+          return;
+        }
+
+        router.push("/select-workspace");
+      } catch (err: any) {
+        console.error("[PORTAL_NAV_ERROR]:", err);
+        window.location.href = "/select-workspace";
+      }
+    });
+  };
 
   return {
-    pathname,
+    handlePortalNavigation,
+    isNavigating: isPending,
+    routingError: error,
     pathSegments,
     isCurrentlyInBusinessDashboard,
     businessId,
     hasBusinessAccess,
-    merchantDashboardHref: effectiveDashboardHref,
-    showAppNavbar: user !== null && pathname !== "/",
+    merchantDashboardHref,
+    portalLabel,
+    showAppNavbar,
   };
 }

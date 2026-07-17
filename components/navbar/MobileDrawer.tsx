@@ -1,3 +1,4 @@
+// components/navbar/MobileDrawer.tsx
 "use client";
 
 import * as React from "react";
@@ -24,7 +25,10 @@ interface MobileDrawerProps {
   isSignedIn: boolean | undefined;
   cartItemsCount: number;
   hasBusinessAccess: boolean;
-  merchantDashboardHref: string | null;
+  // 🌟 INJECT YOUR UPDATED METHOD PARAMS
+  displayLabel: string;
+  handlePortalNavigation: () => void;
+  isNavigating: boolean;
   closeMenu: () => void;
 }
 
@@ -37,7 +41,9 @@ export function MobileDrawer({
   isSignedIn,
   cartItemsCount,
   hasBusinessAccess,
-  merchantDashboardHref,
+  displayLabel,
+  handlePortalNavigation,
+  isNavigating,
   closeMenu,
 }: MobileDrawerProps) {
   return (
@@ -105,7 +111,7 @@ export function MobileDrawer({
           </Link>
 
           <Link
-            href="/appointments/history"
+            href="/bookings"
             onClick={closeMenu}
             className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
           >
@@ -162,20 +168,17 @@ export function MobileDrawer({
           </div>
         </div>
 
+        {/* 🌟 MOBILE ACTIONS CORE REDIRECT TRIGGER COMPONENT BLOCK */}
         {hasBusinessAccess && (
           <Button
-            asChild
-            disabled={!merchantDashboardHref}
-            className="w-full py-6 rounded-xl font-black text-sm shadow-md disabled:opacity-60 mt-2"
-            onClick={closeMenu}
+            onClick={() => {
+              handlePortalNavigation();
+              closeMenu();
+            }}
+            disabled={isNavigating}
+            className="w-full py-6 rounded-xl font-black text-sm shadow-md disabled:opacity-60 mt-2 cursor-pointer transition-colors"
           >
-            <Link href={merchantDashboardHref || "#"}>
-              {!merchantDashboardHref
-                ? "Loading Workspace..."
-                : merchantDashboardHref.startsWith("/admin")
-                  ? "Admin Panel"
-                  : "My Shop"}
-            </Link>
+            <span>{displayLabel}</span>
           </Button>
         )}
       </div>

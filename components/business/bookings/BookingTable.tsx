@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Booking, BookingStatus } from "./types";
+import { BookingStatusBadge } from "./BookingStatusBadge";
+import { BookingReminderBadge } from "./BookingReminderBadge";
 
 interface BookingTableProps {
   bookings: Booking[];
@@ -44,9 +46,7 @@ export default function BookingTable({
         </thead>
         <tbody className="divide-y divide-border bg-card relative z-10">
           {bookings.map((booking: Booking) => {
-            const baseAmount = booking.item?.price ?? 0;
-            const displayPrice = baseAmount.toLocaleString();
-
+            const displayPrice = (booking.item?.price ?? 0).toLocaleString();
             const serviceName = booking.item?.name || "General Appointment";
             const clientName = booking.user?.firstName
               ? `${booking.user.firstName} ${booking.user.lastName || ""}`.trim()
@@ -58,8 +58,12 @@ export default function BookingTable({
                 onClick={() => onRowClick(booking)}
                 className="hover:bg-secondary/40 transition-colors cursor-pointer group/row"
               >
+                {/* Client Cell with Sub-badge Component */}
                 <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">
-                  {clientName}
+                  <div>{clientName}</div>
+                  <BookingReminderBadge
+                    isReminderSent={booking.isReminderSent}
+                  />
                 </td>
 
                 <td className="px-6 py-4 max-w-[200px] truncate font-medium text-foreground whitespace-nowrap">
@@ -87,50 +91,22 @@ export default function BookingTable({
                   ₦{displayPrice}
                 </td>
 
+                {/* Status Badge Component */}
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                      booking.status === "CONFIRMED"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : booking.status === "PENDING"
-                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                          : booking.status === "COMPLETED"
-                            ? "bg-primary/10 text-primary"
-                            : "bg-destructive/10 text-destructive"
-                    }`}
-                  >
-                    <span className="text-[8px] leading-none shrink-0">
-                      {"●"}
-                    </span>
-                    <span>{booking.status}</span>
-                  </span>
+                  <BookingStatusBadge status={booking.status} />
                 </td>
 
+                {/* Action Dropdown Options Column */}
                 <td
                   className="px-6 py-4 text-right whitespace-nowrap"
-                  onClick={(e: React.MouseEvent<HTMLTableCellElement>) =>
-                    e.stopPropagation()
-                  }
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className="relative inline-block text-left group">
                     <button
                       type="button"
-                      className={`inline-flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
-                        booking.status === "CONFIRMED"
-                          ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
-                          : booking.status === "PENDING"
-                            ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
-                            : booking.status === "COMPLETED"
-                              ? "border-primary/30 bg-primary/5 text-primary"
-                              : "border-destructive/30 bg-destructive/5 text-destructive"
-                      }`}
+                      className={`inline-flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-sm ${booking.status === "CONFIRMED" ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600" : booking.status === "PENDING" ? "border-amber-500/30 bg-amber-500/5 text-amber-600" : "border-primary/30 bg-primary/5 text-primary"}`}
                     >
-                      <span>
-                        {booking.status === "PENDING" && "Pending"}
-                        {booking.status === "CONFIRMED" && "Confirmed"}
-                        {booking.status === "COMPLETED" && "Completed"}
-                        {booking.status === "CANCELLED" && "Cancelled"}
-                      </span>
+                      <span>{booking.status}</span>
                       <svg
                         className="w-3 h-3 transition-transform duration-200 group-hover:rotate-180"
                         fill="none"
@@ -145,63 +121,24 @@ export default function BookingTable({
                         />
                       </svg>
                     </button>
-
                     <div className="absolute right-0 mt-2 w-36 rounded-xl bg-card border border-border shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 p-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onUpdateStatus(booking.id, "PENDING")
-                        }
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
-                          booking.status === "PENDING"
-                            ? "text-amber-600 bg-amber-500/5"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {"Pending"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onUpdateStatus(booking.id, "CONFIRMED")
-                        }
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
-                          booking.status === "CONFIRMED"
-                            ? "text-emerald-600 bg-emerald-500/5"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {"Confirmed"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onUpdateStatus(booking.id, "COMPLETED")
-                        }
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
-                          booking.status === "COMPLETED"
-                            ? "text-primary bg-primary/5"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {"Completed"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onUpdateStatus(booking.id, "CANCELLED")
-                        }
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer text-left hover:bg-secondary/60 ${
-                          booking.status === "CANCELLED"
-                            ? "text-destructive bg-destructive/5"
-                            : "text-destructive hover:bg-destructive/10"
-                        }`}
-                      >
-                        {"Cancelled"}
-                      </button>
+                      {(
+                        [
+                          "PENDING",
+                          "CONFIRMED",
+                          "COMPLETED",
+                          "CANCELLED",
+                        ] as BookingStatus[]
+                      ).map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => void onUpdateStatus(booking.id, st)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors text-left hover:bg-secondary/60 ${booking.status === st ? "text-primary bg-primary/5" : "text-muted-foreground"}`}
+                        >
+                          {st.charAt(0) + st.slice(1).toLowerCase()}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </td>

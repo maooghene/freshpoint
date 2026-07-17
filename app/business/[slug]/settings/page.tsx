@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "./SettingsForm";
-// Added missing import statement to completely clear compilation faults
 import { BookingPolicyForm } from "./BookingPolicyForm";
 import { Building2 } from "lucide-react";
 
@@ -21,7 +20,6 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     redirect("/sign-in");
   }
 
-  // Include the relational user record to access the clerkId configuration safely
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
@@ -33,12 +31,10 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     notFound();
   }
 
-  // Guard routing context strictly by mapping via the resolved relation
   if (business.owner.clerkId !== userId) {
     redirect("/dashboard");
   }
 
-  // 💡 TYPE RECONCILIATION: Fixed to map cleanly from business.image and included delivery parameters
   const serializedBusinessForForm = {
     id: business.id,
     name: business.name,
@@ -48,16 +44,14 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     sittingCapacity: business.sittingCapacity,
     categories: business.categories,
     description: business.description,
-    image: business.image ?? null, // FIXED: Changed business.imageUrl to business.image
-    baseDeliveryFee: business.baseDeliveryFee ?? 0, // New bridge payload data injected safely
-    deliveryFeePerKm: business.deliveryFeePerKm ?? 0, // New bridge payload data injected safely
+    image: business.image ?? null,
+    baseDeliveryFee: business.baseDeliveryFee ?? 0,
+    deliveryFeePerKm: business.deliveryFeePerKm ?? 0,
   };
 
-  // Look at your page.tsx file and update this section to inject fallback numbers:
   const serializedPoliciesForForm = {
     id: business.id,
     slug: business.slug,
-    // If the old business row has NULL in the DB, inject your default system numbers here:
     minNoticeHours: business.minNoticeHours ?? 2,
     maxAheadDays: business.maxAheadDays ?? 30,
     cancelWindowHours: business.cancelWindowHours ?? 24,
@@ -66,11 +60,10 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     currencyCode: business.currencyCode || "NGN",
     emailAlertsActive: business.emailAlertsActive ?? true,
     customInvoiceNote: business.customInvoiceNote ?? null,
-  };
+  }; // ✅ FIXED: Stray unmatched closing blocks cleanly aligned
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl min-h-screen text-foreground transition-colors duration-200">
-      {/* 💡 THEME ADAPTIVE HEADER BLOCK */}
       <div className="mb-8 flex items-center gap-4 border-b border-border/40 pb-6">
         <div className="rounded-xl bg-muted border border-border p-3 shrink-0 flex items-center justify-center">
           <Building2 className="h-6 w-6 text-muted-foreground" />
@@ -91,7 +84,6 @@ export default async function VendorSettingsPage({ params }: PageProps) {
       </div>
 
       <div className="grid gap-6">
-        {/* Pass down the sanitized, theme-adaptive configuration safely to our component */}
         <SettingsForm business={serializedBusinessForForm} />
         <BookingPolicyForm business={serializedPoliciesForForm} />
       </div>

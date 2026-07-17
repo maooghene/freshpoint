@@ -8,6 +8,7 @@ export interface Booking {
   endTime: string;
   status: BookingStatus;
   notes: string | null;
+  isReminderSent: boolean;
   createdAt: string; // 🔑 Added to show when appointment was created
   queueCode: string | null; // 🔑 Added to track your user QR codes
   user: {

@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Menu, X } from "lucide-react";
@@ -12,12 +11,14 @@ import { useUser } from "@clerk/nextjs";
 import { DesktopActions } from "./DesktopActions";
 import { MobileDrawer } from "./MobileDrawer";
 import { UserAuthButton } from "./UserAuthButton";
+import { useNavbarRouting } from "./useNavbarRouting";
 
 interface NavbarActionsProps {
   isCurrentlyInBusinessDashboard: boolean;
   businessId: string;
   hasBusinessAccess: boolean;
   merchantDashboardHref: string | null;
+  portalLabel?: string;
 }
 
 export function NavbarActions({
@@ -25,19 +26,26 @@ export function NavbarActions({
   businessId,
   hasBusinessAccess,
   merchantDashboardHref,
+  portalLabel: passedPortalLabel,
 }: NavbarActionsProps): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
 
-  const [mounted, setMounted] = React.useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = React.useState<boolean>(false);
+  const [mounted, setMounted] = React.useState<boolean>(false);
   const [searchQuery, setSearchQuery] = React.useState<string>(
     searchParams?.get("search") || "",
   );
 
   const { isSignedIn } = useUser();
   const cartItemsCount = useAppSelector((state) => state.cart.items.length);
+
+  const {
+    handlePortalNavigation,
+    isNavigating,
+    portalLabel: hookPortalLabel,
+  } = useNavbarRouting();
 
   React.useEffect(() => {
     const handler = setTimeout(() => {
@@ -56,9 +64,9 @@ export function NavbarActions({
     );
   };
 
-  const isAdminDestination =
-    merchantDashboardHref?.startsWith("/admin") ?? false;
-  const portalLabel = isAdminDestination ? "Admin Panel" : "My Shop";
+  const displayLabel = isNavigating
+    ? "Verifying Space..."
+    : passedPortalLabel || hookPortalLabel || "Manage Spaces";
 
   return (
     <div className="flex flex-1 items-center justify-end md:justify-between w-full h-full min-w-0">
@@ -71,9 +79,14 @@ export function NavbarActions({
         setTheme={setTheme}
         mounted={mounted}
         cartItemsCount={cartItemsCount}
+        // 🌟 PASS PARAMETERS SECURELY DOWN TO INTERACTION LAYER
+        hasBusinessAccess={hasBusinessAccess}
+        displayLabel={displayLabel}
+        handlePortalNavigation={handlePortalNavigation}
+        isNavigating={isNavigating}
       />
 
-      {/* Business / Admin Portal Link Socket */}
+      {/* Business / Admin Portal Button Socket (Renders on full screens) */}
       {hasBusinessAccess && merchantDashboardHref && (
         <div className="hidden lg:flex items-center gap-2 min-w-0 ml-5 mr-3 shrink-0 select-none">
           <div className="relative flex h-1.5 w-1.5 shrink-0 select-none">
@@ -82,14 +95,12 @@ export function NavbarActions({
           </div>
 
           <Button
-            asChild
+            onClick={handlePortalNavigation}
+            disabled={isNavigating}
             variant="outline"
             className="relative overflow-hidden group h-8.5 rounded-xl border border-zinc-200/80 bg-white/70 backdrop-blur-md px-3.5 text-[11px] font-bold text-zinc-800 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-emerald-600 hover:border-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/5 active:translate-y-0 dark:border-zinc-200/80 dark:bg-zinc-950/70 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-emerald-400 dark:hover:border-emerald-500/40 cursor-pointer"
           >
-            <Link
-              href={merchantDashboardHref || "#"}
-              className="flex items-center gap-1.5"
-            >
+            <div className="flex items-center gap-1.5">
               <svg
                 className="h-3 w-3 shrink-0 transition-transform duration-300 group-hover:rotate-12"
                 viewBox="0 0 24 24"
@@ -105,8 +116,8 @@ export function NavbarActions({
                 <rect x="3" y="16" width="7" height="5" rx="1" />
               </svg>
 
-              <span className="tracking-wide">{portalLabel}</span>
-            </Link>
+              <span className="tracking-wide">{displayLabel}</span>
+            </div>
           </Button>
         </div>
       )}
@@ -135,8 +146,11 @@ export function NavbarActions({
           setTheme={setTheme}
           isSignedIn={isSignedIn}
           cartItemsCount={cartItemsCount}
+          // 🌟 PASS PARAMETERS SECURELY DOWN TO MOBILE OVERLAY
           hasBusinessAccess={hasBusinessAccess}
-          merchantDashboardHref={merchantDashboardHref}
+          displayLabel={displayLabel}
+          handlePortalNavigation={handlePortalNavigation}
+          isNavigating={isNavigating}
           closeMenu={() => setIsMobileOpen(false)}
         />
       )}

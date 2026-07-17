@@ -27,6 +27,7 @@ const isPublicRoute = createRouteMatcher([
   "/orders/success(.*)",
   "/api/orders/(.*)",
   "/banned",
+  "/select-workspace", // 🛡️ Ensure chooser gate is fundamentally exposed
 ]);
 
 interface ClerkSessionMetadata {
@@ -37,9 +38,10 @@ interface ClerkSessionMetadata {
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const url = req.nextUrl.clone();
   const hostname = req.headers.get("host") || "";
+  const pathname = url.pathname;
 
   // A. Pass through static assets and API routes before auth check
-  if (url.pathname.startsWith("/_next") || url.pathname.includes(".")) {
+  if (pathname.startsWith("/_next") || pathname.includes(".")) {
     return NextResponse.next();
   }
 
@@ -52,7 +54,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // SECURITY PROTECTION STEP: Check ban state from the JWT — no DB call on Edge
-  if (authSession.userId && url.pathname !== "/banned") {
+  if (authSession.userId && pathname !== "/banned") {
     const metadata = authSession.sessionClaims?.metadata as
       | ClerkSessionMetadata
       | undefined;
@@ -80,9 +82,22 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     tenantSlug = hostname.replace(".localhost:3000", "");
   }
 
+  /* =========================================================================
+     🛡️ REWRITE PROTECTION GUARD
+     If the user is on the absolute root path, calling onboarding routines, 
+     or inside administrative workspace selection modules, DO NOT REWRITE.
+     ========================================================================= */
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/select-workspace"
+  ) {
+    return NextResponse.next();
+  }
+
   // E. Rewrite internal paths dynamically to map matching Prisma slug records
   if (tenantSlug && tenantSlug !== "www") {
-    url.pathname = `/explore/${tenantSlug}${url.pathname}`;
+    url.pathname = `/explore/${tenantSlug}${pathname}`;
     return NextResponse.rewrite(url);
   }
 

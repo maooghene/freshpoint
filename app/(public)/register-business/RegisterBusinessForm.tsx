@@ -51,9 +51,13 @@ export function RegisterBusinessForm(): React.JSX.Element {
 
   React.useEffect(() => {
     if (state.message && !state.isRejectedByFilter) {
-      if (state.success) {
+      if (state.success && state.finalizedSlug) {
         toast.success("Workspace launched and approved automatically!");
-        router.push(`/business/${state.message}`);
+        router.push(`/business/${state.finalizedSlug}`);
+      } else if (state.success) {
+        // Defensive fallback: success but no slug returned — avoid building a broken URL
+        toast.success("Workspace launched! Redirecting to your dashboard...");
+        router.push("/workspace-selector");
       } else {
         toast.error(state.message);
       }

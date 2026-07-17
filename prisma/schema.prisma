@@ -76,6 +76,7 @@ model Business {
   ratings           Rating[]
   staff             StaffProfile[]
   announcements Announcement[]
+  reminderMilestonesHours Int[]        @default([48, 2])
 
   @@index([ownerId])
 }
@@ -208,6 +209,7 @@ model Booking {
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   items             BookingItem[]
   ratings           Rating[]
+  reminderLogs      BookingReminderLog[]
 
   @@index([businessId, staffId, startTime, endTime])
   @@index([userId])
@@ -224,6 +226,23 @@ model BookingItem {
 
   @@index([bookingId])
   @@index([itemId])
+}
+
+model BookingReminderLog {
+  id          String   @id @default(cuid())
+  bookingId   String
+  milestone   String   // Stores values like "120_HOUR", "24_HOUR", "2_HOUR"
+  sentAt      DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, milestone])
+  @@index([bookingId])
+}
+
+model DailyEmailQuotaTracker {
+  date       String   @id // Formatted as "YYYY-MM-DD" for simple query aggregation
+  emailCount Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }
 
 model Order {

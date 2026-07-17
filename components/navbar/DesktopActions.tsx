@@ -1,3 +1,4 @@
+// components/navbar/DesktopActions.tsx
 "use client";
 
 import * as React from "react";
@@ -10,7 +11,9 @@ import {
   MapPin,
   ClipboardList,
   Search,
+  LayoutDashboard,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface DesktopActionsProps {
   searchQuery: string;
@@ -20,6 +23,11 @@ interface DesktopActionsProps {
   setTheme: (theme: string) => void;
   mounted: boolean;
   cartItemsCount: number;
+  // 🌟 ADD MULTI-TENANT ATTRIBUTIONS
+  hasBusinessAccess: boolean;
+  displayLabel: string;
+  handlePortalNavigation: () => void;
+  isNavigating: boolean;
 }
 
 export function DesktopActions({
@@ -30,15 +38,17 @@ export function DesktopActions({
   setTheme,
   mounted,
   cartItemsCount,
+  hasBusinessAccess,
+  displayLabel,
+  handlePortalNavigation,
+  isNavigating,
 }: DesktopActionsProps): React.JSX.Element {
   return (
-    // 🌟 SPACED OUT: Changed to gap-7 to spread components across the bar smoothly
     <div className="hidden md:flex flex-1 items-center justify-between gap-7 w-full min-w-0">
-      {/* 🔍 SLIMMED CENTRAL SEARCH BAR */}
+      {/* CENTRAL SEARCH BAR */}
       <div className="flex-1 max-w-sm min-w-0">
         <form
           onSubmit={handleDesktopSearch}
-          // 🌟 REDUCED: Decreased inner padding to h-9 height for a slender look
           className="flex items-center gap-2 bg-muted/80 border border-border rounded-xl px-3 h-9 focus-within:border-primary w-full transition-all duration-200"
         >
           <Search size={15} className="text-muted-foreground shrink-0" />
@@ -55,18 +65,29 @@ export function DesktopActions({
       </div>
 
       {/* ICON INTERACTION CONTROLS */}
-      {/* 🌟 SPACED: Spread individual button items out evenly with gap-6 margins */}
       <div className="flex items-center gap-6 flex-shrink-0">
+        {/* 🌟 DESKTOP WORKSPACE RE-ENTRY TRIGGER (Hides on extra large screens where NavbarActions main button renders) */}
+        {hasBusinessAccess && (
+          <Button
+            onClick={handlePortalNavigation}
+            disabled={isNavigating}
+            variant="outline"
+            className="lg:hidden h-8.5 px-3 rounded-xl text-[11px] font-bold gap-1.5 bg-primary/5 text-primary border-primary/20 hover:bg-primary/10 cursor-pointer transition-all duration-200"
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span>{displayLabel}</span>
+          </Button>
+        )}
+
         <Link
           href="/explore"
           className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none"
         >
-          {/* 🌟 REDUCED DENSITY: Tighter scaling margins on bounds boxes */}
           <div className="p-0.5">
             <MapPin className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
           </div>
           <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
-            {"Browse"}
+            Browse
           </span>
         </Link>
 
@@ -78,7 +99,7 @@ export function DesktopActions({
             <ClipboardList className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
           </div>
           <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80 whitespace-nowrap">
-            {"Track Orders"}
+            Track Orders
           </span>
         </Link>
 
@@ -95,7 +116,7 @@ export function DesktopActions({
             )}
           </div>
           <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
-            {"Cart"}
+            Cart
           </span>
         </Link>
 
@@ -107,7 +128,7 @@ export function DesktopActions({
             <CalendarDays className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
           </div>
           <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
-            {"Bookings"}
+            Bookings
           </span>
         </Link>
 

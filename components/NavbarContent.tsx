@@ -1,20 +1,19 @@
+// components/NavbarContent.tsx
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { useNavbarRouting } from "./navbar/useNavbarRouting";
-import { NavbarLinks } from "./navbar/NavbarLinks";
 import { NavbarActions } from "./navbar/NavbarActions";
 
 export function NavbarContent() {
   const {
-    pathSegments,
     isCurrentlyInBusinessDashboard,
     businessId,
     hasBusinessAccess,
     merchantDashboardHref,
-    showAppNavbar,
+    portalLabel,
   } = useNavbarRouting();
 
   return (
@@ -37,19 +36,12 @@ export function NavbarContent() {
           )}
         </Link>
 
-        {/* MIDSECTION CONTEXT-AWARE NAVIGATION ACTIONS */}
-        {/* <NavbarLinks
-          showAppNavbar={showAppNavbar}
-          isCurrentlyInBusinessDashboard={isCurrentlyInBusinessDashboard}
-          businessId={businessId}
-          pathSegments={pathSegments}
-        /> */}
-
         {/* ACTIONS & AUTHENTICATION SECTOR */}
         <NavbarActions
           isCurrentlyInBusinessDashboard={isCurrentlyInBusinessDashboard}
           businessId={businessId}
-          hasBusinessAccess={hasBusinessAccess}
+          // 🌟 FIXED: Coerced directly here to guarantee a strict primitive boolean type to NavbarActions
+          hasBusinessAccess={!!hasBusinessAccess}
           merchantDashboardHref={merchantDashboardHref}
         />
       </div>
