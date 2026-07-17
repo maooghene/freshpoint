@@ -1,0 +1,22 @@
+<svg width="420" height="80" viewBox="0 0 420 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="badgeGradientL" x1="8" y1="8" x2="72" y2="72" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4B2E83"/>
+      <stop offset="1" stop-color="#331E5A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark -->
+  <g transform="translate(8,8)">
+    <rect x="0" y="0" width="64" height="64" rx="16" fill="url(#badgeGradientL)"/>
+    <rect x="16" y="10" width="8" height="38" rx="4" fill="#F6F2E8"/>
+    <rect x="16" y="10" width="24" height="8" rx="4" fill="#F6F2E8"/>
+    <rect x="16" y="26" width="16" height="8" rx="4" fill="#F6F2E8"/>
+    <circle cx="39" cy="30" r="6.5" fill="#FF7700"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="92" y="52" font-family="Arial, 'Helvetica Neue', sans-serif" font-weight="800" font-size="40" letter-spacing="-1">
+    <tspan fill="#0D1B2A">Fresh</tspan><tspan fill="#FF7700">Point</tspan>
+  </text>
+</svg>

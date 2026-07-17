@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { useNavbarRouting } from "./navbar/useNavbarRouting";
 import { NavbarLinks } from "./navbar/NavbarLinks";
 import { NavbarActions } from "./navbar/NavbarActions";
@@ -27,17 +27,14 @@ export function NavbarContent() {
               ? `/business/${businessId}`
               : "/"
           }
-          className="flex items-center gap-2 text-primary font-sans font-bold text-2xl tracking-tight shrink-0"
+          className="flex items-center gap-2 shrink-0"
         >
-          <Sparkles className="size-6 text-primary" />
-          <span>
-            Freshpoint
-            {isCurrentlyInBusinessDashboard && (
-              <span className="text-xs ml-1 px-1.5 py-0.5 bg-primary/10 rounded text-muted-foreground font-mono">
-                Biz
-              </span>
-            )}
-          </span>
+          <FreshpointLogo size={50} />
+          {isCurrentlyInBusinessDashboard && (
+            <span className="text-xs px-1.5 py-0.5 bg-primary/10 rounded text-muted-foreground font-mono">
+              Biz
+            </span>
+          )}
         </Link>
 
         {/* MIDSECTION CONTEXT-AWARE NAVIGATION ACTIONS */}

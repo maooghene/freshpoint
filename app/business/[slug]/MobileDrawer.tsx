@@ -4,13 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import {
-  SparklesIcon,
   XIcon,
   Sun,
   Moon,
   ChevronLeftIcon,
   ArrowRightIcon,
 } from "lucide-react";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { NavigationItemShape, BusinessInfo } from "./types";
 
 interface MobileDrawerProps {
@@ -51,10 +51,12 @@ export default function MobileDrawer({
         {/* Top Header Area */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4 shrink-0 min-w-0 gap-2">
           <div className="flex min-w-0 items-center gap-2 flex-1">
-            <SparklesIcon className="h-5 w-5 shrink-0 text-primary" />
-            <span className=" font-black text-lg text-foreground">
-              {businessInfo?.name || "FreshPoint"}
-            </span>
+            <div className="flex min-w-0 flex-col gap-0.5 flex-1">
+              <FreshpointLogo size={30} />
+              <span className="truncate text-xs font-semibold text-muted-foreground">
+                {businessInfo?.name || "FreshPoint"}
+              </span>
+            </div>
           </div>
           <button
             type="button"

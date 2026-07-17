@@ -1,4 +1,4 @@
-// components/admin/sidebar.tsx
+
 "use client";
 
 import * as React from "react";
@@ -13,13 +13,13 @@ import {
   AlertCircle,
   Settings2,
   ShieldAlert,
-  SparklesIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   LogOut,
   Sun,
   Moon,
 } from "lucide-react";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { ScrollText } from "lucide-react";
 
 // Keeping your exact routes and data structures intact, only simplifying the text strings
@@ -53,20 +53,22 @@ export default function AdminSidebar() {
     >
       {/* Header */}
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
-        <div className="flex items-center gap-2 min-w-0 w-full justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
-            <SparklesIcon className="w-5 h-5 shrink-0 text-primary" />
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200">
-                <span className="truncate bg-linear-to-r from-primary to-primary/60 bg-clip-text font-black text-lg text-transparent">
-                  FreshPoint Admin
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground leading-none mt-0.5">
-                  Main Office Hub
-                </span>
+        <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
+          {isCollapsed ? (
+            /* 🌟 FIXED: Placed inside a protective shrink-0 division to stop the sidebar from squeezing the asset */
+            <div className="shrink-0 flex items-center justify-center w-9 h-9">
+              <FreshpointLogo size={40} />
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1.5">
+              <div className="shrink-0 flex items-center w-full">
+                <FreshpointLogo size={40} />
               </div>
-            )}
-          </div>
+              <span className="truncate text-[10px] text-muted-foreground leading-none font-medium pl-1">
+                Main Office Hub
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -4,13 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import {
-  SparklesIcon,
   Sun,
   Moon,
   ChevronLeftIcon,
   ChevronRightIcon,
   LogOut,
 } from "lucide-react";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { NavigationItemShape, BusinessInfo } from "./types";
 import { useState } from "react";
 
@@ -51,14 +51,13 @@ export default function DesktopSidebar({
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
         <div className="flex items-center gap-2 min-w-0 w-full justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
-            <SparklesIcon className="w-5 h-5 shrink-0 text-primary" />
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200">
-                <span className="truncate bg-linear-to-r from-primary to-primary/60 bg-clip-text font-black text-lg text-transparent">
-                  {businessInfo?.name || "FreshPoint"}
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground leading-none mt-0.5">
-                  FreshpointBiz
+            {isCollapsed ? (
+              <FreshpointLogo size={40} />
+            ) : (
+              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1">
+                <FreshpointLogo size={40} />
+                <span className="truncate text-[10px] text-muted-foreground leading-none">
+                  {businessInfo?.name || "FreshpointBiz"}
                 </span>
               </div>
             )}

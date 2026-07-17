@@ -1,4 +1,4 @@
-// components/admin/mobile-drawer.tsx
+
 "use client";
 
 import * as React from "react";
@@ -13,7 +13,6 @@ import {
   AlertCircle,
   Settings2,
   ShieldAlert,
-  SparklesIcon,
   XIcon,
   LogOut,
   Sun,
@@ -21,6 +20,7 @@ import {
   Megaphone,
   ScrollText,
 } from "lucide-react";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 
 // Matches your master sidebar layout items with simple English labels
 const NAV_ITEMS = [
@@ -73,12 +73,9 @@ export default function AdminMobileDrawer({
       >
         <div className="flex items-center justify-between gap-2 border-b border-border p-4 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <SparklesIcon className="w-5 h-5 shrink-0 text-primary" />
-            <div className="min-w-0 flex flex-col">
-              <span className="truncate bg-linear-to-r from-primary to-primary/60 bg-clip-text font-black text-lg text-transparent">
-                FreshPoint Admin
-              </span>
-              <span className="truncate text-[10px] text-muted-foreground leading-none mt-0.5">
+            <div className="min-w-0 flex flex-col gap-1">
+              <FreshpointLogo size={35} />
+              <span className="truncate text-[10px] text-muted-foreground leading-none">
                 Main Office Hub
               </span>
             </div>

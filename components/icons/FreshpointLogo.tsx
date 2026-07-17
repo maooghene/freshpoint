@@ -1,20 +1,44 @@
 "use client";
 
 import * as React from "react";
-// We import Sparkles as a temporary placeholder asset
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
+import { useTheme } from "next-themes";
 
 interface FreshpointLogoProps {
   className?: string;
   size?: number;
+  variant?: "full" | "mark";
 }
 
-export function FreshpointLogo({ className, size = 18 }: FreshpointLogoProps) {
+export function FreshpointLogo({
+  className,
+  size = 18,
+  variant = "full",
+}: FreshpointLogoProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  if (variant === "mark") {
+    return (
+      <Image
+        src="/freshpoint-mark.svg"
+        alt="FreshPoint"
+        width={size}
+        height={size}
+        className={className}
+        priority
+      />
+    );
+  }
+
   return (
-    // 🌟 THE WRAPPER PLACEHOLDER:
-    // Right now, this displays the temporary Sparkles asset.
-    // When your logo is ready, you will open ONLY this file, delete this tag,
-    // and paste your new logo's SVG or image asset here.
-    <Sparkles size={size} className={className} />
+    <Image
+      src={isDark ? "/freshpoint-logo-dark.svg" : "/freshpoint-logo-light.svg"}
+      alt="FreshPoint"
+      width={size * 5.25}
+      height={size}
+      className={className}
+      priority
+    />
   );
 }
