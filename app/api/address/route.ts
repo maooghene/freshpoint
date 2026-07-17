@@ -1,6 +1,9 @@
+// app/api/address/route.ts
+export const dynamic = "force-dynamic";
+
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import  prisma  from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 
 // ✅ POST: Create a new address for the logged-in user
 export async function POST(request: NextRequest) {
@@ -65,7 +68,6 @@ export async function POST(request: NextRequest) {
 }
 
 // ✅ GET: Fetch all saved addresses belonging to the active user session
-// ✅ GET: Fetch all saved addresses belonging to the active user session
 export async function GET(request: NextRequest) {
   try {
     const { userId: clerkId } = getAuth(request);
@@ -80,15 +82,18 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "User profile not found" },
+        { status: 404 },
+      );
     }
 
     const addresses = await prisma.address.findMany({
       where: { userId: user.id },
-      orderBy: { 
+      orderBy: {
         // FIXED: Sorts your default address to the very top first, then falls back to sequential ID order
-        isDefault: "desc" 
-      }, 
+        isDefault: "desc",
+      },
     });
 
     return NextResponse.json(addresses, { status: 200 });
@@ -100,4 +105,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
