@@ -69,7 +69,7 @@ export function NavbarActions({
     : passedPortalLabel || hookPortalLabel || "Manage Spaces";
 
   return (
-    <div className="flex flex-1 items-center justify-end md:justify-between w-full h-full min-w-0">
+    <div className="flex flex-1 items-center justify-end lg:justify-between w-full h-full min-w-0">
       {/* 1. Desktop Actions Integration */}
       <DesktopActions
         searchQuery={searchQuery}
@@ -79,11 +79,11 @@ export function NavbarActions({
         setTheme={setTheme}
         mounted={mounted}
         cartItemsCount={cartItemsCount}
-        // 🌟 PASS PARAMETERS SECURELY DOWN TO INTERACTION LAYER
         hasBusinessAccess={hasBusinessAccess}
         displayLabel={displayLabel}
         handlePortalNavigation={handlePortalNavigation}
         isNavigating={isNavigating}
+        isSignedIn={isSignedIn}
       />
 
       {/* Business / Admin Portal Button Socket (Renders on full screens) */}
@@ -130,7 +130,7 @@ export function NavbarActions({
       {/* 3. Hamburger Mobile Trigger */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer z-50 relative shrink-0 ml-2"
+        className="lg:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer z-50 relative shrink-0 ml-2"
         aria-label="Toggle navigation overlay drawer"
       >
         {isMobileOpen ? <X size={18} /> : <Menu size={18} />}

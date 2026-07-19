@@ -49,7 +49,7 @@ export function DesktopActions({
     "flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none cursor-pointer border-none bg-transparent outline-none";
 
   return (
-    <div className="hidden md:flex flex-1 items-center justify-between gap-7 w-full min-w-0">
+    <div className="hidden lg:flex flex-1 items-center justify-between gap-7 w-full min-w-0">
       {/* CENTRAL SEARCH BAR */}
       <div className="flex-1 max-w-sm min-w-0">
         <form

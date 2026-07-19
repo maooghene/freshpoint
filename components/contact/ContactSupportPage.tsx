@@ -1,25 +1,8 @@
-import { MailIcon, MessageCircleIcon } from "lucide-react";
-import { CONTACT_INFO } from "@/lib/contact-config";
+"use client";
 
-// Custom Instagram SVG since brand icons are removed from newer Lucide versions
-function InstagramIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://w3.org"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-    </svg>
-  );
-}
+import { useState } from "react";
+import { MailIcon, HeadphonesIcon, ChevronDownIcon } from "lucide-react";
+import { CONTACT_INFO } from "@/lib/contact-config";
 
 interface ContactChannel {
   label: string;
@@ -28,72 +11,134 @@ interface ContactChannel {
   icon: React.ReactNode;
 }
 
+interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+const FAQ_ITEMS: FaqItem[] = [
+  {
+    question: "How do I cancel or reschedule a booking?",
+    answer:
+      "Go to Bookings in your account, open the booking, and choose Cancel or Reschedule. Changes made more than 24 hours before your appointment are usually free.",
+  },
+  {
+    question: "Where do I track my order?",
+    answer:
+      "Visit Orders under your account menu to see live status, from confirmed through delivered.",
+  },
+  {
+    question: "How do I register my business on FreshPoint?",
+    answer:
+      "Head to the Register Business page and fill in your business details. Approval usually takes 1-2 business days.",
+  },
+  {
+    question: "I was charged but didn't receive a confirmation. What now?",
+    answer:
+      "Email us with your payment reference and the email or phone number used at checkout, and we'll look into it right away.",
+  },
+];
+
+function FaqAccordionItem({ item }: { item: FaqItem }): React.JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border border-primary/10 rounded-xl bg-background/50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-3 p-4 text-left cursor-pointer"
+        aria-expanded={isOpen}
+      >
+        <span className="text-sm font-semibold text-foreground">
+          {item.question}
+        </span>
+        <ChevronDownIcon
+          className={`size-4 text-muted-foreground shrink-0 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 text-sm text-muted-foreground animate-in fade-in duration-200">
+          {item.answer}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ContactSupportPage(): React.JSX.Element {
+  const mailSubject = encodeURIComponent("FreshPoint Support Request");
   const channels: ContactChannel[] = [
     {
       label: "Email",
       value: CONTACT_INFO.supportEmail,
-      href: `mailto:${CONTACT_INFO.supportEmail}`,
+      href: `mailto:${CONTACT_INFO.supportEmail}?subject=${mailSubject}`,
       icon: <MailIcon className="size-5" />,
-    },
-    {
-      label: "WhatsApp",
-      value: CONTACT_INFO.whatsapp,
-      href: CONTACT_INFO.whatsapp
-        ? `https://wa.me{CONTACT_INFO.whatsapp.replace(/\D/g, "")}`
-        : null,
-      icon: <MessageCircleIcon className="size-5" />,
-    },
-    {
-      label: "Instagram",
-      value: CONTACT_INFO.socials.instagram,
-      href: CONTACT_INFO.socials.instagram,
-      icon: <InstagramIcon className="size-5" />,
     },
   ];
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold text-foreground">
-          {" "}
-          Contact support{" "}
-        </h1>
-        <p className="text-muted-foreground">
-          Reach us directly — we typically respond within a day.
+    <div className="max-w-2xl mx-auto px-4 py-16 space-y-10">
+      {/* Header */}
+      <div className="space-y-3 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary/10 text-primary border border-primary/20">
+          <HeadphonesIcon className="size-5" />
+        </div>
+        <h1 className="text-3xl font-bold text-foreground">Contact support</h1>
+        <p className="text-muted-foreground max-w-md mx-auto">
+          Check the quick answers below first — if you still need us, email goes
+          straight to a real person and we typically reply within a day.
         </p>
       </div>
 
-      <div className="grid gap-4 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
-        {channels.map((channel) => (
-          <div
-            key={channel.label}
-            className="flex items-center justify-between p-4 rounded-xl border border-primary/10 bg-background/50"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-primary">{channel.icon}</span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  {channel.label}
-                </p>
-                <p className="text-sm text-foreground">
-                  {channel.value ?? "Coming soon"}
-                </p>
-              </div>
-            </div>
+      {/* FAQ */}
+      <div className="space-y-3">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
+          Quick answers
+        </p>
+        <div className="space-y-2">
+          {FAQ_ITEMS.map((item) => (
+            <FaqAccordionItem key={item.question} item={item} />
+          ))}
+        </div>
+      </div>
 
-            {channel.href && (
-              <a
-                href={channel.href}
-                target={channel.label === "Email" ? undefined : "_blank"}
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-primary hover:underline"
-              >
-                Reach out
-              </a>
-            )}
-          </div>
-        ))}
+      {/* Contact channels */}
+      <div className="space-y-3">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
+          Still need help?
+        </p>
+        <div className="grid gap-4 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
+          {channels.map((channel) => (
+            <div
+              key={channel.label}
+              className="flex items-center justify-between p-4 rounded-xl border border-primary/10 bg-background/50"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-primary">{channel.icon}</span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    {channel.label}
+                  </p>
+                  <p className="text-sm text-foreground">
+                    {channel.value ?? "Coming soon"}
+                  </p>
+                </div>
+              </div>
+
+              {channel.href && (
+                <a
+                  href={channel.href}
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Reach out
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

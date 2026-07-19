@@ -49,7 +49,7 @@ export function MobileDrawer({
     "flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors border-none bg-transparent outline-none cursor-pointer";
 
   return (
-    <div className="md:hidden fixed inset-0 top-16 left-0 w-full h-[calc(100vh-4rem)] bg-background/98 backdrop-blur-md z-40 flex flex-col p-6 animate-fadeIn transition-all border-t border-border">
+    <div className="lg:hidden fixed inset-0 top-16 left-0 w-full h-[calc(100vh-4rem)] bg-background/98 backdrop-blur-md z-40 flex flex-col p-6 animate-fadeIn transition-all border-t border-border">
       <div className="w-full max-w-sm mx-auto space-y-6 pt-4">
         <form
           onSubmit={handleMobileSearch}
