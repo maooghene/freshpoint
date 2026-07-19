@@ -21,7 +21,7 @@ async function resolveBusinessId(slugOrId: string): Promise<string | null> {
   return business?.id ?? null;
 }
 
-// 🔓 GET: Publicly accessible catalog reader (Bypasses authentication filters for browser users)
+// 🔓 GET: Accessible catalog reader (Updated to support management states and expected payload shapes)
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const { id: slugOrId } = await params;
@@ -41,8 +41,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const services = await prisma.item.findMany({
-      where: { businessId, isActive: true },
+    // 💡 ROOT CAUSE FIX: Removed "isActive: true" so all database records pull through to the dashboard lists
+    const items = await prisma.item.findMany({
+      where: { businessId },
       select: {
         id: true,
         name: true,
@@ -52,12 +53,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         type: true,
         duration: true,
         stock: true,
+        isActive: true, // Included so that the front-end toggle handles states accurately
+        createdAt: true, // Included for the frontend byNewest sorting function
       },
       orderBy: { createdAt: "desc" },
     });
 
+    // 💡 ROOT CAUSE FIX: Return "items" key matching the frontend axios call structure perfectly
     return NextResponse.json(
-      { success: true, data: services },
+      { success: true, items: items },
       { status: 200 },
     );
   } catch (error: unknown) {
@@ -66,6 +70,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
+
 
 // 🔐 POST: Create a new inventory record element
 export async function POST(request: NextRequest, { params }: RouteContext) {
