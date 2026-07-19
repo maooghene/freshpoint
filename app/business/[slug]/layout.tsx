@@ -10,6 +10,7 @@ import {
   CalendarCheckIcon,
   ClockIcon,
   PlusCircleIcon,
+  HelpCircleIcon,
   MenuIcon,
   UsersIcon,
   SettingsIcon,
@@ -111,6 +112,11 @@ export default function BusinessLayout({
       name: "Settings",
       href: `/business/${businessSlug}/settings`,
       icon: SettingsIcon,
+    },
+    {
+      name: "Contact Support",
+      href: `/contact`,
+      icon: HelpCircleIcon,
     },
   ];
 

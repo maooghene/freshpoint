@@ -27,7 +27,7 @@ export default function ScheduleRow({
       }`}
     >
       {/* DAY & STATUS CONTAINER */}
-      <div className="flex items-center gap-4 min-w-[150px]">
+      <div className="flex items-center gap-4 min-w-[150px] justify-center md:justify-start">
         <div
           className={`p-2 rounded-full ${item.isClosed ? "bg-slate-200" : "bg-primary/10"}`}
         >
@@ -46,7 +46,7 @@ export default function ScheduleRow({
       </div>
 
       {/* TIME CONTROL FIELDS */}
-      <div className="flex flex-1 items-center justify-between md:justify-end gap-8">
+      <div className="flex flex-1 flex-col items-center gap-4 md:flex-row md:items-center md:justify-end md:gap-8">
         {!item.isClosed ? (
           <div className="flex items-center gap-4 animate-in fade-in duration-150">
             {/* OPENS AT INPUT */}

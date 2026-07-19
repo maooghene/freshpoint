@@ -18,7 +18,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      localization={{
+        signIn: {
+          start: {
+            title: "Sign in to FreshPoint",
+            subtitle: "to continue to your wellness workspace",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your FreshPoint account",
+            subtitle: "get started with our marketplace platform",
+          },
+        },
+        // 🚀 FIXED: Replaced userAccountManager with the correct type-safe key path
+        organizationList: {
+          title: "Choose an account to continue to FreshPoint",
+        },
+      }}
+    >
       <html
         lang="en"
         suppressHydrationWarning

@@ -35,10 +35,10 @@ export function ImpersonationStickyBanner() {
   };
 
   return (
-    <div className="w-full bg-linear-to-r from-amber-600 via-orange-600 to-amber-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between shadow-lg sticky top-0 z-50 animate-slide-down">
-      <div className="flex items-center gap-2">
-        <EyeOff className="h-4 w-4 animate-pulse" />
-        <span>
+    <div className="w-full bg-linear-to-r from-amber-600 via-orange-600 to-amber-600 text-white text-xs font-bold px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-lg sticky top-0 z-50 animate-slide-down">
+      <div className="flex items-center gap-2 min-w-0">
+        <EyeOff className="h-4 w-4 animate-pulse shrink-0" />
+        <span className="min-w-0">
           ADMIN SECURITY TUNNEL: You are currently acting on behalf of{" "}
           <span className="underline font-black">{ctx.businessName}</span> (/
           {ctx.businessSlug}).
@@ -47,7 +47,7 @@ export function ImpersonationStickyBanner() {
       <button
         onClick={handleExitClick}
         disabled={isPending}
-        className="bg-white/20 hover:bg-white/30 text-white border border-white/20 px-3 py-1 rounded-lg transition font-black tracking-tight cursor-pointer disabled:opacity-50"
+        className="bg-white/20 hover:bg-white/30 text-white border border-white/20 px-3 py-1 rounded-lg transition font-black tracking-tight cursor-pointer disabled:opacity-50 w-full sm:w-auto shrink-0"
       >
         {isPending ? "Exiting..." : "Exit Session"}
       </button>

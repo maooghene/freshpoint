@@ -1,3 +1,5 @@
+// components/business/manage-items/types.ts
+
 export interface BaseItem {
   id: string;
   name: string;
@@ -17,9 +19,20 @@ export interface ServiceItem extends BaseItem {
   duration: number;
 }
 
+// 🚀 FASHION STRUCTURAL CONTRACT ADDITION
+export interface ProductVariant {
+  id: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  price: number | null;
+}
+
 export interface ProductItem extends BaseItem {
   type: "PRODUCT";
   stock: number;
+  // 🚀 OPTIONAL RELATION MAPPING: Securely enables apparel tracking without mutating baseline features
+  variants?: ProductVariant[];
 }
 
 export interface EditForm {
@@ -31,6 +44,8 @@ export interface EditForm {
   sku: string;
   costPrice: string;
   weight: string;
+  // 🚀 FORM FIELD EXTRACTION HOOK: Carries choice updates safely during editing
+  variants?: ProductVariant[];
 }
 
 export interface UpdatedItemResponse {

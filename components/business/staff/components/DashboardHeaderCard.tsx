@@ -19,24 +19,24 @@ export function DashboardHeaderCard({
   const activeCount = staffList.filter((s) => s.isActive).length;
 
   return (
-    <div className="flex items-center justify-between border border-border bg-card p-4 rounded-2xl shadow-xs transition-colors duration-200">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-border bg-card p-4 rounded-2xl shadow-xs transition-colors duration-200">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <UsersIcon className="w-5 h-5 text-primary" />
         </div>
-        <div>
-          <p className="font-bold text-sm text-foreground">
+        <div className="min-w-0">
+          <p className="font-bold text-sm text-foreground truncate">
             {staffList.length} Team Member{staffList.length !== 1 ? "s" : ""}{" "}
             registered
           </p>
-          <p className="text-xs text-muted-foreground font-medium">
+          <p className="text-xs text-muted-foreground font-medium truncate">
             {activeCount} active workspace profiles
           </p>
         </div>
       </div>
       <Button
         onClick={onToggleAddForm}
-        className="rounded-xl font-bold gap-2 cursor-pointer shadow-sm text-xs h-10 px-4"
+        className="rounded-xl font-bold gap-2 cursor-pointer shadow-sm text-xs h-10 px-4 w-full sm:w-auto"
       >
         <PlusIcon className="w-4 h-4" />
         {showAddForm ? "Close Form" : "Add Teammate"}

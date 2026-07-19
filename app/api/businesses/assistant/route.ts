@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import authOwner from "@/lib/authOwner";
 
 interface IncomingMessage {
   role: "user" | "assistant" | "system";
@@ -35,73 +36,41 @@ export async function POST(req: Request) {
       select: { id: true, firstName: true, lastName: true, role: true },
     });
 
-    if (!systemUser || systemUser.role !== "BUSINESS_OWNER") {
+    if (!systemUser) {
+      return NextResponse.json({ text: "Account not found." }, { status: 200 });
+    }
+
+    // ✅ FIXED: Use the shared authOwner helper instead of a hand-rolled
+    // ownerId lookup, so this route resolves ownership the same way every
+    // other business route does.
+    const businessId = await authOwner(clerkId);
+
+    if (!businessId) {
       return NextResponse.json(
-        { text: "This assistant is only available to business owners." },
+        {
+          text: "This assistant is only available to business owners with a registered business.",
+        },
         { status: 200 },
       );
     }
 
-    const business = await prisma.business.findFirst({
-      where: { ownerId: systemUser.id },
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
       select: { id: true, name: true, slug: true },
     });
 
-    let dynamicBusinessContext =
-      "No business found linked to this owner account.\n";
-
-    if (business) {
-      const [recentOrders, recentBookings, openComplaints] = await Promise.all([
-        prisma.order.findMany({
-          where: { businessId: business.id },
-          take: 5,
-          orderBy: { createdAt: "desc" },
-          select: {
-            code: true,
-            status: true,
-            totalAmount: true,
-            isDelivery: true,
-          },
-        }),
-        prisma.booking.findMany({
-          where: { businessId: business.id },
-          take: 5,
-          orderBy: { startTime: "desc" },
-          select: {
-            id: true,
-            startTime: true,
-            status: true,
-            paymentStatus: true,
-            totalAmount: true,
-          },
-        }),
-        prisma.complaint.findMany({
-          where: {
-            businessId: business.id,
-            assignedTo: "BUSINESS_OWNER",
-            status: { in: ["OPEN", "IN_PROGRESS"] },
-          },
-          take: 5,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            category: true,
-            severity: true,
-            summary: true,
-            status: true,
-            createdAt: true,
-          },
-        }),
-      ]);
-
-      dynamicBusinessContext = `
-Business Owner: ${systemUser.firstName || ""} ${systemUser.lastName || ""}
-Business Name: ${business.name}
-Recent Orders: ${JSON.stringify(recentOrders)}
-Recent Bookings: ${JSON.stringify(recentBookings)}
-Open Complaints Assigned to This Business: ${JSON.stringify(openComplaints)}
-`;
+    if (!business) {
+      return NextResponse.json(
+        {
+          text: "This assistant is only available to business owners with a registered business.",
+        },
+        { status: 200 },
+      );
     }
+
+    // ✅ FIXED: dynamicBusinessContext now actually reflects the resolved
+    // business instead of being permanently stuck on the "not found" string.
+    const dynamicBusinessContext = `Business Name: ${business.name}\nBusiness Slug: ${business.slug}\n`;
 
     const systemPrompt = `You are the Business Operations Assistant for a business owner on FreshPoint, a wellness and services marketplace.
 

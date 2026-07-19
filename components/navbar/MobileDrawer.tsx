@@ -1,4 +1,3 @@
-// components/navbar/MobileDrawer.tsx
 "use client";
 
 import * as React from "react";
@@ -12,6 +11,7 @@ import {
   MapPin,
   ClipboardList,
   Search,
+  HelpCircleIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignInButton, UserButton } from "@clerk/nextjs";
@@ -25,7 +25,6 @@ interface MobileDrawerProps {
   isSignedIn: boolean | undefined;
   cartItemsCount: number;
   hasBusinessAccess: boolean;
-  // 🌟 INJECT YOUR UPDATED METHOD PARAMS
   displayLabel: string;
   handlePortalNavigation: () => void;
   isNavigating: boolean;
@@ -46,6 +45,9 @@ export function MobileDrawer({
   isNavigating,
   closeMenu,
 }: MobileDrawerProps) {
+  const guardedTileClass =
+    "flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors border-none bg-transparent outline-none cursor-pointer";
+
   return (
     <div className="md:hidden fixed inset-0 top-16 left-0 w-full h-[calc(100vh-4rem)] bg-background/98 backdrop-blur-md z-40 flex flex-col p-6 animate-fadeIn transition-all border-t border-border">
       <div className="w-full max-w-sm mx-auto space-y-6 pt-4">
@@ -79,49 +81,103 @@ export function MobileDrawer({
             </span>
           </Link>
 
-          <Link
-            href="/orders/history"
-            onClick={closeMenu}
-            className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
-          >
-            <div className="p-2 bg-muted rounded-xl mb-1">
-              <ClipboardList className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-center">
-              Track
-            </span>
-          </Link>
-
-          <Link
-            href="/cart"
-            onClick={closeMenu}
-            className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors relative"
-          >
-            <div className="p-2 bg-muted rounded-xl mb-1">
-              <ShoppingCart className="w-5 h-5 text-primary" />
-              {cartItemsCount > 0 && (
-                <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center border border-background">
-                  {cartItemsCount}
+          {/* Track Orders — sign-in guarded */}
+          {isSignedIn ? (
+            <Link
+              href="/orders/history"
+              onClick={closeMenu}
+              className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+            >
+              <div className="p-2 bg-muted rounded-xl mb-1">
+                <ClipboardList className="w-5 h-5 text-primary" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                Track
+              </span>
+            </Link>
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                onClick={closeMenu}
+                className={guardedTileClass}
+              >
+                <div className="p-2 bg-muted rounded-xl mb-1">
+                  <ClipboardList className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                  Track
                 </span>
-              )}
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-center">
-              Cart
-            </span>
-          </Link>
+              </button>
+            </SignInButton>
+          )}
 
-          <Link
-            href="/bookings"
-            onClick={closeMenu}
-            className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
-          >
-            <div className="p-2 bg-muted rounded-xl mb-1">
-              <CalendarDays className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-center">
-              Bookings
-            </span>
-          </Link>
+          {/* Cart — sign-in guarded */}
+          {isSignedIn ? (
+            <Link
+              href="/cart"
+              onClick={closeMenu}
+              className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors relative"
+            >
+              <div className="p-2 bg-muted rounded-xl mb-1">
+                <ShoppingCart className="w-5 h-5 text-primary" />
+                {cartItemsCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center border border-background">
+                    {cartItemsCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                Cart
+              </span>
+            </Link>
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                onClick={closeMenu}
+                className={`${guardedTileClass} relative`}
+              >
+                <div className="p-2 bg-muted rounded-xl mb-1">
+                  <ShoppingCart className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                  Cart
+                </span>
+              </button>
+            </SignInButton>
+          )}
+
+          {/* Bookings — sign-in guarded */}
+          {isSignedIn ? (
+            <Link
+              href="/bookings"
+              onClick={closeMenu}
+              className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+            >
+              <div className="p-2 bg-muted rounded-xl mb-1">
+                <CalendarDays className="w-5 h-5 text-primary" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                Bookings
+              </span>
+            </Link>
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                onClick={closeMenu}
+                className={guardedTileClass}
+              >
+                <div className="p-2 bg-muted rounded-xl mb-1">
+                  <CalendarDays className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                  Bookings
+                </span>
+              </button>
+            </SignInButton>
+          )}
 
           <button
             type="button"
@@ -142,6 +198,19 @@ export function MobileDrawer({
               {theme === "dark" ? "Light" : "Dark"}
             </span>
           </button>
+
+          <Link
+            href="/contact"
+            onClick={closeMenu}
+            className="flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+          >
+            <div className="p-2 bg-muted rounded-xl mb-1">
+              <HelpCircleIcon className="w-5 h-5 text-primary" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-center">
+              Support
+            </span>
+          </Link>
 
           <div className="flex flex-col items-center justify-center">
             <div className="p-1 mb-1">
@@ -168,7 +237,6 @@ export function MobileDrawer({
           </div>
         </div>
 
-        {/* 🌟 MOBILE ACTIONS CORE REDIRECT TRIGGER COMPONENT BLOCK */}
         {hasBusinessAccess && (
           <Button
             onClick={() => {

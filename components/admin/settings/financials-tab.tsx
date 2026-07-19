@@ -151,8 +151,8 @@ export function FinancialsTab({ settings }: { settings: MasterConfigValues }) {
 
       {/* Absorb Fees Toggle Card */}
       <div className="group p-5 rounded-2xl border border-border bg-card shadow-sm hover:border-border/80 transition-all duration-200">
-        <div className="flex items-center justify-between gap-6">
-          <div className="space-y-1 max-w-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+          <div className="space-y-1">
             <Label className="flex items-center gap-2 font-semibold text-sm text-foreground">
               <Percent className="h-4 w-4 text-muted-foreground/60" />
               Absorb Payment Fees
@@ -172,7 +172,7 @@ export function FinancialsTab({ settings }: { settings: MasterConfigValues }) {
           <Switch
             checked={absorbFees}
             onCheckedChange={setAbsorbFees}
-            className="cursor-pointer"
+            className="cursor-pointer shrink-0"
           />
         </div>
       </div>

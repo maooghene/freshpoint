@@ -12,11 +12,54 @@ interface LogAdminActionParams {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Records an admin action to the audit trail. Call this from inside any
- * server action that mutates platform data on an admin's behalf.
- * Never throws — a logging failure should never block the actual action.
- */
+// Resolves a human-readable name for the target when the caller didn't supply one.
+async function resolveTargetLabel(
+  targetType: string,
+  targetId: string,
+): Promise<string> {
+  try {
+    switch (targetType.toLowerCase()) {
+      case "user": {
+        const u = await prisma.user.findUnique({
+          where: { id: targetId },
+          select: { firstName: true, lastName: true, email: true },
+        });
+        return (
+          `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.trim() ||
+          u?.email ||
+          targetId
+        );
+      }
+      case "vendor":
+      case "business": {
+        const b = await prisma.business.findUnique({
+          where: { id: targetId },
+          select: { name: true },
+        });
+        return b?.name || targetId;
+      }
+      case "businesscategory": {
+        const c = await prisma.businessCategory.findUnique({
+          where: { id: targetId },
+          select: { label: true },
+        });
+        return c?.label || targetId;
+      }
+      case "itemcategory": {
+        const c = await prisma.itemCategory.findUnique({
+          where: { id: targetId },
+          select: { name: true },
+        });
+        return c?.name || targetId;
+      }
+      default:
+        return targetId;
+    }
+  } catch {
+    return targetId;
+  }
+}
+
 export async function logAdminAction({
   action,
   targetType,
@@ -33,6 +76,9 @@ export async function logAdminAction({
       select: { firstName: true, lastName: true, email: true },
     });
 
+    const resolvedLabel =
+      targetLabel ?? (await resolveTargetLabel(targetType, targetId));
+
     await prisma.auditLogEntry.create({
       data: {
         actorId: userId,
@@ -44,7 +90,7 @@ export async function logAdminAction({
         action,
         targetType,
         targetId,
-        targetLabel,
+        targetLabel: resolvedLabel,
         metadata: metadata ? JSON.parse(JSON.stringify(metadata)) : undefined,
       },
     });

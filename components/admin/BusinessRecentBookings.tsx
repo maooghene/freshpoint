@@ -31,9 +31,12 @@ export function BusinessRecentBookings({
           </p>
         ) : (
           bookings.map((b) => (
-            <div key={b.id} className="py-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">
+            <div
+              key={b.id}
+              className="py-3 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-foreground truncate">
                   {b.user.firstName} {b.user.lastName}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -42,7 +45,7 @@ export function BusinessRecentBookings({
                   })}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span
                   className="font-bold block text-foreground"
                   title={`₦${b.totalAmount || 0}`}

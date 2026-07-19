@@ -10,6 +10,7 @@ export interface ParsedItemFormData {
   imageFile: File | null;
   duration: number | null;
   stock: number | null;
+  categoryId: string | null;
 }
 
 /**
@@ -37,7 +38,21 @@ export async function parseItemFormData(
       ? parseInt((formData.get("stock") as string) || "0", 10)
       : null;
 
-  return { id, type, name, description, price, imageFile, duration, stock };
+  const categoryIdRaw = formData.get("categoryId") as string | null;
+  const categoryId =
+    categoryIdRaw && categoryIdRaw.trim() !== "" ? categoryIdRaw : null;
+
+  return {
+    id,
+    type,
+    name,
+    description,
+    price,
+    imageFile,
+    duration,
+    stock,
+    categoryId,
+  };
 }
 
 /**

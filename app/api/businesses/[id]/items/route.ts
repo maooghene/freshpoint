@@ -1,5 +1,6 @@
+// app/api/businesses/[id]/items/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server"; // CORRECTED: Replaced getAuth to fix 401 token drops
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import authOwner from "@/lib/authOwner";
 import { uploadItemImage, resolveItemImageUrl } from "./image-utils";
@@ -9,15 +10,34 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+// Resolves the route param (which may be a slug OR a cuid) to the real business cuid.
+async function resolveBusinessId(slugOrId: string): Promise<string | null> {
+  const business = await prisma.business.findFirst({
+    where: {
+      OR: [{ id: slugOrId }, { slug: slugOrId }],
+    },
+    select: { id: true },
+  });
+  return business?.id ?? null;
+}
+
 // 🔓 GET: Publicly accessible catalog reader (Bypasses authentication filters for browser users)
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const { id: businessId } = await params;
+    const { id: slugOrId } = await params;
 
-    if (!businessId) {
+    if (!slugOrId) {
       return NextResponse.json(
         { error: "Missing business identifier parameter" },
         { status: 400 },
+      );
+    }
+
+    const businessId = await resolveBusinessId(slugOrId);
+    if (!businessId) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
       );
     }
 
@@ -50,14 +70,22 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 // 🔐 POST: Create a new inventory record element
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    const { id: routeBusinessId } = await params;
+    const { id: routeSlugOrId } = await params;
     const { userId: clerkId } = await auth();
 
     if (!clerkId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const targetBusinessId = await resolveBusinessId(routeSlugOrId);
+    if (!targetBusinessId) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
+
     const businessId = await authOwner(clerkId);
-    if (!businessId || businessId !== routeBusinessId) {
+    if (!businessId || businessId !== targetBusinessId) {
       return NextResponse.json(
         { error: "Unauthorized tenant bounds matching" },
         { status: 401 },
@@ -74,28 +102,67 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    let imageUrlString: string | null = null;
-    if (parsedData.imageFile && parsedData.imageFile.size > 0) {
-      const rawUrl = await uploadItemImage(parsedData.imageFile);
-      imageUrlString = resolveItemImageUrl(rawUrl);
+    // 🚀 FASHION VARIANT HANDLING: Extract raw JSON variant data from the formData stream
+    const variantsRaw = formData.get("variants") as string | null;
+    let parsedVariants: Array<{ size: string; color: string; stock: number }> =
+      [];
+
+    if (parsedData.type === "PRODUCT" && variantsRaw) {
+      try {
+        parsedVariants = JSON.parse(variantsRaw);
+      } catch (e) {
+        console.error("FreshPoint Options Variant Parsing Error:", e);
+        return NextResponse.json(
+          { error: "Invalid clothing options structural format" },
+          { status: 400 },
+        );
+      }
     }
 
-    const newItem = await prisma.item.create({
-      data: {
-        businessId,
-        type: parsedData.type,
-        name: parsedData.name,
-        description: parsedData.description,
-        price: parsedData.price,
-        duration: parsedData.duration,
-        stock: parsedData.stock,
-        image: imageUrlString,
-        isActive: true,
-      },
+    // Adjust base product stock allocation if explicit sizes or colors are mapped
+    let adjustedStock = parsedData.stock;
+    if (parsedData.type === "PRODUCT" && parsedVariants.length > 0) {
+      adjustedStock = parsedVariants.reduce((sum, v) => sum + v.stock, 0);
+    }
+
+    const rawImageUrl = formData.get("imageUrl") as string | null;
+    const imageUrlString = resolveItemImageUrl(rawImageUrl);
+
+    // 🌟 TRANSACTION GUARD: Atomically link Parent Items and Child Variants together
+    const resultItem = await prisma.$transaction(async (tx) => {
+      const item = await tx.item.create({
+        data: {
+          businessId,
+          type: parsedData.type,
+          name: parsedData.name,
+          description: parsedData.description,
+          price: parsedData.price,
+          duration: parsedData.duration,
+          stock: adjustedStock,
+          categoryId: parsedData.categoryId,
+          image: imageUrlString,
+          isActive: true,
+        },
+      });
+
+      // Batch write choices cleanly under the newly minted unique parent itemId reference
+      if (parsedData.type === "PRODUCT" && parsedVariants.length > 0) {
+        await tx.itemVariant.createMany({
+          data: parsedVariants.map((v) => ({
+            itemId: item.id,
+            size: v.size || null,
+            color: v.color || null,
+            stock: v.stock,
+            price: parsedData.price, // Bind variant price to base item price
+          })),
+        });
+      }
+
+      return item;
     });
 
     return NextResponse.json(
-      { message: `${parsedData.type} created successfully!`, item: newItem },
+      { message: `${parsedData.type} created successfully!`, item: resultItem },
       { status: 201 },
     );
   } catch (error: unknown) {
@@ -103,19 +170,28 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       error instanceof Error ? error.message : "Database Execution Drop";
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
-  }
+}
+
 
 // 🔐 PUT: Modify properties for an existing service or product row element
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
-    const { id: routeBusinessId } = await params;
+    const { id: routeSlugOrId } = await params;
     const { userId: clerkId } = await auth();
 
     if (!clerkId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const targetBusinessId = await resolveBusinessId(routeSlugOrId);
+    if (!targetBusinessId) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
+
     const businessId = await authOwner(clerkId);
-    if (!businessId || businessId !== routeBusinessId) {
+    if (!businessId || businessId !== targetBusinessId) {
       return NextResponse.json(
         { error: "Unauthorized tenant bounds matching" },
         { status: 401 },
@@ -140,23 +216,83 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // 🚀 FASHION VARIANT HANDLING: Pull structural parameters from incoming FormData
+    const variantsRaw = formData.get("variants") as string | null;
+    let parsedVariants: Array<{ size: string; color: string; stock: number }> = [];
+    let hasExplicitVariants = false;
+
+    if (parsedData.type === "PRODUCT" && variantsRaw) {
+      try {
+        parsedVariants = JSON.parse(variantsRaw);
+        hasExplicitVariants = true;
+      } catch (e) {
+        console.error("FreshPoint Edit Options Variant Parsing Error:", e);
+        return NextResponse.json(
+          { error: "Invalid clothing options structural format" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Calculate aggregated item level stock allocations if specific variants are appended
+    let adjustedStock = parsedData.stock;
+    if (parsedData.type === "PRODUCT" && hasExplicitVariants && parsedVariants.length > 0) {
+      adjustedStock = parsedVariants.reduce((sum, v) => sum + v.stock, 0);
+    }
+
     let imageUrlString = existing.image;
     if (parsedData.imageFile && parsedData.imageFile.size > 0) {
       const rawUrl = await uploadItemImage(parsedData.imageFile);
       imageUrlString = resolveItemImageUrl(rawUrl);
     }
 
-    const updatedItem = await prisma.item.update({
-      where: { id: parsedData.id },
-      data: {
-        type: parsedData.type,
-        name: parsedData.name,
-        description: parsedData.description,
-        price: parsedData.price,
-        duration: parsedData.duration,
-        stock: parsedData.stock,
-        image: imageUrlString,
-      },
+    // 🌟 TRANSACTION GUARD: Atomically synchronize Item fields and Variant items
+    const itemId = parsedData.id;
+    if (!itemId) {
+      return NextResponse.json(
+        { error: "Missing required catalog identifier ID" },
+        { status: 400 },
+      );
+    }
+
+    const updatedItem = await prisma.$transaction(async (tx) => {
+      // 1. Update the parent inventory container row properties
+      const item = await tx.item.update({
+        where: { id: itemId},
+        data: {
+          type: parsedData.type,
+          name: parsedData.name,
+          description: parsedData.description,
+          price: parsedData.price,
+          duration: parsedData.duration,
+          stock: adjustedStock,
+          categoryId: parsedData.categoryId,
+          image: imageUrlString,
+        },
+      });
+
+      // 2. If the update payload includes explicit fashion choices, sync them via wipe-and-recreate
+      if (parsedData.type === "PRODUCT" && hasExplicitVariants) {
+        // Clear out the stale entries
+        await tx.itemVariant.deleteMany({
+          where: { itemId: item.id },
+        });
+
+        // Batch insert the newly mapped choices cleanly
+        if (parsedVariants.length > 0) {
+          await tx.itemVariant.createMany({
+            data: parsedVariants.map((v) => ({
+              itemId: item.id,
+              size: v.size || null,
+              color: v.color || null,
+              stock: v.stock,
+              price: parsedData.price, // Default variant price to base item price
+            })),
+          });
+        }
+      }
+
+      return item;
     });
 
     return NextResponse.json(
@@ -173,7 +309,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 // 🔐 DELETE: Wipe an offering completely out of database tables safely
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const { id: routeBusinessId } = await params;
+    const { id: routeSlugOrId } = await params;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -187,8 +323,16 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     if (!clerkId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const targetBusinessId = await resolveBusinessId(routeSlugOrId);
+    if (!targetBusinessId) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
+
     const businessId = await authOwner(clerkId);
-    if (!businessId || businessId !== routeBusinessId) {
+    if (!businessId || businessId !== targetBusinessId) {
       return NextResponse.json(
         { error: "Unauthorized tenant bounds matching" },
         { status: 401 },
@@ -203,7 +347,10 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // 🚀 NOTE: Because your schema declares 'onDelete: Cascade' on the ItemVariant relations,
+    // deleting this parent item atomizes and auto-clears all attached child variants inside Postgres.
     await prisma.item.delete({ where: { id } });
+    
     return NextResponse.json(
       { message: "Item deleted successfully" },
       { status: 200 },

@@ -6,19 +6,21 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/staff/sign-in(.*)",
   "/pricing(.*)",
   "/explore(.*)",
   "/products(.*)",
   "/services(.*)",
   "/book(.*)",
-  "/cart(.*)",
   "/bookings/success(.*)",
+  "/contact(.*)",
   "/api/user/sync(.*)",
   "/api/businesses/slug/(.*)",
   "/api/businesses/(.*)/items",
   "/api/businesses/items(.*)",
   "/api/bookings(.*)",
   "/api/bookings/reference/(.*)",
+  "/api/categories/items(.*)",
   "/api/webhooks/(.*)",
   "/api/items/(.*)",
   "/checkout(.*)",
@@ -27,7 +29,7 @@ const isPublicRoute = createRouteMatcher([
   "/orders/success(.*)",
   "/api/orders/(.*)",
   "/banned",
-  "/select-workspace", // 🛡️ Ensure chooser gate is fundamentally exposed
+  "/select-workspace",
 ]);
 
 interface ClerkSessionMetadata {

@@ -1,4 +1,3 @@
-// components/navbar/DesktopActions.tsx
 "use client";
 
 import * as React from "react";
@@ -12,8 +11,10 @@ import {
   ClipboardList,
   Search,
   LayoutDashboard,
+  HelpCircleIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SignInButton } from "@clerk/nextjs";
 
 interface DesktopActionsProps {
   searchQuery: string;
@@ -23,11 +24,11 @@ interface DesktopActionsProps {
   setTheme: (theme: string) => void;
   mounted: boolean;
   cartItemsCount: number;
-  // 🌟 ADD MULTI-TENANT ATTRIBUTIONS
   hasBusinessAccess: boolean;
   displayLabel: string;
   handlePortalNavigation: () => void;
   isNavigating: boolean;
+  isSignedIn: boolean | undefined;
 }
 
 export function DesktopActions({
@@ -42,7 +43,11 @@ export function DesktopActions({
   displayLabel,
   handlePortalNavigation,
   isNavigating,
+  isSignedIn,
 }: DesktopActionsProps): React.JSX.Element {
+  const guardedLinkClass =
+    "flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none cursor-pointer border-none bg-transparent outline-none";
+
   return (
     <div className="hidden md:flex flex-1 items-center justify-between gap-7 w-full min-w-0">
       {/* CENTRAL SEARCH BAR */}
@@ -66,7 +71,7 @@ export function DesktopActions({
 
       {/* ICON INTERACTION CONTROLS */}
       <div className="flex items-center gap-6 flex-shrink-0">
-        {/* 🌟 DESKTOP WORKSPACE RE-ENTRY TRIGGER (Hides on extra large screens where NavbarActions main button renders) */}
+        {/* 🌟 DESKTOP WORKSPACE RE-ENTRY TRIGGER */}
         {hasBusinessAccess && (
           <Button
             onClick={handlePortalNavigation}
@@ -91,44 +96,101 @@ export function DesktopActions({
           </span>
         </Link>
 
-        <Link
-          href="/orders/history"
-          className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors border-r border-border/60 pr-5 select-none"
-        >
-          <div className="p-0.5">
-            <ClipboardList className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
-          </div>
-          <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80 whitespace-nowrap">
-            Track Orders
-          </span>
-        </Link>
-
-        <Link
-          href="/cart"
-          className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none"
-        >
-          <div className="relative p-0.5">
-            <ShoppingCart className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
-            {cartItemsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[8px] font-black h-3.5 w-3.5 rounded-full flex items-center justify-center border border-background shadow-sm">
-                {cartItemsCount}
+        {/* Track Orders — sign-in guarded */}
+        {isSignedIn ? (
+          <Link
+            href="/orders/history"
+            className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors border-r border-border/60 pr-5 select-none"
+          >
+            <div className="p-0.5">
+              <ClipboardList className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+            </div>
+            <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80 whitespace-nowrap">
+              Track Orders
+            </span>
+          </Link>
+        ) : (
+          <SignInButton mode="modal">
+            <button
+              type="button"
+              className={`${guardedLinkClass} border-r border-border/60 pr-5`}
+            >
+              <div className="p-0.5">
+                <ClipboardList className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+              </div>
+              <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80 whitespace-nowrap">
+                Track Orders
               </span>
-            )}
-          </div>
-          <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
-            Cart
-          </span>
-        </Link>
+            </button>
+          </SignInButton>
+        )}
+
+        {/* Cart — sign-in guarded */}
+        {isSignedIn ? (
+          <Link
+            href="/cart"
+            className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none"
+          >
+            <div className="relative p-0.5">
+              <ShoppingCart className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+              {cartItemsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[8px] font-black h-3.5 w-3.5 rounded-full flex items-center justify-center border border-background shadow-sm">
+                  {cartItemsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
+              Cart
+            </span>
+          </Link>
+        ) : (
+          <SignInButton mode="modal">
+            <button type="button" className={guardedLinkClass}>
+              <div className="relative p-0.5">
+                <ShoppingCart className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+              </div>
+              <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
+                Cart
+              </span>
+            </button>
+          </SignInButton>
+        )}
+
+        {/* Bookings — sign-in guarded */}
+        {isSignedIn ? (
+          <Link
+            href="/bookings"
+            className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none"
+          >
+            <div className="p-0.5">
+              <CalendarDays className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+            </div>
+            <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
+              Bookings
+            </span>
+          </Link>
+        ) : (
+          <SignInButton mode="modal">
+            <button type="button" className={guardedLinkClass}>
+              <div className="p-0.5">
+                <CalendarDays className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+              </div>
+              <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
+                Bookings
+              </span>
+            </button>
+          </SignInButton>
+        )}
 
         <Link
-          href="/bookings"
+          href="/contact"
           className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors select-none"
         >
           <div className="p-0.5">
-            <CalendarDays className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
+            <HelpCircleIcon className="w-4.5 h-4.5 group-hover:scale-105 transition-transform shrink-0" />
           </div>
           <span className="text-[9px] font-bold tracking-wide mt-0.5 uppercase opacity-80">
-            Bookings
+            Support
           </span>
         </Link>
 

@@ -101,27 +101,15 @@ function Hero(): React.JSX.Element {
 
               {/* Call to Actions CTA Action Triggers */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start pt-1">
-                {user ? (
-                  <Link href="/explore" className="w-full sm:w-auto">
-                    <Button
-                      size="lg"
-                      className="w-full sm:w-auto rounded-xl font-bold text-sm h-11 gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all"
-                    >
-                      <Search className="w-4 h-4" />
-                      {"Explore Marketplace"}
-                    </Button>
-                  </Link>
-                ) : (
-                  <SignInButton mode="modal">
-                    <Button
-                      size="lg"
-                      className="w-full sm:w-auto rounded-xl font-bold text-sm h-11 gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {"Get Started Free"}
-                    </Button>
-                  </SignInButton>
-                )}
+                <Link href="/explore" className="w-full sm:w-auto">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto rounded-xl font-bold text-sm h-11 gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all"
+                  >
+                    <Search className="w-4 h-4" />
+                    {user ? "Explore Marketplace" : "Get Started"}
+                  </Button>
+                </Link>
               </div>
             </div>
 

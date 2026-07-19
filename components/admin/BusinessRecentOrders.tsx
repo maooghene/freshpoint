@@ -28,16 +28,21 @@ export function BusinessRecentOrders({ orders, totalCount }: OrdersProps) {
           </p>
         ) : (
           orders.map((o) => (
-            <div key={o.id} className="py-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Code: {o.code}</p>
+            <div
+              key={o.id}
+              className="py-3 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-foreground truncate">
+                  Code: {o.code}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {new Date(o.createdAt).toLocaleDateString("en-NG", {
                     dateStyle: "medium",
                   })}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span
                   className="font-bold block text-foreground"
                   title={`₦${o.totalAmount}`}

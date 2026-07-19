@@ -165,21 +165,62 @@ model Item {
   sku         String?
   costPrice   Float?
   weight      Float?
+   variants    ItemVariant[]
   duration    Int?          @default(30)
   isActive    Boolean       @default(true)
   type        ItemType      @default(SERVICE)
   image       String?
   businessId  String
+  categoryId  String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   bookings    BookingItem[]
   cartItems   CartItem[]
   business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category    ItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   orderItems  OrderItem[]
   ratings     Rating[]
 
   @@index([businessId])
   @@index([businessId, type, isActive])
+  @@index([categoryId])
+}
+
+model ItemVariant {
+  id         String   @id @default(cuid())
+  itemId     String
+  size       String?  // e.g., "S", "M", "L", "42", "44"
+  color      String?  // e.g., "Charcoal Black", "Emerald Green"
+  price      Float?   // Override parent price if larger sizes cost more
+  stock      Int      @default(0) // Inventory count specific to this size/color combination
+  sku        String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+}
+
+model ItemCategory {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  scope     CategoryScope @default(BOTH)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  items     Item[]
+}
+
+model BusinessCategory {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  value     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([value])
 }
 
 model Booking {
@@ -507,4 +548,10 @@ enum ComplaintStatus {
 enum ComplaintAssignee {
   ADMIN
   BUSINESS_OWNER
+}
+
+enum CategoryScope {
+  PRODUCT
+  SERVICE
+  BOTH
 }

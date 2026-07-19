@@ -17,6 +17,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  Tag,
   Megaphone,
   ScrollText,
 } from "lucide-react";
@@ -27,13 +28,13 @@ const NAV_ITEMS = [
   { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
   { name: "Vendor Verification", href: "/admin/businesses", icon: Store },
   { name: "Customers", href: "/admin/users", icon: Users },
+  { name: "Categories", href: "/admin/categories", icon: Tag },
   { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
   { name: "Complaints", href: "/admin/complaints", icon: AlertCircle },
   { name: "Global Settings", href: "/admin/settings", icon: Settings2 },
   { name: "Admin Staff", href: "/admin/staff", icon: ShieldAlert },
   { name: "Audit Log", href: "/admin/audit-log", icon: ScrollText },
 ];
-
 
 interface AdminMobileDrawerProps {
   isOpen: boolean;

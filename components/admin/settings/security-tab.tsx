@@ -63,8 +63,8 @@ export function SecurityTab({
 
         {/* Close App for Fixes Toggle Card */}
         <div className="group p-5 rounded-2xl border border-destructive/20 bg-destructive/[0.02] shadow-sm hover:border-destructive/30 transition-all duration-200">
-          <div className="flex items-center justify-between gap-6">
-            <div className="space-y-1 max-w-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+            <div className="space-y-1">
               <Label className="flex items-center gap-2 font-semibold text-sm text-destructive">
                 <ShieldAlert className="h-4 w-4" />
                 Close App for Fixes
@@ -77,7 +77,7 @@ export function SecurityTab({
             <Switch
               checked={maintenanceMode}
               onCheckedChange={setMaintenanceMode}
-              className="cursor-pointer data-[state=checked]:bg-destructive"
+              className="cursor-pointer shrink-0 data-[state=checked]:bg-destructive"
             />
           </div>
         </div>

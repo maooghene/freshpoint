@@ -6,7 +6,7 @@ import PersonalSettingsForm from "./PersonalSettingsForm";
 export default async function StaffSettingsPage() {
   const { userId: clerkId } = await auth();
   if (!clerkId) {
-    redirect("/sign-in");
+    redirect("/staff/sign-in");
   }
 
   // 1. Resolve core registered user profile constraints
@@ -37,7 +37,7 @@ export default async function StaffSettingsPage() {
 
   // Security Guard: Prevent unassigned or inactive entries from bypassing boundaries
   if (!staffProfile || !staffProfile.isActive) {
-    redirect("/");
+    redirect("/staff/sign-in");
   }
 
   return (
