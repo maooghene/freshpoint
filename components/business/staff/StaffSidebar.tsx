@@ -21,23 +21,23 @@ export default function StaffSidebar({
 
   return (
     <>
-      {/* Mobile & Medium Viewport Floating Header Bar */}
-      <header className="flex lg:hidden fixed top-0 left-0 right-0 z-30 h-16 items-center justify-end border-b border-border bg-card px-4 md:px-8">
-        {/* Absolute Centered Business Name Row */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center w-full max-w-[55vw] sm:max-w-[65vw] min-w-0">
-          <span className="block truncate font-black text-xs sm:text-sm text-foreground tracking-wider uppercase">
-            {businessName}
-          </span>
-        </div>
-
-        {/* Trigger Button */}
+      {/* Mobile & Medium Viewport Floating Header Bar - Structured to place toggle trigger on the left edge */}
+      <header className="flex lg:hidden fixed top-0 left-0 right-0 z-30 h-16 items-center justify-center border-b border-border bg-card px-4 md:px-8">
+        {/* Trigger Button - Absolutely positioned on the left side of the screen */}
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/40 text-foreground hover:bg-secondary transition-colors z-10"
+          className="absolute left-4 md:left-8 z-10 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/40 text-foreground hover:bg-secondary transition-colors"
           aria-label="Open workforce menu"
         >
           <Menu className="h-5 w-5" />
         </button>
+
+        {/* Absolute Centered Business Name Title */}
+        <div className="text-center w-full max-w-[50vw] sm:max-w-[60vw] min-w-0">
+          <span className="block truncate font-bold text-[11px] sm:text-xs text-foreground tracking-wide uppercase">
+            {businessName}
+          </span>
+        </div>
       </header>
 
       {/* Desktop Sidebar View Container Context (Permanent at lg: 1024px+) */}
@@ -57,7 +57,7 @@ export default function StaffSidebar({
         />
       )}
 
-      {/* Mobile & Medium Viewport Sliding Navigation Drawer Panel Element - Ultra-Slim Mobile Override */}
+      {/* Mobile & Medium Viewport Sliding Navigation Drawer Panel Element */}
       <aside
         className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[58vw] sm:w-64 md:w-64 transform border-r border-border bg-card shadow-2xl transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
