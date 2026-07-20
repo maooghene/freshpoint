@@ -129,7 +129,8 @@ export default function StaffDashboard({
   };
 
   return (
-    <div className="space-y-6 w-full max-w-7xl animate-in fade-in duration-200">
+    /* Safe spacing to accommodate the unified 16-unit top floating header on mobile & medium viewports */
+    <div className="w-full max-w-7xl px-4 sm:px-6 md:px-8 pt-20 lg:pt-0 pb-10 space-y-6 animate-in fade-in duration-200 block">
       <DashboardHeaderCard
         staffList={staff}
         showAddForm={showAddForm}
@@ -147,7 +148,7 @@ export default function StaffDashboard({
       {staff.length === 0 ? (
         <EmptyStaffState />
       ) : (
-        <div className="space-y-3 w-full">
+        <div className="w-full space-y-3 block">
           {staff.map((member) => (
             <StaffMemberRow
               key={member.id}

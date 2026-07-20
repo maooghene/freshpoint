@@ -1,70 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Standardized Pluralized Named Instance Wrapper Export
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESRESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
+) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized profile context" },
-        { status: 401 },
-      );
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: pathIdentifier } = await params;
-    const body: unknown = await req.json();
+    const { id: businessId } = await params;
+    const { name, email, role } = await req.json();
 
-    if (!body || typeof body !== "object") {
+    if (!name || !email) {
       return NextResponse.json(
-        { error: "Invalid JSON request context payload body" },
+        { error: "Missing required fields: name and email" },
         { status: 400 },
       );
     }
 
-    const { email, name, role } = body as {
-      email?: string;
-      name?: string;
-      role?: string;
-    };
+    const cleanEmail = String(email).toLowerCase().trim();
 
-    if (!email || !name) {
-      return NextResponse.json(
-        { error: "Missing required invitation properties parameter keys" },
-        { status: 400 },
-      );
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { id: true },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-
-    // Resolve the business profile workspace securely
-    const business = await prisma.business.findFirst({
-      where: {
-        OR: [{ id: pathIdentifier }, { slug: pathIdentifier }],
-        owner: { clerkId: userId },
-      },
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, ownerId: true, name: true, slug: true },
     });
 
     if (!business) {
       return NextResponse.json(
-        {
-          error:
-            "Workspace profile space not found or unauthorized resource matching",
-        },
+        { error: "Business not found" },
         { status: 404 },
+      );
+    }
+
+    // Owner-only: matches original intent of this route (allowStaff: false)
+    const authorized = await authorizeBusinessAccess({
+      businessId: business.id,
+      ownerId: business.ownerId,
+      systemUserId: dbUser.id,
+      allowStaff: false,
+    });
+
+    if (!authorized) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Prevent duplicate pending/active invites for the same email at this business
+    const existing = await prisma.staffProfile.findFirst({
+      where: { businessId: business.id, email: cleanEmail },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "This email has already been invited to this business" },
+        { status: 409 },
       );
     }
 
     const url = new URL(req.url);
     const dynamicSignInRouteFallback = `${url.origin}/sign-in`;
 
-    // 1️⃣ Clerk v5+ Explicit Invitation token generation pipeline
     const clerk = await clerkClient();
     const invitation = await clerk.invitations.createInvitation({
       emailAddress: cleanEmail,
@@ -72,22 +84,8 @@ export async function POST(
       ignoreExisting: true,
     });
 
-    /* 
-      🎯 THE ABSOLUTE LINK FIX: 
-      Instead of routing employees to a plain /sign-in route string block, 
-      we pass the unique, secure registration URL context ('invitation.url') 
-      generated dynamically by Clerk's security ecosystem.
-    */
     const secureOnboardingLink = invitation.url;
 
-    // 🚀 CHOSEN LOG LOCATION FOR LOCAL TESTING:
-    console.log("====================================================");
-    console.log("⚠️ SECURE INVITATION LINK GENERATED FOR TEST USER:");
-    console.log(`📧 Email: ${cleanEmail}`);
-    console.log(`🔗 Link:  ${secureOnboardingLink}`);
-    console.log("====================================================");
-
-    // 2️⃣ RESEND EMAIL BLOCK: Fires a notification packet directly to the invited professional
     try {
       await resend.emails.send({
         from: "FreshPointTeam <onboarding@resend.dev>",
@@ -95,10 +93,10 @@ export async function POST(
         subject: `Join ${business.name} on Freshpoint!`,
         html: `
           <div style="font-family: sans-serif; max-w: 500px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
-            <h2 style="color: #6d28d9; margin-bottom: 4px; font-weight: 900; tracking: -0.05em;">Workspace Invitation</h2>
+            <h2 style="color: #6d28d9; margin-bottom: 4px; font-weight: 900;">Workspace Invitation</h2>
             <p style="font-size: 14px; color: #475569; margin-top: 0;">Hello ${name},</p>
             <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-              You have been invited by the manager of <strong>${business.name}</strong> to join their digital roster space on FreshPointas a <strong>${role || "Specialist"}</strong>.
+              You have been invited to join <strong>${business.name}</strong> on FreshPoint as a <strong>${role || "Specialist"}</strong>.
             </p>
             <div style="margin: 24px 0; text-align: center;">
               <a href="${secureOnboardingLink}" style="background-color: #6d28d9; color: white; padding: 12px 24px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 12px; display: inline-block;">
@@ -106,7 +104,7 @@ export async function POST(
               </a>
             </div>
             <p style="font-size: 11px; color: #94a3b8; line-height: 1.4; border-top: 1px dashed #e2e8f0; padding-top: 12px; margin-top: 20px;">
-              If the link button above doesn&apos;t work, copy and paste this secure URL directly into your browser address bar: <br/>
+              If the button doesn't work, copy and paste this link: <br/>
               <span style="font-family: monospace; color: #6d28d9; word-break: break-all;">${secureOnboardingLink}</span>
             </p>
           </div>
@@ -117,35 +115,30 @@ export async function POST(
         emailError instanceof Error
           ? emailError.message
           : "Network notification exception";
-      console.warn(
-        "⚠️ Resend could not deliver message body envelope safely:",
-        log,
-      );
+      console.warn("Resend could not deliver invite email:", log);
+      // Do not fail the request — the invite link still works, email is best-effort
     }
 
-    // 3️⃣ Provision a pending roster row under this verified tenant store identifier
+    // Pending row: userId stays null, isActive stays false, until sync-staff-roster
+    // links it on real sign-in via matching email. This is what makes the
+    // staff member actually reachable by authorizeBusinessAccess later.
     const newStaff = await prisma.staffProfile.create({
       data: {
         businessId: business.id,
-        name: name,
-        role: role || "Specialist",
+        name: name.trim(),
         email: cleanEmail,
+        role: role || "Specialist",
         isActive: false,
       },
     });
 
-    return NextResponse.json(
-      { success: true, staff: newStaff },
-      { status: 201 },
-    );
+    return NextResponse.json({ staff: newStaff }, { status: 201 });
   } catch (error: unknown) {
     const errTrace =
-      error instanceof Error
-        ? error.message
-        : "Fatal staff processing thread error";
-    console.error("Staff addition pipeline error:", errTrace);
+      error instanceof Error ? error.message : "Staff creation error";
+    console.error("STAFF_CREATE_ERROR:", errTrace);
     return NextResponse.json(
-      { error: "Internal server processing failure" },
+      { error: "Internal Server Error" },
       { status: 500 },
     );
   }

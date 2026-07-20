@@ -18,7 +18,6 @@ export interface DashboardUserPayload {
 export interface ClientBookingDataShape {
   id: string;
   businessId: string;
-  // ✅ Formatted strictly to pair with incoming Prisma query objects
   staffId: string | null;
   status: string;
   totalAmount: number | null;
@@ -50,14 +49,14 @@ export function StaffDashboardClient({
   const [search, setSearch] = useState<string>("");
 
   return (
-    <div className="space-y-8 w-full min-w-0">
+    <div className="space-y-8 w-full min-w-0 block">
       {/* Dynamic Performance Matrix Tiers */}
       <MetricsGrid bookings={initialBookings} orders={initialOrders} />
 
       {/* Primary Workforce Data Console Tabs */}
-      <Tabs defaultValue="bookings" className="w-full min-w-0 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-4 min-w-0">
-          <TabsList className="bg-muted/60 p-1 rounded-xl h-10 w-full sm:w-auto grid grid-cols-2 max-w-sm">
+      <Tabs defaultValue="bookings" className="w-full min-w-0 space-y-6 block">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/60 pb-4 min-w-0">
+          <TabsList className="bg-muted/60 p-1 rounded-xl h-10 w-full md:w-auto grid grid-cols-2 max-w-sm">
             <TabsTrigger
               value="bookings"
               className="rounded-lg text-xs font-bold gap-2"
@@ -75,7 +74,7 @@ export function StaffDashboardClient({
           </TabsList>
 
           {/* Interactive Live Context Filtering Core */}
-          <div className="relative flex items-center bg-card border border-border rounded-xl px-3 py-2 focus-within:border-primary w-full sm:w-64 shrink-0 shadow-xs">
+          <div className="relative flex items-center bg-card border border-border rounded-xl px-3 py-2 focus-within:border-primary w-full md:w-64 shrink-0 shadow-xs">
             <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
             <input
               type="text"
@@ -91,12 +90,15 @@ export function StaffDashboardClient({
 
         <TabsContent
           value="bookings"
-          className="outline-none focus:ring-0 mt-0"
+          className="outline-none focus:ring-0 mt-0 block"
         >
           <PersonalBookingsList bookings={initialBookings} search={search} />
         </TabsContent>
 
-        <TabsContent value="orders" className="outline-none focus:ring-0 mt-0">
+        <TabsContent
+          value="orders"
+          className="outline-none focus:ring-0 mt-0 block"
+        >
           <SharedStoreOrdersList orders={initialOrders} search={search} />
         </TabsContent>
       </Tabs>

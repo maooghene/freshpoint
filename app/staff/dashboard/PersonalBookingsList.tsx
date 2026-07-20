@@ -1,4 +1,3 @@
-// app/staff/dashboard/PersonalBookingsList.tsx
 "use client";
 
 import * as React from "react";
@@ -31,7 +30,6 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
     });
   }, [bookings, search]);
 
-  // 🔄 The Interactive API Mutate Execution Event Handler
   const handleUpdateStatus = async (bookingId: string, nextStatus: string) => {
     setLoadingId(bookingId);
     try {
@@ -50,7 +48,6 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
       toast.success(
         `Booking marked as ${nextStatus.toLowerCase()} successfully.`,
       );
-      // Force Next.js client router origin to revalidate data stream layers safely
       window.location.reload();
     } catch (err: unknown) {
       toast.error("Endpoint operational connection exception detected.");
@@ -75,8 +72,8 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
 
   return (
     <div className="border border-border rounded-2xl bg-card overflow-hidden w-full min-w-0 shadow-sm">
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-xs md:text-sm">
+      <div className="overflow-x-auto custom-scrollbar w-full">
+        <table className="w-full min-w-[650px] text-left border-collapse text-xs md:text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 font-bold text-muted-foreground text-[10px] uppercase tracking-wider select-none">
               <th className="p-4">{"Client / User"}</th>
@@ -96,7 +93,7 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
                   key={booking.id}
                   className="hover:bg-muted/30 transition-colors group"
                 >
-                  <td className="p-4 min-w-[150px]">
+                  <td className="p-4">
                     <div className="font-bold text-foreground">
                       {booking.user?.firstName} {booking.user?.lastName}
                     </div>
@@ -122,16 +119,16 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                         booking.status === "COMPLETED"
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                          ? "bg-primary/10 text-primary border-primary/20"
                           : booking.status === "CONFIRMED"
-                            ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                            : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                            ? "bg-foreground/5 text-foreground border-border"
+                            : "bg-muted text-muted-foreground border-border"
                       }`}
                     >
                       {booking.status}
                     </span>
                   </td>
-                  <td className="p-4 text-right min-w-[140px]">
+                  <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-3">
                       {isActionable && (
                         <button
@@ -140,7 +137,7 @@ export function PersonalBookingsList({ bookings, search }: ListProps) {
                           }
                           disabled={isLoading}
                           type="button"
-                          className="inline-flex h-7 items-center justify-center rounded-lg bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
+                          className="inline-flex h-7 items-center justify-center rounded-lg bg-primary text-primary-foreground px-2.5 text-[10px] font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-opacity"
                         >
                           {isLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin" />

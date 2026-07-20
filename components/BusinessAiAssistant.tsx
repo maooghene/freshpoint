@@ -46,6 +46,8 @@ export function BusinessAiAssistant() {
     return () => hoverQuery.removeEventListener("change", handler);
   }, []);
 
+  // Only auto-expand the label on hover-capable (desktop/tablet) devices.
+  // On touch/mobile we never want the expanded label taking up space.
   React.useEffect(() => {
     if (
       !isHoverCapable ||
@@ -89,10 +91,18 @@ export function BusinessAiAssistant() {
     }
   };
 
-  const showLabel = expanded || !isHoverCapable;
+  // Never show the expanding text label on mobile — icon only, always.
+  const showLabel = isHoverCapable && expanded;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 font-sans select-none antialiased">
+    <div
+      className={
+        // Icon-only footprint on mobile (small fixed corner button).
+        // Full-size positioning restored from sm breakpoint up.
+        "fixed bottom-4 right-4 z-40 font-sans select-none antialiased " +
+        (isOpen ? "" : "scale-90 sm:scale-100 origin-bottom-right")
+      }
+    >
       {!isOpen ? (
         <BusinessAssistantToggle
           showLabel={showLabel}
@@ -107,7 +117,7 @@ export function BusinessAiAssistant() {
           }}
         />
       ) : (
-        <div className="w-[calc(100vw-32px)] sm:w-[360px] md:w-[400px] h-[75vh] max-h-[500px] bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+        <div className="w-[calc(100vw-32px)] sm:w-[360px] md:w-[400px] h-[70vh] sm:h-[75vh] max-h-[440px] sm:max-h-[500px] bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
           <BusinessAssistantHeader onClose={() => setIsOpen(false)} />
           <BusinessAssistantMessages
             messages={messages}

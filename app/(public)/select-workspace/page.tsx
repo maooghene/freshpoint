@@ -162,11 +162,7 @@ export default function SelectWorkspacePage() {
               </p>
             </div>
             <Link
-              href={
-                roles.staffBusinessSlug
-                  ? `/business/${roles.staffBusinessSlug}/staff`
-                  : "/staff/dashboard"
-              }
+              href="/staff/dashboard"
               className="mt-6 w-full text-center inline-flex justify-center items-center px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white transition-colors hover:bg-emerald-700 cursor-pointer"
             >
               Launch Staff Panel

@@ -1,4 +1,3 @@
-// app/staff/dashboard/MetricsGrid.tsx
 "use client";
 
 import * as React from "react";
@@ -30,26 +29,27 @@ export function MetricsGrid({ bookings, orders }: MetricsGridProps) {
       value: activeBookings,
       label: "Assigned Load",
       icon: CalendarRange,
-      color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+      color: "text-primary bg-primary/10 border-primary/20",
     },
     {
       title: "Completed",
       value: completedBookings,
       label: "Closed Loops",
       icon: CheckCircle2,
-      color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+      /* Updated to matching semantic emerald tokens for clear green validation */
+      color: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20",
     },
     {
       title: "Active Orders",
       value: processingOrders,
       label: "Awaiting Handover",
       icon: ClipboardList,
-      color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+      color: "text-muted-foreground bg-muted border-border",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 w-full min-w-0">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full min-w-0">
       {cardConfig.map((card, idx) => {
         const Icon = card.icon;
         return (

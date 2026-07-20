@@ -4,7 +4,6 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import {
-  SparklesIcon,
   LayoutDashboard,
   CalendarCheck2,
   PackageSearch,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import StaffNavItem from "./StaffNavItem";
 import StaffSidebarFooter from "./StaffSidebarFooter";
+import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 
 interface StaffSidebarContentProps {
   businessName: string;
@@ -38,23 +38,30 @@ export default function StaffSidebarContent({
 
   return (
     <div className="flex h-full w-full flex-col bg-card font-sans">
-      <div className="flex h-16 items-center border-b border-border px-6 min-w-0 justify-between">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <SparklesIcon className="h-5 w-5 shrink-0 text-primary" />
-          <span className="truncate font-black text-sm text-foreground tracking-wide uppercase">
-            {businessName} {"Staff"}
-          </span>
+      {/* Branding Block - Vertical layout with adaptive padding scales for slim mobile viewports */}
+      <div className="flex h-auto min-h-[5rem] py-5 items-start border-b border-border px-3 sm:px-6 min-w-0 justify-between">
+        <div className="flex flex-col min-w-0 items-start gap-2">
+          {/* Sized perfectly to remain proportional across both mobile and tablet widths */}
+          <FreshpointLogo size={35} />
+          <div className="flex flex-col min-w-0 mt-1">
+            <span className="truncate font-black text-xs text-foreground tracking-wide uppercase max-w-[40vw] sm:max-w-[180px]">
+              {businessName}
+            </span>
+            <span className="font-semibold text-[10px] text-muted-foreground tracking-wider uppercase">
+              Staff Portal
+            </span>
+          </div>
         </div>
         <button
           onClick={onCloseMobileMenu}
-          className="flex lg:hidden h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary"
+          className="flex lg:hidden h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors mt-0.5"
           aria-label="Close menu"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4 custom-scrollbar">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar">
         {staffNavItems.map((item) => (
           <StaffNavItem
             key={item.name}

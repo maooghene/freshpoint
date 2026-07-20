@@ -1,4 +1,3 @@
-// app/staff/dashboard/SharedStoreOrdersList.tsx
 "use client";
 
 import * as React from "react";
@@ -32,7 +31,6 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
   ) => {
     setUpdatingId(orderId);
     try {
-      // 🎯 FIXED: Changed method to PATCH to perfectly pair with your route handlers
       const response = await fetch(`/api/orders/${orderId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -67,8 +65,8 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
 
   return (
     <div className="border border-border rounded-2xl bg-card overflow-hidden w-full min-w-0 shadow-sm">
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-xs md:text-sm">
+      <div className="overflow-x-auto custom-scrollbar w-full">
+        <table className="w-full min-w-[600px] text-left border-collapse text-xs md:text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 font-bold text-muted-foreground text-[10px] uppercase tracking-wider select-none">
               <th className="p-4">{"Order reference"}</th>
@@ -90,7 +88,7 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
                     {"#"}
                     {order.id.slice(-8)}
                   </td>
-                  <td className="p-4 min-w-[150px]">
+                  <td className="p-4">
                     <div className="font-bold text-foreground">
                       {order.user?.firstName} {order.user?.lastName}
                     </div>
@@ -110,10 +108,10 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
                           }
                           className={`rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase outline-none bg-background cursor-pointer ${
                             order.status === "DELIVERED"
-                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              ? "bg-primary/10 text-primary border-primary/20"
                               : order.status === "PROCESSING"
-                                ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                                : "bg-zinc-500/10 text-zinc-600 border-zinc-500/20"
+                                ? "bg-foreground/5 text-foreground border-border"
+                                : "bg-muted text-muted-foreground border-border"
                           }`}
                         >
                           <option value="PENDING">{"Pending"}</option>
@@ -124,7 +122,7 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
                       )}
                     </div>
                   </td>
-                  <td className="p-4 text-right font-bold text-foreground font-mono tabular-nums min-w-[100px]">
+                  <td className="p-4 text-right font-bold text-foreground font-mono tabular-nums">
                     {"₦"}
                     {(order.totalAmount || 0).toLocaleString()}
                   </td>

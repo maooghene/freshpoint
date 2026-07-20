@@ -114,15 +114,15 @@ export default function ContactSupportPage(): React.JSX.Element {
           {channels.map((channel) => (
             <div
               key={channel.label}
-              className="flex items-center justify-between p-4 rounded-xl border border-primary/10 bg-background/50"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-primary/10 bg-background/50"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-primary">{channel.icon}</span>
-                <div>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-primary shrink-0">{channel.icon}</span>
+                <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     {channel.label}
                   </p>
-                  <p className="text-sm text-foreground">
+                  <p className="text-sm text-foreground truncate">
                     {channel.value ?? "Coming soon"}
                   </p>
                 </div>
@@ -131,7 +131,7 @@ export default function ContactSupportPage(): React.JSX.Element {
               {channel.href && (
                 <a
                   href={channel.href}
-                  className="text-sm font-semibold text-primary hover:underline"
+                  className="text-sm font-semibold text-primary hover:underline shrink-0 self-start sm:self-center pl-8 sm:pl-0"
                 >
                   Reach out
                 </a>

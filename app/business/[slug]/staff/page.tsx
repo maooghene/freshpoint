@@ -53,6 +53,7 @@ export default async function StaffPageRoute({ params }: PageProps) {
     businessId: business.id,
     ownerId: business.ownerId,
     systemUserId: systemUser.id,
+    allowStaff: false,
   });
 
   if (!authorized) notFound();

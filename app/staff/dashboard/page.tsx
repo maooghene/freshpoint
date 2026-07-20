@@ -54,8 +54,9 @@ export default async function StaffDashboardPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-background pt-8 pb-12 px-4 sm:px-6 lg:px-8 font-sans w-full max-w-7xl mx-auto min-w-0">
-      <div className="flex flex-col gap-1 border-b border-border pb-6 mb-8 min-w-0">
+    /* Optimized mobile-first top padding to bring the welcome greeting tightly up into perspective */
+    <main className="min-h-screen bg-background pt-5 lg:pt-8 pb-12 px-4 sm:px-6 md:px-8 lg:px-8 font-sans w-full max-w-7xl mx-auto min-w-0 block">
+      <div className="flex flex-col gap-1 border-b border-border pb-6 mb-8 min-w-0 block">
         <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-primary/5 rounded-full border border-primary/10 w-fit">
           <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
           <span className="text-[10px] font-bold uppercase tracking-wider text-primary">

@@ -19,7 +19,8 @@ export function DashboardHeaderCard({
   const activeCount = staffList.filter((s) => s.isActive).length;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-border bg-card p-4 rounded-2xl shadow-xs transition-colors duration-200">
+    /* Delay the horizontal row transformation to medium screens to prevent small-device layout squishing */
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border border-border bg-card p-4 rounded-2xl shadow-xs transition-colors duration-200 w-full min-w-0">
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <UsersIcon className="w-5 h-5 text-primary" />
@@ -36,7 +37,7 @@ export function DashboardHeaderCard({
       </div>
       <Button
         onClick={onToggleAddForm}
-        className="rounded-xl font-bold gap-2 cursor-pointer shadow-sm text-xs h-10 px-4 w-full sm:w-auto"
+        className="rounded-xl font-bold gap-2 cursor-pointer shadow-sm text-xs h-10 px-4 w-full md:w-auto shrink-0"
       >
         <PlusIcon className="w-4 h-4" />
         {showAddForm ? "Close Form" : "Add Teammate"}

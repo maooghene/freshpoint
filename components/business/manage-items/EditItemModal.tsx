@@ -27,19 +27,23 @@ export function EditItemModal({
   );
   const hasActiveVariants = currentVariants.length > 0;
 
-  // React state modifier to feed changes back up through your shared parent state tracker hook
+  // 💡 FIXED: Repaired broken React syntax and assigned explicit types to state modifiers
   const handleVariantsChange: React.Dispatch<
     React.SetStateAction<ProductVariant[]>
-  > = (updateAction) => {
+  > = (updateAction: React.SetStateAction<ProductVariant[]>) => {
     const nextVariants =
       typeof updateAction === "function"
-        ? updateAction(currentVariants)
+        ? (updateAction as (prev: ProductVariant[]) => ProductVariant[])(
+            currentVariants,
+          )
         : updateAction;
 
-    // Automatically recalculate the absolute aggregate stock total whenever choice metrics shuffle
+    // 💡 FIXED: Added explicit types (number, ProductVariant) to the reduce parameters
     const calculatedTotalStock =
       nextVariants.length > 0
-        ? nextVariants.reduce((sum, v) => sum + v.stock, 0).toString()
+        ? nextVariants
+            .reduce((sum: number, v: ProductVariant) => sum + v.stock, 0)
+            .toString()
         : form.stock;
 
     onChange({
@@ -49,7 +53,7 @@ export function EditItemModal({
     });
   };
 
-  // 🚀 FIXED: Tells the TypeScript compiler that this helper handles string properties only
+  // 🚀 Tells the TypeScript compiler that this helper handles string properties only
   const field = (key: Exclude<keyof EditForm, "variants">) => ({
     value: (form[key] as string) ?? "",
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -75,7 +79,7 @@ export function EditItemModal({
           </button>
         </div>
 
-        {/* Body Container */}
+        {/* Body + Actions */}
         <div className="p-6 space-y-5 overflow-y-auto scrollbar-thin">
           <div>
             <label className="text-sm font-medium text-muted-foreground block mb-1 select-none">
@@ -134,7 +138,6 @@ export function EditItemModal({
                 <input
                   type="number"
                   {...field("stock")}
-                  // 🚀 FIXED: Locks down flat stock manual entering if explicit sizes/colors are managed
                   disabled={hasActiveVariants}
                   className={inputClass}
                   required
@@ -145,7 +148,6 @@ export function EditItemModal({
 
           {isProduct && (
             <div className="space-y-4 pt-1 border-t border-primary/5">
-              {/* 🚀 FASHION VARIATION MANAGER ROW INJECTION POINT */}
               <div className="pt-2">
                 <ProductVariantsManager
                   variants={currentVariants}
@@ -191,22 +193,23 @@ export function EditItemModal({
               </div>
             </div>
           )}
-        </div>
 
-        {/* Footer Actions */}
-        <div className="flex gap-3 px-6 py-4 border-t bg-muted/30 shrink-0 select-none">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-border bg-background text-foreground font-medium transition-colors cursor-pointer hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSubmit}
-            className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 font-medium transition-colors cursor-pointer"
-          >
-            Save Changes
-          </button>
+          <div className="flex gap-3 pt-4 border-t border-border select-none">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl border border-border bg-background text-foreground font-medium transition-colors cursor-pointer hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onSubmit}
+              className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 font-medium transition-colors cursor-pointer"
+            >
+              Save Changes
+            </button>
+          </div>
         </div>
       </div>
     </div>
