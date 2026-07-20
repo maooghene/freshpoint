@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
 import { NavigationItemShape, BusinessInfo } from "./types";
-import { useState } from "react";
 
 interface DesktopSidebarProps {
   businessInfo: BusinessInfo | null;
@@ -22,6 +21,7 @@ interface DesktopSidebarProps {
   theme: string | undefined;
   setTheme: (theme: string) => void;
   user:
+
     | { firstName?: string | null; lastName?: string | null }
     | null
     | undefined;
@@ -37,26 +37,25 @@ export default function DesktopSidebar({
   user,
 }: DesktopSidebarProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
- const [hasMounted] = React.useState(() => typeof window !== "undefined");
+  const [hasMounted] = React.useState(() => typeof window !== "undefined");
 
   const resolvedTheme = theme ?? "light";
-
-  
 
   return (
     <aside
       className={`hidden lg:flex h-full shrink-0 flex-col border-r border-border bg-card transition-all duration-300 ${isCollapsed ? "w-20" : "w-64"}`}
     >
-      {/* 1. Header Block (Shortened padding to preserve height) */}
+      {/* 1. Header Block - Cleaned up to keep the logo layout completely sleek and streamlined */}
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
         <div className="flex items-center gap-2 min-w-0 w-full justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
             {isCollapsed ? (
-              <FreshpointLogo size={40} />
+              <FreshpointLogo size={24} />
             ) : (
-              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1">
-                <FreshpointLogo size={40} />
-                <span className="truncate text-[10px] text-muted-foreground leading-none">
+              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1.5">
+                <FreshpointLogo size={24} />
+                {/* Fixed the business name text to a sleek, professional micro-typography scale */}
+                <span className="truncate text-[10px] font-bold text-muted-foreground tracking-wide uppercase leading-none mt-0.5">
                   {businessInfo?.name || "FreshpointBiz"}
                 </span>
               </div>
@@ -64,7 +63,7 @@ export default function DesktopSidebar({
           </div>
         </div>
         {!isCollapsed && (
-          <div className="flex items-center gap-2 pl-7 min-w-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 pl-0 min-w-0 animate-in fade-in duration-200 mt-1">
             <span
               className={`rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide select-none ${
                 isApproved
@@ -105,7 +104,7 @@ export default function DesktopSidebar({
         })}
       </nav>
 
-      {/* 3. 💡 ULTRA-COMPACT WORKSPACE FOOTER */}
+      {/* 3. ULTRA-COMPACT WORKSPACE FOOTER */}
       <div className="flex flex-col gap-2 border-t border-border p-3 shrink-0 min-w-0 bg-card">
         {/* ROW 1: System Toggles & Exit Action */}
         <div
@@ -135,7 +134,7 @@ export default function DesktopSidebar({
             )}
           </button>
 
-          {/* 💡 SIDE-BY-SIDE EXIT WORKSPACE: Embedded directly in row on desktop to save space */}
+          {/* SIDE-BY-SIDE EXIT WORKSPACE */}
           <Link
             href="/"
             title="Exit Workspace"
@@ -158,7 +157,7 @@ export default function DesktopSidebar({
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground bg-secondary/10"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            title={isCollapsed ? "Collapse Sidebar" : "Expand Sidebar"}
           >
             {isCollapsed ? (
               <ChevronRightIcon className="h-4 w-4 shrink-0" />
