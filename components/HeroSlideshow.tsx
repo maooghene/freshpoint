@@ -10,7 +10,25 @@ interface SlideshowItemShape {
   short: string;
 }
 
+// 🎯 UNIFIED MASTER INSTANCE: Holds all 12 of your original wellness services and new fashion product lines together with zero restrictions!
 const heroImages: SlideshowItemShape[] = [
+  /* ── BRAND NEW FASHION & APPAREL CATEGORIES ── */
+  {
+    src: "/hero/clothes.jpg",
+    label: "Curated Apparels & Trend Styles",
+    short: "Clothing & Styles",
+  },
+  {
+    src: "/hero/shoes.jpg",
+    label: "Designer Footwear Collections",
+    short: "Footwear & Shoes",
+  },
+  {
+    src: "/hero/fashion-accessories.jpg",
+    label: "Bespoke Fashion Accessories",
+    short: "Fashion Details",
+  },
+  /* ── ALL ORIGINAL SERVICES FULLY RESTORED & ALIGNED ── */
   {
     src: "/hero/consultation.jpg",
     label: "Health & Wellness Consults",
@@ -21,13 +39,21 @@ const heroImages: SlideshowItemShape[] = [
     label: "Premium Hair Salons",
     short: "Hair Salons",
   },
-  { src: "/hero/spa.jpg", label: "Luxury Spas & Massage", short: "Spas & Spa" },
+  {
+    src: "/hero/spa.jpg",
+    label: "Luxury Spas & Massage",
+    short: "Spas & Spa",
+  },
   {
     src: "/hero/nails.jpg",
     label: "Nails & Pedicure Studios",
     short: "Nails & Pedi",
   },
-  { src: "/hero/skincare.jpg", label: "Skincare & Facials", short: "Skincare" },
+  {
+    src: "/hero/skincare.jpg",
+    label: "Skincare & Facials",
+    short: "Skincare",
+  },
   {
     src: "/hero/wellness-beauty.jpg",
     label: "Wellness & Beauty Hubs",
@@ -40,7 +66,7 @@ const heroImages: SlideshowItemShape[] = [
   },
   {
     src: "/hero/barber.jpg",
-    label: "Modern Barbershops",
+    label: "Modern Barbershops & Grooming",
     short: "Barbershops",
   },
   {
@@ -54,17 +80,14 @@ export default function HeroSlideshow() {
   const [index, setIndex] = useState<number>(0);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
-  // 🌟 FIXED: Added a container ref to handle isolated internal tracking alignment
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // 🌟 FIXED: Replaced aggressive scrollIntoView with precise, isolated internal container offsets
   const scrollToActiveElement = (targetIdx: number) => {
     const container = containerRef.current;
     const activeEl = buttonRefs.current[targetIdx];
 
     if (container && activeEl) {
-      // Calculates precise centering offset inside the left list only
       const targetScrollTop =
         activeEl.offsetTop -
         container.clientHeight / 2 +
@@ -99,7 +122,7 @@ export default function HeroSlideshow() {
   };
 
   return (
-    <div className="w-full max-w-[580px] aspect-[4/3] md:h-[380px] rounded-[2rem] border border-border/80 bg-card p-4 shadow-2xl overflow-hidden flex gap-4 relative select-none">
+    <div className="w-full max-w-[580px] aspect-[4/3] md:h-[380px] rounded-[2rem] border border-border/80 bg-card p-4 shadow-2xl overflow-hidden flex gap-4 relative select-none shrink-0">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 -z-10" />
 
       {/* ── LEFT PANEL: ISO-SCROLLING TEXT CHANNELS SELECTOR ── */}
@@ -107,17 +130,16 @@ export default function HeroSlideshow() {
         <div className="space-y-1 pt-1 pb-2 shrink-0 bg-card/40">
           <div className="flex items-center gap-1.5 text-[11px] font-black uppercase text-primary tracking-widest">
             <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-            <span>{"Ecosystem"}</span>
+            <span>{"Marketplace"}</span>
           </div>
           <h4 className="text-sm font-black text-foreground tracking-tight leading-tight">
-            {"Wellness Hubs"}
+            {"Products & Services"}
           </h4>
         </div>
 
-        {/* 🌟 FIXED: Attached containerRef and restricted focus boundaries strictly to this element view */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-y-auto pr-1 space-y-2 py-1 scroll-smooth select-none min-h-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden position relative"
+          className="flex-1 overflow-y-auto pr-1 space-y-2 py-1 scroll-smooth select-none min-h-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden relative"
         >
           {heroImages.map((img: SlideshowItemShape, i: number) => {
             const isActive = i === index;
@@ -177,7 +199,7 @@ export default function HeroSlideshow() {
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/5 via-muted to-primary/10 text-primary/30 p-4 text-center animate-in fade-in duration-200">
                   <Sparkles className="w-7 h-7 mb-1 text-primary/20" />
                   <span className="text-[10px] font-black tracking-widest uppercase opacity-75">
-                    {"Wellness Hub"}
+                    {"FreshPoint"}
                   </span>
                 </div>
               )}
@@ -186,7 +208,7 @@ export default function HeroSlideshow() {
         })}
 
         <div className="absolute bottom-3 left-3 right-3 z-20">
-          <div className="inline-block px-3 py-1.5 bg-background/80 backdrop-blur-md rounded-xl text-xs font-black text-foreground border border-border/40 shadow-sm tracking-tight animate-in fade-in slide-in-from-bottom-1">
+          <div className="inline-block px-3 py-1.5 bg-background/80 backdrop-blur-md rounded-xl text-xs font-black text-foreground border border-border/40 shadow-sm tracking-tight max-w-full truncate animate-in fade-in slide-in-from-bottom-1">
             {heroImages[index].label}
           </div>
         </div>
