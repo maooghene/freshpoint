@@ -28,7 +28,7 @@ export function NavbarContent() {
           }
           className="flex items-center gap-2 shrink-0"
         >
-          <FreshpointLogo size={50} />
+          <FreshpointLogo size={40} />
           {isCurrentlyInBusinessDashboard && (
             <span className="text-xs px-1.5 py-0.5 bg-primary/10 rounded text-muted-foreground font-mono">
               Biz

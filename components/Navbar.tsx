@@ -20,7 +20,7 @@ export default function Navbar() {
         <nav className="fixed top-0 right-0 left-0 z-50 px-6 border-b border-border bg-background h-16 flex items-center select-none">
           <div className="max-w-7xl w-full mx-auto flex justify-between items-center">
             <div className="flex items-center animate-pulse">
-              <FreshpointLogo size={50} />
+              <FreshpointLogo size={40} />
             </div>
             <div className="w-24 h-8 bg-muted rounded-xl animate-pulse" />
           </div>
