@@ -35,37 +35,54 @@ export function useNavbarRouting() {
 
     let isMounted = true;
 
-    // 🌟 FIXED: Points straight to your true verified endpoint file folder path
     fetch("/api/auth/check-onboarding", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!isMounted || !data) return;
 
-        setHasBusinessAccess(true);
+        // 🔐 FIXED: Access is granted ONLY if the user has an explicit role, or a destination that isn't a public profile landing
+        const isAuthorizedUser =
+          data.hasBusinessAccess === true ||
+          (data.destination &&
+            data.destination !== "/" &&
+            data.destination !== "/onboarding");
 
-        if (data.destination === "/select-workspace") {
-          setPortalLabel("Manage Spaces");
-          setMerchantDashboardHref("/select-workspace");
-        } else if (data.destination && data.destination.startsWith("/admin")) {
-          setPortalLabel("Admin Panel");
-          setMerchantDashboardHref(data.destination);
-        } else if (
-          data.destination &&
-          data.destination.startsWith("/business")
-        ) {
-          setPortalLabel("My Shop");
-          setMerchantDashboardHref(data.destination);
+        if (isAuthorizedUser) {
+          setHasBusinessAccess(true);
+
+          if (data.destination === "/select-workspace") {
+            setPortalLabel("Manage Spaces");
+            setMerchantDashboardHref("/select-workspace");
+          } else if (
+            data.destination &&
+            data.destination.startsWith("/admin")
+          ) {
+            setPortalLabel("Admin Panel");
+            setMerchantDashboardHref(data.destination);
+          } else if (
+            data.destination &&
+            data.destination.startsWith("/business")
+          ) {
+            setPortalLabel("My Shop");
+            setMerchantDashboardHref(data.destination);
+          } else {
+            setPortalLabel("Manage Spaces");
+            setMerchantDashboardHref("/select-workspace");
+          }
         } else {
-          setPortalLabel("Manage Spaces");
-          setMerchantDashboardHref("/select-workspace");
+          // Keep regular public consumer accounts locked down safely
+          setHasBusinessAccess(false);
+          setMerchantDashboardHref(null);
+          setPortalLabel("My Space");
         }
       })
       .catch((err) => {
         console.error("Identity synchronization failure:", err);
         if (isMounted) {
-          setHasBusinessAccess(true);
-          setPortalLabel("Manage Spaces");
-          setMerchantDashboardHref("/select-workspace");
+          // Safeguard: Fail closed on network errors so links stay hidden until proven safe
+          setHasBusinessAccess(false);
+          setMerchantDashboardHref(null);
+          setPortalLabel("My Space");
         }
       });
 
@@ -84,7 +101,6 @@ export function useNavbarRouting() {
       try {
         setError(null);
 
-        // 🌟 FIXED: Points straight to your true verified endpoint file folder path with intent param
         const onboardRes = await fetch(
           "/api/auth/check-onboarding?intent=manage",
           {

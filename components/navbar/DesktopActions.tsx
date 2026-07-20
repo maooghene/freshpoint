@@ -10,10 +10,8 @@ import {
   MapPin,
   ClipboardList,
   Search,
-  LayoutDashboard,
   HelpCircleIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { SignInButton } from "@clerk/nextjs";
 
 interface DesktopActionsProps {
@@ -39,10 +37,6 @@ export function DesktopActions({
   setTheme,
   mounted,
   cartItemsCount,
-  hasBusinessAccess,
-  displayLabel,
-  handlePortalNavigation,
-  isNavigating,
   isSignedIn,
 }: DesktopActionsProps): React.JSX.Element {
   const guardedLinkClass =
@@ -71,18 +65,7 @@ export function DesktopActions({
 
       {/* ICON INTERACTION CONTROLS */}
       <div className="flex items-center gap-6 flex-shrink-0">
-        {/* 🌟 DESKTOP WORKSPACE RE-ENTRY TRIGGER */}
-        {hasBusinessAccess && (
-          <Button
-            onClick={handlePortalNavigation}
-            disabled={isNavigating}
-            variant="outline"
-            className="lg:hidden h-8.5 px-3 rounded-xl text-[11px] font-bold gap-1.5 bg-primary/5 text-primary border-primary/20 hover:bg-primary/10 cursor-pointer transition-all duration-200"
-          >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            <span>{displayLabel}</span>
-          </Button>
-        )}
+        {/* ❌ DUPLICATE REMOVED SECTOR: Extra workspace button stripped entirely to clean up the layout */}
 
         <Link
           href="/explore"
@@ -194,10 +177,11 @@ export function DesktopActions({
           </span>
         </Link>
 
+        {/* Theme Mode Toggle */}
         <button
           type="button"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors cursor-pointer border-none bg-transparent outline-none"
+          className="flex flex-col items-center justify-center group text-muted-foreground hover:text-primary transition-colors cursor-pointer border-none bg-transparent outline-none select-none"
         >
           <div className="p-0.5">
             {mounted && theme === "dark" ? (

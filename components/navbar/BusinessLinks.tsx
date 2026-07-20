@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LayoutDashboard, Store, Users, Menu, X } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { LayoutDashboard, Store, Users, Menu, X, Loader2 } from "lucide-react";
 
 interface BusinessLinksProps {
   businessId: string;
@@ -13,13 +14,54 @@ export function BusinessLinks({
   businessId,
   pathSegments,
 }: BusinessLinksProps) {
+  const { user, isLoaded } = useUser();
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
+  const [hasManagementAccess, setHasManagementAccess] =
+    React.useState<boolean>(false);
+  const [isValidating, setIsValidating] = React.useState<boolean>(false);
+
+  // 🔐 Dynamic operational gate verification pass
+  React.useEffect(() => {
+    if (!user) {
+      setHasManagementAccess(false);
+      return;
+    }
+
+    const checkAccess = async () => {
+      setIsValidating(true);
+      try {
+        // Calls your auth endpoint to verify if the user owns or works at this specific businessId
+        const res = await fetch(
+          `/api/auth/verify-business-access?businessId=${businessId}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setHasManagementAccess(data.hasAccess);
+        } else {
+          setHasManagementAccess(false);
+        }
+      } catch (err) {
+        console.error("BUSINESS_NAVBAR_RESOLVER_ERROR:", err);
+        setHasManagementAccess(false);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    checkAccess();
+  }, [user, businessId]);
+
+  // Keep components entirely hidden from regular public users and unauthenticated sessions
+  if (!isLoaded || isValidating || !hasManagementAccess) {
+    return null;
+  }
 
   return (
-    <div className="relative flex items-center md:flex-1 md:justify-center">
+    <div className="relative flex items-center md:flex-1 md:justify-center animate-in fade-in duration-200">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer"
+        aria-label="Toggle store menu"
       >
         {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
