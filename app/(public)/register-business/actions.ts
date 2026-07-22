@@ -160,7 +160,7 @@ export async function createBusiness(
           status: "approved",
           isActive: true,
           ownerId: systemUser.id,
-          categories: [category],
+          categories,
         },
       }),
       prisma.user.update({
