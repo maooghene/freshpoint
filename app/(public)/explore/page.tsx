@@ -10,10 +10,11 @@ import {
   Sparkle,
   Stethoscope,
   MoreHorizontal,
+  Tag, // ADDED: fallback icon for admin-created categories not in the map below
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import BusinessesGrid, { GridItem } from "./BusinessesGrid";
-import { BUSINESS_CATEGORIES } from "@/lib/categories";
+import { getBusinessCategories } from "@/lib/actions/admin-categories"; // CHANGED: was static import from "@/lib/categories"
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ interface PageProps {
   searchParams: Promise<{ search?: string; category?: string }>;
 }
 
-// Icons live here only (presentation concern), values come from the shared list
+// Icons for known/legacy categories. Anything not listed here falls back to <Tag />.
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "": <Store className="w-3.5 h-3.5" />,
   SALON: <Scissors className="w-3.5 h-3.5" />,
@@ -31,15 +32,21 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
 };
 
-const CATEGORIES = [
-  { label: "All Providers", value: "" },
-  ...BUSINESS_CATEGORIES,
-];
-
 export default async function ExplorePage({ searchParams }: PageProps) {
   const resolvedParams = await searchParams;
   const searchQuery = resolvedParams.search?.trim() || "";
   const selectedCategory = resolvedParams.category?.trim().toUpperCase() || "";
+
+  // ADDED: pull live, active categories set by admin instead of the static array
+  const businessCategories = await getBusinessCategories();
+  const activeCategories = businessCategories
+    .filter((c) => c.isActive)
+    .map((c) => ({ label: c.label, value: c.value }));
+
+  const CATEGORIES = [
+    { label: "All Providers", value: "" },
+    ...activeCategories,
+  ];
 
   const baseConditions: Prisma.BusinessWhereInput[] = [
     {
@@ -149,7 +156,8 @@ export default async function ExplorePage({ searchParams }: PageProps) {
                     : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                {CATEGORY_ICONS[cat.value]} <span>{cat.label}</span>
+                {CATEGORY_ICONS[cat.value] ?? <Tag className="w-3.5 h-3.5" />}
+                <span>{cat.label}</span>
               </Link>
             );
           })}

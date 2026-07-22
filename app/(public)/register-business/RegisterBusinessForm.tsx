@@ -14,9 +14,18 @@ import { FormContactFields } from "@/components/checkout/FormContactFields";
 import { FormLocationCapacityFields } from "@/components/checkout/FormLocationCapacityFields";
 import { FormDescriptionField } from "@/components/checkout/FormDescriptionField";
 
+interface CategoryOption {
+  label: string;
+  value: string;
+}
+
 const initialState: RegisterState = { success: false, message: "" };
 
-export function RegisterBusinessForm(): React.JSX.Element {
+export function RegisterBusinessForm({
+  categories,
+}: {
+  categories: CategoryOption[];
+}): React.JSX.Element {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(
     createBusiness,
@@ -122,8 +131,11 @@ export function RegisterBusinessForm(): React.JSX.Element {
           onSlugChange={handleSlugChange}
         />
 
-        <ImageAndCategoryFields isPending={isPending} state={state} />
-
+        <ImageAndCategoryFields
+          isPending={isPending}
+          state={state}
+          categories={categories}
+        />
         <FormContactFields isPending={isPending} state={state} />
         <FormLocationCapacityFields isPending={isPending} state={state} />
         <FormDescriptionField isPending={isPending} />

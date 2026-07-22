@@ -5,16 +5,25 @@ import { Image as ImageIcon, Tags } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { RegisterState } from "./actions";
-import { BUSINESS_CATEGORIES } from "@/lib/categories";
 
 const MAX_CATEGORIES = 3;
+
+interface CategoryOption {
+  label: string;
+  value: string;
+}
 
 interface Props {
   isPending: boolean;
   state: RegisterState;
+  categories: CategoryOption[]; // ADDED
 }
 
-export function ImageAndCategoryFields({ isPending, state }: Props) {
+export function ImageAndCategoryFields({
+  isPending,
+  state,
+  categories,
+}: Props) {
   const [selected, setSelected] = React.useState<string[]>([]);
 
   const toggleCategory = (value: string) => {
@@ -23,7 +32,7 @@ export function ImageAndCategoryFields({ isPending, state }: Props) {
         return prev.filter((v) => v !== value);
       }
       if (prev.length >= MAX_CATEGORIES) {
-        return prev; // silently block further selection past the cap
+        return prev;
       }
       return [...prev, value];
     });
@@ -67,7 +76,12 @@ export function ImageAndCategoryFields({ isPending, state }: Props) {
         </Label>
 
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-input bg-background p-3">
-          {BUSINESS_CATEGORIES.map((cat) => {
+          {categories.length === 0 && (
+            <p className="col-span-2 text-xs text-muted-foreground py-1">
+              {"No categories available yet."}
+            </p>
+          )}
+          {categories.map((cat) => {
             const isChecked = selected.includes(cat.value);
             const isDisabled =
               isPending || (!isChecked && selected.length >= MAX_CATEGORIES);

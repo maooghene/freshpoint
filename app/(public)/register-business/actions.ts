@@ -6,7 +6,7 @@ import imagekit from "@/config/imageKit";
 import { UserRole } from "@prisma/client";
 import { analyzeBusinessIntentWithAI } from "./aiGate";
 import { RegisterErrors } from "./types";
-import { VALID_CATEGORY_VALUES } from "@/lib/categories";
+
 
 export interface RegisterState {
   success: boolean;
@@ -91,10 +91,22 @@ export async function createBusiness(
       errors.category = "Please select at least one business category.";
     } else if (categories.length > 3) {
       errors.category = "You can select a maximum of 3 categories.";
-    } else if (!categories.every((c) => VALID_CATEGORY_VALUES.includes(c))) {
-      errors.category = "One or more selected categories are invalid.";
-    }
+    } else {
+      // ADDED: validate against live, active BusinessCategory rows instead of a static array
+      const matchedCategories = await prisma.businessCategory.findMany({
+        where: {
+          value: { in: categories },
+          isActive: true,
+        },
+        select: { value: true },
+      });
+      const validValues = new Set(matchedCategories.map((c) => c.value));
+      const allValid = categories.every((c) => validValues.has(c));
 
+      if (!allValid) {
+        errors.category = "One or more selected categories are invalid.";
+      }
+    }
     if (Object.keys(errors).length > 0) {
       return {
         success: false,
