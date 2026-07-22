@@ -138,7 +138,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        <div className="flex items-center justify-start md:justify-center gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x snap-mandatory">
+        <div className="flex items-center justify-start gap-2.5 overflow-x-auto pb-3 pt-1 px-1 -mx-1 scrollbar-none snap-x snap-mandatory scroll-smooth [-webkit-overflow-scrolling:touch]">
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.value;
             const queryString = new URLSearchParams();
@@ -150,7 +150,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
               <Link
                 key={cat.label}
                 href={finalHref}
-                className={`snap-center flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all cursor-pointer ${
+                className={`snap-start shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
                     ? "border-primary bg-primary text-primary-foreground ring-4 ring-primary/10"
                     : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40"
