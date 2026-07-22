@@ -60,8 +60,10 @@ export async function createBusiness(
     const address = formData.get("address")?.toString().trim() || "";
     const description = formData.get("description")?.toString().trim() || "";
     const imageFile = formData.get("image") as File | null;
-    const category =
-      formData.get("category")?.toString().trim().toUpperCase() || "";
+    const categories = formData
+      .getAll("categories")
+      .map((c) => c.toString().trim().toUpperCase())
+      .filter(Boolean);
 
     const sittingCapacityRaw = formData.get("sittingCapacity");
     const sittingCapacity = sittingCapacityRaw
@@ -85,8 +87,12 @@ export async function createBusiness(
     if (!imageFile || !(imageFile instanceof File) || imageFile.size === 0) {
       errors.image = "A storefront cover image upload is mandatory.";
     }
-    if (!VALID_CATEGORY_VALUES.includes(category)) {
-      errors.category = "Please select a valid business category.";
+    if (categories.length === 0) {
+      errors.category = "Please select at least one business category.";
+    } else if (categories.length > 3) {
+      errors.category = "You can select a maximum of 3 categories.";
+    } else if (!categories.every((c) => VALID_CATEGORY_VALUES.includes(c))) {
+      errors.category = "One or more selected categories are invalid.";
     }
 
     if (Object.keys(errors).length > 0) {

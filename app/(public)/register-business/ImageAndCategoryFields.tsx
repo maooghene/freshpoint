@@ -7,12 +7,28 @@ import { Label } from "@/components/ui/label";
 import type { RegisterState } from "./actions";
 import { BUSINESS_CATEGORIES } from "@/lib/categories";
 
+const MAX_CATEGORIES = 3;
+
 interface Props {
   isPending: boolean;
   state: RegisterState;
 }
 
 export function ImageAndCategoryFields({ isPending, state }: Props) {
+  const [selected, setSelected] = React.useState<string[]>([]);
+
+  const toggleCategory = (value: string) => {
+    setSelected((prev) => {
+      if (prev.includes(value)) {
+        return prev.filter((v) => v !== value);
+      }
+      if (prev.length >= MAX_CATEGORIES) {
+        return prev; // silently block further selection past the cap
+      }
+      return [...prev, value];
+    });
+  };
+
   return (
     <>
       <div className="space-y-1.5">
@@ -42,30 +58,44 @@ export function ImageAndCategoryFields({ isPending, state }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <Label
-          htmlFor="category"
-          className="flex items-center gap-2 text-foreground font-bold"
-        >
+        <Label className="flex items-center gap-2 text-foreground font-bold">
           <Tags className="h-4 w-4 text-muted-foreground" />
-          {"Business Category"}
+          {"Business Categories"}
+          <span className="text-[10px] font-medium text-muted-foreground">
+            ({selected.length}/{MAX_CATEGORIES} selected)
+          </span>
         </Label>
-        <select
-          id="category"
-          name="category"
-          disabled={isPending}
-          required
-          defaultValue=""
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm h-10"
-        >
-          <option value="" disabled>
-            Select a category
-          </option>
-          {BUSINESS_CATEGORIES.map((cat) => (
-            <option key={cat.value} value={cat.value}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
+
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-input bg-background p-3">
+          {BUSINESS_CATEGORIES.map((cat) => {
+            const isChecked = selected.includes(cat.value);
+            const isDisabled =
+              isPending || (!isChecked && selected.length >= MAX_CATEGORIES);
+
+            return (
+              <label
+                key={cat.value}
+                className={`flex items-center gap-2 text-sm rounded-lg px-2 py-1.5 cursor-pointer ${
+                  isDisabled
+                    ? "opacity-40 cursor-not-allowed"
+                    : "hover:bg-muted"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="categories"
+                  value={cat.value}
+                  checked={isChecked}
+                  disabled={isDisabled}
+                  onChange={() => toggleCategory(cat.value)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                {cat.label}
+              </label>
+            );
+          })}
+        </div>
+
         {state.errors?.category && (
           <p className="text-xs font-semibold text-destructive mt-0.5">
             {state.errors.category}
