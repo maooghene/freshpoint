@@ -11,44 +11,44 @@ export async function getAvailableSlots({
   serviceDurationMinutes,
   dateStr,
 }: SlotConfig) {
-  // 1. Fetch Business, Schedules, and count total active staff assigned here
+  // 1. Fetch Business, Schedules, and count total active staff
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     include: {
       schedules: true,
-      staff: true, // Pull staff profiles to evaluate simultaneous volume capacity
+      staff: true,
     },
   });
 
   if (!business) throw new Error("Business not found");
 
   const totalStaffCount = business.staff.length;
-  if (totalStaffCount === 0) return []; // No staff members available to service bookings
+  if (totalStaffCount === 0) return [];
 
-  const targetDate = new Date(dateStr);
+  // Parse YYYY-MM-DD reliably without local timezone parsing shifts
+  const [year, month, day] = dateStr.split("-").map(Number);
 
-  // Get day string (e.g., "MONDAY") matching your DayOfWeek enum mapping requirements
-  const dayOfWeek = targetDate
-    .toLocaleDateString("en-US", { weekday: "long" })
+  // Construct a reference string to safely read the target day of the week
+  const referenceDate = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = referenceDate
+    .toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })
     .toUpperCase();
 
-  // ✅ FIXED FIELD: changed 'dayOfWeek' to your schema's 'day' property
   const daySchedule = business.schedules.find((s) => s.day === dayOfWeek);
-
-  // ✅ FIXED FIELD: changed '!daySchedule.isOpened' to your schema's 'daySchedule.isClosed' inversion
   if (!daySchedule || daySchedule.isClosed) return [];
 
-  // Parse operating hours string formats safely
   const [openHour, openMin] = daySchedule.openTime.split(":").map(Number);
   const [closeHour, closeMin] = daySchedule.closeTime.split(":").map(Number);
 
-  const startWindow = new Date(targetDate.setHours(openHour, openMin, 0, 0));
-  const endWindow = new Date(targetDate.setHours(closeHour, closeMin, 0, 0));
+  // Parse bounds safely inside the business's explicit timezone setting
+  const startWindow = new Date(`${dateStr}T${daySchedule.openTime}:00.000Z`);
+  const endWindow = new Date(`${dateStr}T${daySchedule.closeTime}:00.000Z`);
 
-  // 2. Fetch concurrent bookings running today
-  const dayStart = new Date(targetDate.setHours(0, 0, 0, 0));
-  const dayEnd = new Date(targetDate.setHours(23, 59, 59, 999));
+  // Broad database query filter bounds for the selected date
+  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
 
+  // 2. Fetch concurrent active bookings running on this date range
   const existingBookings = await prisma.booking.findMany({
     where: {
       businessId,
@@ -59,12 +59,13 @@ export async function getAvailableSlots({
   });
 
   const availableSlots: string[] = [];
-  const gridIntervalMinutes = 15; // Baseline step interval grid
+  const gridIntervalMinutes = 15;
   const totalServiceTimeNeeded =
     serviceDurationMinutes + business.bufferTimeMinutes;
 
-  let currentSlotStart = new Date(startWindow);
+  let currentSlotStart = new Date(startWindow.getTime());
 
+  // 3. Grid allocation iteration
   while (
     currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000 <=
     endWindow.getTime()
@@ -73,7 +74,7 @@ export async function getAvailableSlots({
       currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000,
     );
 
-    // 3. Count how many bookings overlap with this specific time block
+    // Count how many bookings overlap with this explicit time block
     const overlappingBookingsCount = existingBookings.filter((booking) => {
       const bStart = booking.startTime.getTime();
       const bEnd = booking.endTime.getTime();
@@ -83,19 +84,15 @@ export async function getAvailableSlots({
       return sStart < bEnd && sEnd > bStart;
     }).length;
 
-    // 🚀 MULTI-STAFF CAPACITY CHECK:
-    // The slot is open if overlapping bookings are LESS than total staff available
+    // Multi-staff capacity verification
     if (overlappingBookingsCount < totalStaffCount) {
-      availableSlots.push(
-        currentSlotStart.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          timeZone: business.timezone,
-        }),
-      );
+      // Return unmutated clean 24hr format text representation
+      const hh = String(currentSlotStart.getUTCHours()).padStart(2, "0");
+      const mm = String(currentSlotStart.getUTCMinutes()).padStart(2, "0");
+      availableSlots.push(`${hh}:${mm}`);
     }
 
+    // Progress grid slot pointer securely without reference pollution
     currentSlotStart = new Date(
       currentSlotStart.getTime() + gridIntervalMinutes * 60 * 1000,
     );
