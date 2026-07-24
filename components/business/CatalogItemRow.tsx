@@ -29,6 +29,7 @@ export interface CatalogItem {
   stock: number | null;
   duration: number | null;
   variants?: ItemVariantSummary[];
+  category?: { id: string; name: string } | null;
 }
 
 interface CatalogItemRowProps {
@@ -77,6 +78,11 @@ export function CatalogItemRow({
               >
                 {item.type.toLowerCase()}
               </span>
+              {item.category && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border uppercase tracking-wider bg-muted text-muted-foreground border-border">
+                  {item.category.name}
+                </span>
+              )}
             </div>
             <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
               {item.description || "No description provided."}

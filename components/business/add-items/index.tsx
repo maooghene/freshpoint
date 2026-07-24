@@ -20,6 +20,7 @@ export interface ItemFormState {
   duration: string;
   categoryId: string;
   stock: string;
+  hasVariants: boolean;
 }
 
 export interface VariantState {
@@ -41,6 +42,7 @@ const emptyFormFor = (type: ItemType): ItemFormState => ({
   duration: "30",
   categoryId: "",
   stock: "1",
+  hasVariants: false,
 });
 
 export default function FreshpointAddItemDashboard({
@@ -67,14 +69,19 @@ export default function FreshpointAddItemDashboard({
     setVariants([]);
   }
 
-  const onChangeHandler = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ): void => {
-    setServiceInfo((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+ const onChangeHandler = (
+   e: React.ChangeEvent<
+     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+   >,
+ ): void => {
+   const target = e.target as HTMLInputElement; // Safely asserts for fieldType and checked checks
+   const { name, value, type: fieldType } = target;
 
+   const isCheckbox = fieldType === "checkbox";
+   const nextValue = isCheckbox ? target.checked : value;
+
+   setServiceInfo((prev) => ({ ...prev, [name]: nextValue }));
+ };
 
 
 const handleImageChange = async (

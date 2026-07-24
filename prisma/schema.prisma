@@ -57,6 +57,7 @@ model Business {
   cancelWindowHours Int                @default(24)
   currencyCode      String             @default("NGN")
   customInvoiceNote String?
+  googleCredential  GoogleCredential?
   depositPercentage Int                @default(0)
   emailAlertsActive Boolean            @default(true)
   maxAheadDays      Int                @default(30)
@@ -244,6 +245,7 @@ model Booking {
   businessId        String
   userId            String
   staffId           String?
+   googleEventId  String?
   address           Address?      @relation(fields: [addressId], references: [id])
   business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   staff             StaffProfile? @relation(fields: [staffId], references: [id])
@@ -270,14 +272,30 @@ model BookingItem {
 }
 
 model BookingReminderLog {
-  id          String   @id @default(cuid())
-  bookingId   String
-  milestone   String   // Stores values like "120_HOUR", "24_HOUR", "2_HOUR"
-  sentAt      DateTime @default(now())
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  bookingId    String
+  milestone    String    // e.g., "1_DAY", "2_HOURS", "30_MINUTES", "5_MINUTES"
+  scheduledFor DateTime  // <--- This line defines the field for your timeline records
+  sentAt       DateTime? // NULL = pending queue item, TIMESTAMP = completed send
+  booking      Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, milestone])
+  @@index([scheduledFor, sentAt]) // Now Prisma sees the field definition above!
   @@index([bookingId])
+}
+
+
+model GoogleCredential {
+  id           String   @id @default(cuid())
+  businessId   String   @unique
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text // Critical for background refreshes
+  expiresAt    DateTime // Expiration timestamp
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model DailyEmailQuotaTracker {

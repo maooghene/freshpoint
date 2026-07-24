@@ -10,23 +10,32 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useAppSelector, useAppDispatch } from "@/lib/store";
-import { clearBookingFlow } from "@/lib/features/bookingSlice";
+import { clearBookingFlow, setBookingTime } from "@/lib/features/bookingSlice"; // 🌟 Verify action name
 import { Button } from "@/components/ui/button";
 import { BookingSummary } from "@/components/BookingSummary";
+import TimeSlotPicker from "@/components/booking/TimeSlotPicker"; // 🚀 Import slot picker
 
 export default function BookingCart() {
   const currency = "₦";
   const dispatch = useAppDispatch();
 
-  // Directly reads the selected appointment state from your Redux slice
   const bookingState = useAppSelector((state) => state.booking);
-  const { businessName, selectedService, bookingTime } = bookingState;
+  const { businessName, businessId, selectedService, bookingTime } =
+    bookingState; // 🚀 Added businessId from slice
 
   const handleCancelBooking = () => {
     dispatch(clearBookingFlow());
   };
 
-  // Convert slice structure into a standardized array for our UI loop maps
+  // 🚀 Redux Handler: Converts slot strings ("14:30", "2026-07-24") into an ISO timestamp string
+  const handleSlotSelection = (timeStr: string, dateStr: string) => {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(hours, minutes, 0, 0);
+
+    dispatch(setBookingTime(targetDate.toISOString()));
+  };
+
   const activeBookings = selectedService
     ? [
         {
@@ -43,7 +52,6 @@ export default function BookingCart() {
 
   return activeBookings.length > 0 ? (
     <div className="relative min-h-screen overflow-hidden pt-20 bg-background text-foreground">
-      {/* BULLETPROOF BACKGROUND GRID PATTERN */}
       <div className="absolute inset-0 -z-10">
         <div
           className="absolute inset-0 
@@ -56,7 +64,6 @@ export default function BookingCart() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 relative z-10 w-full">
-        {/* TITLE SECTION */}
         <div className="mb-12 space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">Your Selection</h1>
           <p className="text-muted-foreground font-medium">
@@ -65,14 +72,14 @@ export default function BookingCart() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-10 items-start">
-          {/* BOOKING LIST CONTAINER */}
-          <div className="flex-1 w-full space-y-4">
+          <div className="flex-1 w-full space-y-6">
+            {" "}
+            {/* Changed space-y-4 to space-y-6 */}
             {activeBookings.map((item) => (
               <div
                 key={item.id}
                 className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-6 p-5 rounded-2xl border border-border bg-card/60 backdrop-blur-md shadow-xs hover:border-primary/30 transition-all"
               >
-                {/* IMAGE FRAME WRAPPER */}
                 <div className="relative h-24 w-24 rounded-xl overflow-hidden border border-border/60 bg-muted shrink-0">
                   <Image
                     src={item.image || "/placeholder-service.jpg"}
@@ -82,7 +89,6 @@ export default function BookingCart() {
                   />
                 </div>
 
-                {/* SERVICE SPECS METADATA */}
                 <div className="flex-1 space-y-1">
                   <h3 className="text-lg font-bold text-foreground tracking-tight">
                     {item.name}
@@ -112,7 +118,6 @@ export default function BookingCart() {
                   </p>
                 </div>
 
-                {/* ITEM MANAGEMENT ACTIONS */}
                 <div className="flex sm:flex-col items-end gap-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-4 sm:pt-0 border-border">
                   <button
                     type="button"
@@ -122,34 +127,44 @@ export default function BookingCart() {
                   >
                     <Trash2Icon size={18} />
                   </button>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs font-semibold rounded-lg text-primary hover:text-primary/80 hover:bg-primary/5"
-                  >
-                    <Link href={`/book/${item.id}`}>Change Time</Link>
-                  </Button>
+
+                  {/* 🚀 Clear out the selected slot time to toggle the selection grid panel view display open again */}
+                  {item.time && (
+                    <button
+                      type="button"
+                      onClick={() => dispatch(setBookingTime(""))}
+                      className="text-xs font-semibold text-primary hover:text-primary/80 transition-all cursor-pointer"
+                    >
+                      Change Time
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
+            {/* 🚀 DYNAMIC SLOT INJECTION: Displays when no time selection has been committed to Redux */}
+            {!bookingTime && selectedService && (
+              <div className="mt-4 border border-dashed border-border p-2 rounded-2xl bg-card/40">
+                <TimeSlotPicker
+                  businessId={businessId || ""}
+                  selectedServiceDuration={selectedService.duration}
+                  onSlotSelected={handleSlotSelection}
+                />
+              </div>
+            )}
           </div>
 
-          {/* SIDEBAR SUMMARY CHECKOUT MODULE */}
           <div className="w-full lg:w-96 shrink-0">
             <div className="p-6 rounded-2xl border border-border bg-card/80 backdrop-blur-md shadow-xl space-y-6">
               <BookingSummary
                 totalPrice={selectedService?.price || 0}
                 items={activeBookings}
               />
-              
             </div>
           </div>
         </div>
       </div>
     </div>
   ) : (
-    /* CLEAN EMPTY WORKSPACE LAYER */
     <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-6 max-w-md mx-auto w-full bg-background text-foreground animate-in fade-in duration-300">
       <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
         <ShoppingBag className="size-10 text-primary" />
@@ -162,7 +177,6 @@ export default function BookingCart() {
         collection of premium salons and wellness providers to get started.
       </p>
 
-      {/* 🚀 FIXED: Updated fallback button to bg-primary purple too */}
       <Button
         asChild
         size="lg"

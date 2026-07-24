@@ -55,22 +55,25 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         stock: true,
         isActive: true, // Included so that the front-end toggle handles states accurately
         createdAt: true, // Included for the frontend byNewest sorting function
+        categoryId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
 
     // 💡 ROOT CAUSE FIX: Return "items" key matching the frontend axios call structure perfectly
-    return NextResponse.json(
-      { success: true, items: items },
-      { status: 200 },
-    );
+    return NextResponse.json({ success: true, items: items }, { status: 200 });
   } catch (error: unknown) {
     const errorMsg =
       error instanceof Error ? error.message : "Database Execution Drop";
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
-
 
 // 🔐 POST: Create a new inventory record element
 export async function POST(request: NextRequest, { params }: RouteContext) {

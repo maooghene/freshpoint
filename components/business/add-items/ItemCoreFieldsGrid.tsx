@@ -18,7 +18,11 @@ interface ItemCoreFieldsGridProps {
   type: ItemType;
   loading: boolean;
   serviceInfo: ItemFormState;
-  onChangeHandler: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
+  onChangeHandler: (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) => void;
   handleImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   imagePreview: string | null;
   setImage: (file: File | null) => void;
@@ -64,26 +68,14 @@ export function ItemCoreFieldsGrid({
     };
   }, [type]);
 
-  // 🚀 INTERLOCK LOGIC: Checks if the chosen product category matches fashion parameters
-  const activeCategory = categories.find((c) => c.id === serviceInfo.categoryId);
-  const catNameLower = activeCategory?.name.toLowerCase() || "";
-  const categoryDemandsVariants = 
-    type === "PRODUCT" && (
-      catNameLower.includes("clothing") || 
-      catNameLower.includes("shoe") || 
-      catNameLower.includes("fashion") || 
-      catNameLower.includes("apparel") || 
-      catNameLower.includes("footwear") || 
-      catNameLower.includes("wear")
-    );
 
+  
   return (
     <div className="grid gap-6 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
-      
       {/* ✓ CATEGORY FIRST */}
       <div className="space-y-2">
         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block select-none">
-          Category
+          Category (optional)
         </label>
         <div className="relative">
           <select
@@ -92,19 +84,44 @@ export function ItemCoreFieldsGrid({
             onChange={onChangeHandler}
             value={serviceInfo.categoryId}
             className="flex h-12 w-full rounded-xl border border-primary/10 bg-background/50 px-4 py-2 text-sm text-foreground focus:outline-none appearance-none disabled:opacity-50"
-            required
           >
             <option value="" className="bg-background text-muted-foreground">
-              {categoriesLoading ? "Loading categories..." : "Select category"}
+              {categoriesLoading
+                ? "Loading categories..."
+                : "No category (optional)"}
             </option>
             {categories.map((cat) => (
-              <option key={cat.id} value={cat.id} className="bg-background text-foreground">
+              <option
+                key={cat.id}
+                value={cat.id}
+                className="bg-background text-foreground"
+              >
                 {cat.name}
               </option>
             ))}
           </select>
         </div>
       </div>
+
+      {type === "PRODUCT" && (
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="hasVariants"
+            name="hasVariants"
+            checked={serviceInfo.hasVariants}
+            onChange={onChangeHandler}
+            disabled={loading}
+            className="size-4 rounded border-primary/30"
+          />
+          <label
+            htmlFor="hasVariants"
+            className="text-sm text-foreground select-none cursor-pointer"
+          >
+            This product comes in multiple sizes or colors
+          </label>
+        </div>
+      )}
 
       {/* ✓ IMAGE SELECTION SECOND */}
       <ImageUpload
@@ -127,7 +144,11 @@ export function ItemCoreFieldsGrid({
           disabled={loading}
           onChange={onChangeHandler}
           value={serviceInfo.name}
-          placeholder={type === "SERVICE" ? "e.g. Deep Tissue Massage" : "e.g. Standard Product Entry"}
+          placeholder={
+            type === "SERVICE"
+              ? "e.g. Deep Tissue Massage"
+              : "e.g. Standard Product Entry"
+          }
           className="bg-background/50 border-primary/10 h-12 rounded-xl text-foreground"
           required
         />
@@ -151,13 +172,17 @@ export function ItemCoreFieldsGrid({
       </div>
 
       {/* METRICS SPLIT: PRICING AND VALUE FIELDS */}
-      <div className={`grid ${type === "SERVICE" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-6`}>
+      <div
+        className={`grid ${type === "SERVICE" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-6`}
+      >
         <div className="space-y-2">
           <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block select-none">
             Price (₦)
           </label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">₦</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">
+              ₦
+            </span>
             <Input
               type="number"
               name="price"
@@ -191,7 +216,7 @@ export function ItemCoreFieldsGrid({
         )}
 
         {/* 🚀 FIXED GATING: Standalone stock inputs are visible ONLY for normal products with NO active variants */}
-        {type === "PRODUCT" && !categoryDemandsVariants && (
+        {type === "PRODUCT" && !serviceInfo.hasVariants && (
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block select-none">
               Stock Quantity
@@ -204,14 +229,14 @@ export function ItemCoreFieldsGrid({
               value={serviceInfo.stock}
               placeholder="Quantity available"
               className="bg-background/50 border-primary/10 h-12 rounded-xl text-foreground"
-              required={type === "PRODUCT" && !categoryDemandsVariants}
+              required={type === "PRODUCT" && !serviceInfo.hasVariants}
             />
           </div>
         )}
       </div>
 
       {/* 🚀 FIXED VARIANT CONDITION: Reveals size/color panel ONLY if the type is PRODUCT AND the selected category matches clothing keywords */}
-      {categoryDemandsVariants && (
+      {serviceInfo.hasVariants && (
         <ProductVariantsManager
           variants={variants}
           setVariants={setVariants}
@@ -224,8 +249,14 @@ export function ItemCoreFieldsGrid({
         disabled={loading}
         className="w-full sm:w-auto px-12 h-14 mt-10 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer"
       >
-        {type === "SERVICE" ? <SparklesIcon className="mr-2 size-5" /> : <PackageIcon className="mr-2 size-5" />}
-        {loading ? "Publishing..." : `Publish ${type === "SERVICE" ? "Service" : "Product"}`}
+        {type === "SERVICE" ? (
+          <SparklesIcon className="mr-2 size-5" />
+        ) : (
+          <PackageIcon className="mr-2 size-5" />
+        )}
+        {loading
+          ? "Publishing..."
+          : `Publish ${type === "SERVICE" ? "Service" : "Product"}`}
       </Button>
     </div>
   );

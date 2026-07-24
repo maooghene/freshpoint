@@ -4,6 +4,8 @@ import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
 import { verifyPaystackPayment } from "@/lib/paystack"; // Single shared utility source
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
+import { queueBookingReminders } from "@/utils/reminders";
+
 
 interface PaystackWebhookData {
   status: string;
@@ -200,6 +202,9 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("✅ Booking created successfully:", booking.id);
+
+    await queueBookingReminders(booking.id);
+    
     return NextResponse.json({ success: true, bookingId: booking.id });
   } catch (error: unknown) {
     console.error("❌ Booking confirmation handler exception:", error);

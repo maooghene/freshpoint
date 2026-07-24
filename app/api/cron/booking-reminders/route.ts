@@ -6,6 +6,22 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Helper to format milestones into reader-friendly text for emails
+const formatMilestoneText = (milestone: string): string => {
+  switch (milestone) {
+    case "1_DAY":
+      return "tomorrow";
+    case "2_HOURS":
+      return "in 2 hours";
+    case "30_MINUTES":
+      return "in 30 minutes";
+    case "5_MINUTES":
+      return "in 5 minutes";
+    default:
+      return "soon";
+  }
+};
+
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -14,68 +30,92 @@ export async function GET(request: Request) {
     }
 
     const now = new Date();
-    // ✅ OPTIMIZED: Capture everything scheduled for the upcoming 24 hours
-    const twentyFourHoursAhead = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    const pendingReminders = await prisma.booking.findMany({
+    // 1. Fetch pending logs scheduled for NOW or in the PAST that haven't been sent
+    const dueReminders = await prisma.bookingReminderLog.findMany({
       where: {
-        status: "CONFIRMED",
-        startTime: {
-          gte: now,
-          lte: twentyFourHoursAhead,
+        scheduledFor: {
+          lte: now,
+        },
+        sentAt: null, // Only fetch items still in the queue
+        booking: {
+          status: "CONFIRMED", // Safety check: ensure booking wasn't cancelled
         },
       },
       include: {
-        user: true,
-        business: true,
-        reminderLogs: true,
+        booking: {
+          include: {
+            user: true,
+            business: true,
+          },
+        },
       },
+      take: 50, // Batch limit to safely manage serverless execution windows
     });
 
     let emailsDispatched = 0;
 
-    for (const booking of pendingReminders) {
-      const alreadySent = booking.reminderLogs.some(
-        (log) => log.milestone === "24_HOUR",
-      );
-      if (alreadySent) continue;
+    for (const log of dueReminders) {
+      const { booking, milestone } = log;
+      const { business, user } = booking;
 
-      if (booking.business.emailAlertsActive) {
-        const timeString = booking.startTime.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
+      // Skip processing if the business turned off email notifications entirely
+      if (!business.emailAlertsActive) {
+        // Mark as sent anyway so it drops out of the active processing queue
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: now },
         });
-        const dateString = booking.startTime.toLocaleDateString([], {
-          weekday: "long",
-          month: "short",
-          day: "numeric",
-        });
+        continue;
+      }
 
-        const clientName = booking.user.firstName ?? "Valued Client";
-        const vendorName = booking.business.name;
+      const timeString = booking.startTime.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: business.timezone,
+      });
 
+      const dateString = booking.startTime.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        timeZone: business.timezone,
+      });
+
+      const clientName = user.firstName ?? "Valued Client";
+      const vendorName = business.name;
+      const horizonText = formatMilestoneText(milestone);
+
+      try {
+        // 2. Dispatch email notification to the CUSTOMER
         await resend.emails.send({
           from: "FreshPoint Alerts <onboarding@resend.dev>",
-          to: booking.user.email,
-          subject: `Reminder: Your booking with ${vendorName} is today!`,
-          html: `<p>Hi ${clientName}, this is a friendly reminder that your upcoming appointment with <strong>${vendorName}</strong> is scheduled for today, ${dateString} at ${timeString}.</p>`,
+          to: user.email,
+          subject: `Reminder: Your booking with ${vendorName} is ${horizonText}!`,
+          html: `<p>Hi ${clientName}, this is a friendly reminder that your upcoming appointment with <strong>${vendorName}</strong> is ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
 
+        // 3. Dispatch email notification to the BUSINESS OWNER
         await resend.emails.send({
           from: "FreshPoint Studio <onboarding@resend.dev>",
-          to: booking.business.email,
-          subject: `Upcoming Session: Appointment with ${clientName} today`,
-          html: `<p>Hello ${vendorName}, your session with client <strong>${clientName}</strong> is scheduled for today, ${dateString} at ${timeString}.</p>`,
+          to: business.email,
+          subject: `Upcoming Session: Appointment with ${clientName} ${horizonText}`,
+          html: `<p>Hello ${vendorName}, your session with client <strong>${clientName}</strong> is scheduled for ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
 
         emailsDispatched += 2;
+      } catch (emailError) {
+        console.error(
+          `Failed to dispatch email for log ID ${log.id}:`,
+          emailError,
+        );
+        // Continue processing other records even if an email fails
       }
 
-      await prisma.bookingReminderLog.create({
-        data: {
-          bookingId: booking.id,
-          milestone: "24_HOUR",
-        },
+      // 4. Mark this specific queue milestone item as completed
+      await prisma.bookingReminderLog.update({
+        where: { id: log.id },
+        data: { sentAt: now },
       });
     }
 
