@@ -8,7 +8,7 @@ import {
 interface SlotConfig {
   businessId: string;
   serviceDurationMinutes: number;
-  dateStr: string; // "YYYY-MM-DD"
+  dateStr: string;
 }
 
 export async function getAvailableSlots({
@@ -26,11 +26,8 @@ export async function getAvailableSlots({
 
   if (!business) throw new Error("Business not found");
 
-  const totalStaffCount = business.staff.length;
-  if (totalStaffCount === 0) return [];
+  const effectiveCapacity = Math.max(business.staff.length, 1);
 
-  // Determine the day of week from the calendar date itself — this part was never
-  // timezone-sensitive, since a calendar date doesn't shift based on wall-clock offset.
   const [year, month, day] = dateStr.split("-").map(Number);
   const referenceDate = new Date(Date.UTC(year, month - 1, day));
   const dayOfWeek = referenceDate
@@ -40,7 +37,6 @@ export async function getAvailableSlots({
   const daySchedule = business.schedules.find((s) => s.day === dayOfWeek);
   if (!daySchedule || daySchedule.isClosed) return [];
 
-  // Convert the business's LOCAL wall-clock open/close times into true UTC instants
   const startWindow = zonedWallTimeToUtc(
     dateStr,
     daySchedule.openTime,
@@ -52,7 +48,19 @@ export async function getAvailableSlots({
     business.timezone,
   );
 
-  // Bound the existing-bookings query to the full LOCAL calendar day, not the UTC day
+  // Enforce min-notice and max-ahead at the WINDOW level first — if the entire day
+  // is out of range, skip the query and grid loop entirely.
+  const now = new Date();
+  const minAllowed = new Date(
+    now.getTime() + business.minNoticeHours * 60 * 60 * 1000,
+  );
+  const maxAllowed = new Date(
+    now.getTime() + business.maxAheadDays * 24 * 60 * 60 * 1000,
+  );
+
+  if (endWindow.getTime() < minAllowed.getTime()) return []; // whole day too soon
+  if (startWindow.getTime() > maxAllowed.getTime()) return []; // whole day too far out
+
   const dayStart = zonedWallTimeToUtc(dateStr, "00:00", business.timezone);
   const nextDateStr = addDaysToDateStr(dateStr, 1);
   const dayEndExclusive = zonedWallTimeToUtc(
@@ -85,6 +93,10 @@ export async function getAvailableSlots({
       currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000,
     );
 
+    // Per-slot min-notice check — skips individual slots too close to "now"
+    // even on a day that's otherwise valid (e.g. booking later today).
+    const passesMinNotice = currentSlotStart.getTime() >= minAllowed.getTime();
+
     const overlappingBookingsCount = existingBookings.filter((booking) => {
       const bStart = booking.startTime.getTime();
       const bEnd = booking.endTime.getTime();
@@ -93,8 +105,7 @@ export async function getAvailableSlots({
       return sStart < bEnd && sEnd > bStart;
     }).length;
 
-    if (overlappingBookingsCount < totalStaffCount) {
-      // Format back into the business's LOCAL wall-clock time for display
+    if (passesMinNotice && overlappingBookingsCount < effectiveCapacity) {
       availableSlots.push(
         formatTimeInZone(currentSlotStart, business.timezone),
       );

@@ -6,6 +6,12 @@ import { verifyPaystackPayment } from "@/lib/paystack";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
 import { zonedWallTimeToUtc } from "@/lib/timezone";
+import {
+  isWithinBusinessHours,
+  isWithinBookingWindow,
+} from "@/lib/booking-rules";
+import { validateServingCapacity } from "@/lib/booking-validator";
+import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 
 interface PaystackWebhookData {
   status: string;
@@ -20,6 +26,8 @@ interface PaystackWebhookData {
     staffId?: string;
   };
 }
+
+class BookingRejected extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +48,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1️⃣ Verify payment using the central gateway utility
     const isPaymentValid = await verifyPaystackPayment(reference);
     if (!isPaymentValid) {
       return NextResponse.json(
@@ -59,13 +66,11 @@ export async function POST(request: NextRequest) {
     const payment: PaystackWebhookData = verifyData.data;
     const metadata = payment.metadata;
 
-    console.log("PAYSTACK METADATA RECEIVED:", metadata);
-
     const resolvedUserId = metadata?.userId;
     const resolvedItemId = metadata?.itemId || bodyItemId;
     const resolvedBusinessId = metadata?.businessId || bodyBusinessId;
-    const resolvedDate = metadata?.date || bodyDate; // "YYYY-MM-DD"
-    const resolvedTime = metadata?.time || bodyTime; // "HH:MM", business-local
+    const resolvedDate = metadata?.date || bodyDate;
+    const resolvedTime = metadata?.time || bodyTime;
     const resolvedStaffId = metadata?.staffId || bodyStaffId || null;
 
     if (
@@ -90,12 +95,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2️⃣ Fetch business (needed for timezone) and item (needed for real duration) together
     const business = await prisma.business.findUnique({
       where: { id: resolvedBusinessId },
-      select: { timezone: true },
+      include: { schedules: true },
     });
-
     if (!business) {
       return NextResponse.json(
         { error: "Business not found" },
@@ -107,7 +110,6 @@ export async function POST(request: NextRequest) {
       where: { id: resolvedItemId },
       select: { price: true, duration: true },
     });
-
     if (!item) {
       return NextResponse.json(
         { error: "Item not found for booking" },
@@ -115,13 +117,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3️⃣ Convert the business-local wall-clock date+time into the correct UTC instant
     const startTime = zonedWallTimeToUtc(
       resolvedDate,
       resolvedTime,
       business.timezone,
     );
-
     if (isNaN(startTime.getTime())) {
       return NextResponse.json(
         {
@@ -135,16 +135,32 @@ export async function POST(request: NextRequest) {
     const durationMinutes = item.duration || 30;
     const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
 
-    // 🛡️ STAFF OFF-DUTY HARD REJECTION
+    const hoursCheck = isWithinBusinessHours(
+      resolvedDate,
+      startTime,
+      endTime,
+      business.schedules,
+      business.timezone,
+    );
+    if (!hoursCheck.isOpen) {
+      return NextResponse.json({ error: hoursCheck.reason }, { status: 409 });
+    }
+
+    const windowCheck = isWithinBookingWindow(
+      startTime,
+      business.minNoticeHours,
+      business.maxAheadDays,
+    );
+    if (!windowCheck.isValid) {
+      return NextResponse.json({ error: windowCheck.reason }, { status: 409 });
+    }
+
     if (resolvedStaffId && resolvedStaffId !== "any") {
       const scheduleStatus = await isStaffOffDuty(
         resolvedStaffId,
         resolvedDate,
       );
       if (scheduleStatus.isOff) {
-        console.warn(
-          `🚫 Staff ${resolvedStaffId} is off duty on ${scheduleStatus.dayName}. Booking rejected.`,
-        );
         return NextResponse.json(
           {
             error: "Staff member is off duty on the selected day.",
@@ -156,11 +172,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4️⃣ Resolve user from Clerk ID
     const user = await prisma.user.findUnique({
       where: { clerkId: resolvedUserId },
     });
-
     if (!user) {
       return NextResponse.json(
         {
@@ -171,11 +185,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5️⃣ Prevent duplicate bookings
     const existingBooking = await prisma.booking.findUnique({
       where: { paymentReference: reference },
     });
-
     if (existingBooking) {
       return NextResponse.json({
         success: true,
@@ -183,50 +195,59 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 6️⃣ Calculate fee breakdown
     const servicePrice = payment.amount / 100;
     const fees = calculateFees(servicePrice);
-
-    console.log("💰 Fee breakdown:", fees);
-
-    // 7️⃣ Generate unique queue code
     const uniqueQueueCode = await generateUniqueQueueCode();
 
-    // 8️⃣ Create booking with the correct real duration and real UTC start/end times
-    const booking = await prisma.booking.create({
-      data: {
-        startTime,
-        endTime,
-        status: BookingStatus.CONFIRMED,
-        locationType: "IN_SHOP",
-        businessId: resolvedBusinessId,
-        userId: user.id,
-        paymentReference: reference,
-        paymentStatus: "paid",
-        totalAmount: servicePrice,
-        queueCode: uniqueQueueCode,
-        freshpointFee: fees.freshpointFee,
-        providerPayout: fees.providerPayout,
-        freshpointNet: fees.freshpointNet,
-        ...(resolvedStaffId && resolvedStaffId !== "any"
-          ? { staffId: resolvedStaffId }
-          : {}),
-        items: {
-          create: [
-            {
-              itemId: resolvedItemId,
-              price: servicePrice,
+    try {
+      const booking = await runSerializableWithRetry(async (tx) => {
+        const check = await validateServingCapacity({
+          db: tx,
+          businessId: resolvedBusinessId,
+          staffId: resolvedStaffId || "any",
+          dateString: resolvedDate,
+          startTime,
+          durationMinutes,
+        });
+
+        if (!check.isValid) {
+          throw new BookingRejected(
+            check.reason || "This time slot is unavailable.",
+          );
+        }
+
+        return tx.booking.create({
+          data: {
+            startTime,
+            endTime,
+            status: BookingStatus.CONFIRMED,
+            locationType: "IN_SHOP",
+            businessId: resolvedBusinessId,
+            userId: user.id,
+            paymentReference: reference,
+            paymentStatus: "paid",
+            totalAmount: servicePrice,
+            queueCode: uniqueQueueCode,
+            freshpointFee: fees.freshpointFee,
+            providerPayout: fees.providerPayout,
+            freshpointNet: fees.freshpointNet,
+            staffId: check.assignedStaffId ?? undefined,
+            items: {
+              create: [{ itemId: resolvedItemId, price: servicePrice }],
             },
-          ],
-        },
-      },
-    });
+          },
+        });
+      });
 
-    console.log("✅ Booking created successfully:", booking.id);
+      await queueBookingReminders(booking.id);
 
-    await queueBookingReminders(booking.id);
-
-    return NextResponse.json({ success: true, bookingId: booking.id });
+      return NextResponse.json({ success: true, bookingId: booking.id });
+    } catch (err) {
+      if (err instanceof BookingRejected) {
+        return NextResponse.json({ error: err.message }, { status: 409 });
+      }
+      throw err;
+    }
   } catch (error: unknown) {
     console.error("❌ Booking confirmation handler exception:", error);
     const errorMessage =

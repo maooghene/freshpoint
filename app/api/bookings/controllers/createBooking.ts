@@ -1,11 +1,15 @@
-// app/api/bookings/controllers/createBooking.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { BookingStatus } from "@prisma/client";
 import { validateServingCapacity } from "@/lib/booking-validator";
-import { queueBookingReminders } from "@/utils/reminders";
 import { zonedWallTimeToUtc } from "@/lib/timezone";
+import {
+  isWithinBusinessHours,
+  isWithinBookingWindow,
+} from "@/lib/booking-rules";
+import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
+import { queueBookingReminders } from "@/utils/reminders";
 
 interface CreateBookingPayload {
   itemId: string;
@@ -37,63 +41,79 @@ export async function handleCreateNewBooking(
 
     if (!itemId || !businessId || !date || !time) {
       return NextResponse.json(
-        { error: "Missing required booking metrics parameters" },
+        { error: "Missing required booking parameters" },
         { status: 400 },
       );
     }
 
-const serviceItem = await prisma.item.findUnique({ where: { id: itemId } });
-if (!serviceItem) {
-  return NextResponse.json(
-    { error: "Selected service offering not found" },
-    { status: 404 },
-  );
-}
+    const serviceItem = await prisma.item.findUnique({ where: { id: itemId } });
+    if (!serviceItem) {
+      return NextResponse.json(
+        { error: "Selected service offering not found" },
+        { status: 404 },
+      );
+    }
 
-if (!serviceItem.isActive) {
-  return NextResponse.json(
-    {
-      error:
-        "This item or treatment has been temporarily deactivated by the provider.",
-    },
-    { status: 422 },
-  );
-}
+    if (!serviceItem.isActive) {
+      return NextResponse.json(
+        {
+          error:
+            "This item or treatment has been temporarily deactivated by the provider.",
+        },
+        { status: 422 },
+      );
+    }
 
-// Need the business's timezone to correctly interpret the requested wall-clock time
-const business = await prisma.business.findUnique({
-  where: { id: businessId },
-});
-if (!business) {
-  return NextResponse.json({ error: "Business not found" }, { status: 404 });
-}
-
-const cleanTimeStr = decodeURIComponent(time).trim();
-const appointmentStart = zonedWallTimeToUtc(
-  date,
-  cleanTimeStr,
-  business.timezone,
-);
-
-if (isNaN(appointmentStart.getTime())) {
-  return NextResponse.json(
-    { error: "Invalid date or time format" },
-    { status: 400 },
-  );
-}
-
-const durationMinutes = serviceItem.duration || 30;
-
-    const check = await validateServingCapacity({
-      businessId,
-      staffId: staffId || "any",
-      dateString: date,
-      startTime: appointmentStart,
-      durationMinutes,
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      include: { schedules: true },
     });
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
 
-    if (!check.isValid) {
-      return NextResponse.json({ error: check.reason }, { status: 409 });
+    const cleanTimeStr = decodeURIComponent(time).trim();
+    const appointmentStart = zonedWallTimeToUtc(
+      date,
+      cleanTimeStr,
+      business.timezone,
+    );
+
+    if (isNaN(appointmentStart.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid date or time format" },
+        { status: 400 },
+      );
+    }
+
+    const durationMinutes = serviceItem.duration || 30;
+    const appointmentEnd = new Date(
+      appointmentStart.getTime() + durationMinutes * 60 * 1000,
+    );
+
+    // Check business hours before anything else — cheapest check, no DB writes involved.
+    const hoursCheck = isWithinBusinessHours(
+      date,
+      appointmentStart,
+      appointmentEnd,
+      business.schedules,
+      business.timezone,
+    );
+    if (!hoursCheck.isOpen) {
+      return NextResponse.json({ error: hoursCheck.reason }, { status: 409 });
+    }
+
+    // Check min-notice / max-ahead window
+    const windowCheck = isWithinBookingWindow(
+      appointmentStart,
+      business.minNoticeHours,
+      business.maxAheadDays,
+    );
+    if (!windowCheck.isValid) {
+      return NextResponse.json({ error: windowCheck.reason }, { status: 409 });
     }
 
     const userRecord = await prisma.user.findUnique({ where: { clerkId } });
@@ -104,42 +124,64 @@ const durationMinutes = serviceItem.duration || 30;
       );
     }
 
-    const appointmentEnd = new Date(
-      appointmentStart.getTime() + durationMinutes * 60 * 1000,
-    );
     const generatedPassCode = `FP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-
     const calculatedCommissionFee = serviceItem.price * 0.08;
     const computedProviderPayout = serviceItem.price - calculatedCommissionFee;
 
-    const newBooking = await prisma.booking.create({
-      data: {
-        businessId,
-        userId: userRecord.id,
-        staffId: check.assignedStaffId,
-        startTime: appointmentStart,
-        endTime: appointmentEnd,
-        totalAmount: serviceItem.price,
-        freshpointFee: calculatedCommissionFee,
-        providerPayout: computedProviderPayout,
-        status: BookingStatus.CONFIRMED,
-        queueCode: generatedPassCode,
-        items: {
-          create: {
-            itemId: serviceItem.id,
-            price: serviceItem.price,
+    // Capacity check + booking creation happen atomically at SERIALIZABLE isolation —
+    // Postgres itself guarantees two concurrent requests can't both succeed for the
+    // same slot, retrying automatically on the rare detected conflict.
+    try {
+      const newBooking = await runSerializableWithRetry(async (tx) => {
+        const check = await validateServingCapacity({
+          db: tx,
+          businessId,
+          staffId: staffId || "any",
+          dateString: date,
+          startTime: appointmentStart,
+          durationMinutes,
+        });
+
+        if (!check.isValid) {
+          throw new BookingRejected(
+            check.reason || "This time slot is unavailable.",
+          );
+        }
+
+        return tx.booking.create({
+          data: {
+            businessId,
+            userId: userRecord.id,
+            staffId: check.assignedStaffId,
+            startTime: appointmentStart,
+            endTime: appointmentEnd,
+            totalAmount: serviceItem.price,
+            freshpointFee: calculatedCommissionFee,
+            providerPayout: computedProviderPayout,
+            status: BookingStatus.CONFIRMED,
+            queueCode: generatedPassCode,
+            items: {
+              create: {
+                itemId: serviceItem.id,
+                price: serviceItem.price,
+              },
+            },
           },
-        },
-      },
-    });
+        });
+      });
 
-    // Queue reminder emails + trigger calendar sync for the new booking
-    await queueBookingReminders(newBooking.id);
+      await queueBookingReminders(newBooking.id);
 
-    return NextResponse.json(
-      { success: true, booking: newBooking },
-      { status: 201 },
-    );
+      return NextResponse.json(
+        { success: true, booking: newBooking },
+        { status: 201 },
+      );
+    } catch (err) {
+      if (err instanceof BookingRejected) {
+        return NextResponse.json({ error: err.message }, { status: 409 });
+      }
+      throw err;
+    }
   } catch (error: unknown) {
     const errorTrace =
       error instanceof Error
@@ -152,3 +194,8 @@ const durationMinutes = serviceItem.duration || 30;
     );
   }
 }
+
+// A typed "expected rejection" — lets us throw inside the transaction to abort it
+// cleanly (Prisma rolls back automatically on any thrown error) while still
+// distinguishing "business rule failed" from "something actually broke."
+class BookingRejected extends Error {}
