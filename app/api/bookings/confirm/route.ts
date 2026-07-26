@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
-import { verifyPaystackPayment } from "@/lib/paystack"; // Single shared utility source
+import { verifyPaystackPayment } from "@/lib/paystack";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
-
+import { zonedWallTimeToUtc } from "@/lib/timezone";
 
 interface PaystackWebhookData {
   status: string;
@@ -15,7 +15,8 @@ interface PaystackWebhookData {
     userId?: string;
     itemId?: string;
     businessId?: string;
-    dateTime?: string;
+    date?: string;
+    time?: string;
     staffId?: string;
   };
 }
@@ -27,7 +28,8 @@ export async function POST(request: NextRequest) {
       reference,
       businessId: bodyBusinessId,
       itemId: bodyItemId,
-      startTime: bodyStartTime,
+      date: bodyDate,
+      time: bodyTime,
       staffId: bodyStaffId,
     } = body;
 
@@ -47,13 +49,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch full verified context directly from the provider database ledger
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     const verifyResponse = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      {
-        headers: { Authorization: `Bearer ${secretKey}` },
-      },
+      { headers: { Authorization: `Bearer ${secretKey}` } },
     );
     const verifyData = await verifyResponse.json();
 
@@ -62,18 +61,19 @@ export async function POST(request: NextRequest) {
 
     console.log("PAYSTACK METADATA RECEIVED:", metadata);
 
-    // Resolve all fields — Paystack metadata takes priority, body is fallback
     const resolvedUserId = metadata?.userId;
     const resolvedItemId = metadata?.itemId || bodyItemId;
     const resolvedBusinessId = metadata?.businessId || bodyBusinessId;
-    const resolvedDateTime = metadata?.dateTime || bodyStartTime;
+    const resolvedDate = metadata?.date || bodyDate; // "YYYY-MM-DD"
+    const resolvedTime = metadata?.time || bodyTime; // "HH:MM", business-local
     const resolvedStaffId = metadata?.staffId || bodyStaffId || null;
 
     if (
       !resolvedUserId ||
       !resolvedItemId ||
       !resolvedBusinessId ||
-      !resolvedDateTime
+      !resolvedDate ||
+      !resolvedTime
     ) {
       return NextResponse.json(
         {
@@ -82,18 +82,64 @@ export async function POST(request: NextRequest) {
             resolvedUserId,
             resolvedItemId,
             resolvedBusinessId,
-            resolvedDateTime,
+            resolvedDate,
+            resolvedTime,
           },
         },
         { status: 400 },
       );
     }
 
+    // 2️⃣ Fetch business (needed for timezone) and item (needed for real duration) together
+    const business = await prisma.business.findUnique({
+      where: { id: resolvedBusinessId },
+      select: { timezone: true },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
+
+    const item = await prisma.item.findUnique({
+      where: { id: resolvedItemId },
+      select: { price: true, duration: true },
+    });
+
+    if (!item) {
+      return NextResponse.json(
+        { error: "Item not found for booking" },
+        { status: 400 },
+      );
+    }
+
+    // 3️⃣ Convert the business-local wall-clock date+time into the correct UTC instant
+    const startTime = zonedWallTimeToUtc(
+      resolvedDate,
+      resolvedTime,
+      business.timezone,
+    );
+
+    if (isNaN(startTime.getTime())) {
+      return NextResponse.json(
+        {
+          error: "Invalid date or time parameter received",
+          value: { resolvedDate, resolvedTime },
+        },
+        { status: 400 },
+      );
+    }
+
+    const durationMinutes = item.duration || 30;
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
     // 🛡️ STAFF OFF-DUTY HARD REJECTION
     if (resolvedStaffId && resolvedStaffId !== "any") {
       const scheduleStatus = await isStaffOffDuty(
         resolvedStaffId,
-        resolvedDateTime,
+        resolvedDate,
       );
       if (scheduleStatus.isOff) {
         console.warn(
@@ -110,7 +156,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2️⃣ Resolve user from Clerk ID
+    // 4️⃣ Resolve user from Clerk ID
     const user = await prisma.user.findUnique({
       where: { clerkId: resolvedUserId },
     });
@@ -125,7 +171,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3️⃣ Prevent duplicate bookings
+    // 5️⃣ Prevent duplicate bookings
     const existingBooking = await prisma.booking.findUnique({
       where: { paymentReference: reference },
     });
@@ -137,45 +183,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 4️⃣ Validate datetime
-    const startTime = new Date(resolvedDateTime);
-    if (isNaN(startTime.getTime())) {
-      return NextResponse.json(
-        {
-          error: "Invalid dateTime parameter received",
-          value: resolvedDateTime,
-        },
-        { status: 400 },
-      );
-    }
-
-    // 5️⃣ Fetch item price
-    const item = await prisma.item.findUnique({
-      where: { id: resolvedItemId },
-      select: { price: true },
-    });
-
-    if (!item) {
-      return NextResponse.json(
-        { error: "Item not found for booking" },
-        { status: 400 },
-      );
-    }
-
     // 6️⃣ Calculate fee breakdown
     const servicePrice = payment.amount / 100;
     const fees = calculateFees(servicePrice);
 
     console.log("💰 Fee breakdown:", fees);
 
-    // 7️⃣ Generate unique queue code via helper component
+    // 7️⃣ Generate unique queue code
     const uniqueQueueCode = await generateUniqueQueueCode();
 
-    // 8️⃣ Create booking with BookingItem join and fee breakdown
+    // 8️⃣ Create booking with the correct real duration and real UTC start/end times
     const booking = await prisma.booking.create({
       data: {
         startTime,
-        endTime: new Date(startTime.getTime() + 60 * 60000),
+        endTime,
         status: BookingStatus.CONFIRMED,
         locationType: "IN_SHOP",
         businessId: resolvedBusinessId,
@@ -204,7 +225,7 @@ export async function POST(request: NextRequest) {
     console.log("✅ Booking created successfully:", booking.id);
 
     await queueBookingReminders(booking.id);
-    
+
     return NextResponse.json({ success: true, bookingId: booking.id });
   } catch (error: unknown) {
     console.error("❌ Booking confirmation handler exception:", error);

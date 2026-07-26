@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { syncBookingToGoogleCalendar } from "./googleCalendar"; // 🚀 Import calendar sync
+import { syncBookingToGoogleCalendar } from "./googleCalendar";
 
 export async function queueBookingReminders(bookingId: string) {
   const booking = await prisma.booking.findUnique({
@@ -9,27 +9,25 @@ export async function queueBookingReminders(bookingId: string) {
 
   if (!booking || booking.status !== "CONFIRMED") return;
 
-  // 🚀 TRIGGER GOOGLE CALENDAR SYNC INSTANTLY
-  // Wrapped in a detached promise catch block so calendar failures NEVER crash your booking flow
+  // Trigger Google Calendar sync instantly (detached, never crashes the booking flow)
   syncBookingToGoogleCalendar({ bookingId: booking.id }).catch((err) =>
     console.error("Delayed async background calendar sync crashed:", err),
   );
 
-  // --- Your existing reminder calculation code below remains completely untouched ---
-  const reminderTiers = [
-    { milestone: "1_DAY", minutesBefore: 24 * 60 },
-    { milestone: "2_HOURS", minutesBefore: 2 * 60 },
-    { milestone: "30_MINUTES", minutesBefore: 30 },
-    { milestone: "5_MINUTES", minutesBefore: 5 },
-  ];
+  // Read the business's own configured reminder windows instead of hardcoding them.
+  // Falls back to [48, 2] hours only if a business somehow has an empty array.
+  const hoursConfig =
+    booking.business.reminderMilestonesHours.length > 0
+      ? booking.business.reminderMilestonesHours
+      : [48, 2];
 
-  const reminderData = reminderTiers.map((tier) => {
+  const reminderData = hoursConfig.map((hours) => {
     const scheduledTime = new Date(
-      booking.startTime.getTime() - tier.minutesBefore * 60 * 1000,
+      booking.startTime.getTime() - hours * 60 * 60 * 1000,
     );
     return {
       bookingId: booking.id,
-      milestone: tier.milestone,
+      milestone: `${hours}_HOURS_BEFORE`,
       scheduledFor: scheduledTime,
       sentAt: null,
     };

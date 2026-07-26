@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { BookingStatus } from "@prisma/client";
 import { validateServingCapacity } from "@/lib/booking-validator";
+import { queueBookingReminders } from "@/utils/reminders";
+import { zonedWallTimeToUtc } from "@/lib/timezone";
 
 interface CreateBookingPayload {
   itemId: string;
@@ -40,38 +42,47 @@ export async function handleCreateNewBooking(
       );
     }
 
-    const serviceItem = await prisma.item.findUnique({ where: { id: itemId } });
-    if (!serviceItem) {
-      return NextResponse.json(
-        { error: "Selected service offering not found" },
-        { status: 404 },
-      );
-    }
+const serviceItem = await prisma.item.findUnique({ where: { id: itemId } });
+if (!serviceItem) {
+  return NextResponse.json(
+    { error: "Selected service offering not found" },
+    { status: 404 },
+  );
+}
 
-    if (!serviceItem.isActive) {
-      return NextResponse.json(
-        {
-          error:
-            "This item or treatment has been temporarily deactivated by the provider.",
-        },
-        { status: 422 },
-      );
-    }
+if (!serviceItem.isActive) {
+  return NextResponse.json(
+    {
+      error:
+        "This item or treatment has been temporarily deactivated by the provider.",
+    },
+    { status: 422 },
+  );
+}
 
-    const cleanTimeStr = decodeURIComponent(time).trim();
-    const appointmentStart = new Date(`${date}T${cleanTimeStr}`);
+// Need the business's timezone to correctly interpret the requested wall-clock time
+const business = await prisma.business.findUnique({
+  where: { id: businessId },
+});
+if (!business) {
+  return NextResponse.json({ error: "Business not found" }, { status: 404 });
+}
 
-    if (isNaN(appointmentStart.getTime())) {
-      const parsedAlternative = new Date(`${date} ${cleanTimeStr}`);
-      if (isNaN(parsedAlternative.getTime())) {
-        return NextResponse.json(
-          { error: "Invalid temporal date or time format" },
-          { status: 400 },
-        );
-      }
-    }
+const cleanTimeStr = decodeURIComponent(time).trim();
+const appointmentStart = zonedWallTimeToUtc(
+  date,
+  cleanTimeStr,
+  business.timezone,
+);
 
-    const durationMinutes = serviceItem.duration || 30;
+if (isNaN(appointmentStart.getTime())) {
+  return NextResponse.json(
+    { error: "Invalid date or time format" },
+    { status: 400 },
+  );
+}
+
+const durationMinutes = serviceItem.duration || 30;
 
     const check = await validateServingCapacity({
       businessId,
@@ -121,6 +132,9 @@ export async function handleCreateNewBooking(
         },
       },
     });
+
+    // Queue reminder emails + trigger calendar sync for the new booking
+    await queueBookingReminders(newBooking.id);
 
     return NextResponse.json(
       { success: true, booking: newBooking },

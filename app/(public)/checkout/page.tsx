@@ -7,7 +7,6 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { CreditCard, ArrowLeft, Loader2 } from "lucide-react";
 
-// Import broken-down SOLID structures
 import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
 import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
 import { PaymentSection } from "@/components/checkout/PaymentSection";
@@ -23,21 +22,15 @@ interface ItemDetails {
   };
 }
 
-const convertTo24Hour = (time: string) => {
-  const [timePart, modifier] = time.split(" ");
-  const [hoursString, minutes] = timePart.split(":");
-  let hours = hoursString;
+// Display-only: "14:30" -> "2:30 PM"
+function formatTimeDisplay(time24: string): string {
+  const [hourStr, minute] = time24.split(":");
+  const hour = Number(hourStr);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${ampm}`;
+}
 
-  if (modifier === "AM" && hours === "12") {
-    hours = "00";
-  } else if (modifier === "PM" && hours !== "12") {
-    hours = String(Number(hours) + 12).padStart(2, "0");
-  }
-
-  return `${hours}:${minutes}`;
-};
-
-// Kept exactly as a named internal implementation to avoid path drops
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -48,10 +41,10 @@ function CheckoutContent() {
   const businessId = searchParams?.get("businessId");
   const date = searchParams?.get("date");
   const rawTime = searchParams?.get("time");
-  
-  const decodedTime = rawTime ? decodeURIComponent(rawTime) : null;
-  const time24 = decodedTime ? convertTo24Hour(decodedTime) : null;
-  const dateTime = date && time24 ? `${date}T${time24}:00` : null;
+
+  // Already "HH:MM" 24-hour format — no conversion needed anymore.
+  const time24 = rawTime ? decodeURIComponent(rawTime) : null;
+  const displayTime = time24 ? formatTimeDisplay(time24) : null;
 
   const [item, setItem] = useState<ItemDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +93,8 @@ function CheckoutContent() {
           reference,
           businessId,
           itemId,
-          startTime: dateTime,
+          date, // "YYYY-MM-DD" — business's local calendar date
+          time: time24, // "HH:MM" — business's local wall-clock time
         }),
       });
 
@@ -108,7 +102,9 @@ function CheckoutContent() {
       if (result.success || response.ok) {
         router.push(`/bookings/success?reference=${reference}`);
       } else {
-        alert("Payment successful but booking confirmation failed. Please contact support.");
+        alert(
+          "Payment successful but booking confirmation failed. Please contact support.",
+        );
       }
     } catch (err) {
       console.error("CONFIRMATION ERROR:", err);
@@ -126,7 +122,7 @@ function CheckoutContent() {
     );
   }
 
-  if (!item || !dateTime) {
+  if (!item || !date || !time24) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center px-6 bg-background text-foreground">
         <div className="text-center space-y-4 max-w-sm">
@@ -153,17 +149,24 @@ function CheckoutContent() {
         <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
       </div>
 
-      <TreatmentSummary item={item} formattedDate={formattedDate} decodedTime={decodedTime} />
+      <TreatmentSummary
+        item={item}
+        formattedDate={formattedDate}
+        decodedTime={displayTime}
+      />
       <TotalAmountCard price={Number(item.price)} />
-      
-      <PaymentSection 
+
+      <PaymentSection
         paying={paying}
         price={Number(item.price)}
-        email={user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"}
+        email={
+          user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
+        }
         name={user?.fullName || item.business.name}
         metadata={{
           itemId: item.id,
-          dateTime: dateTime,
+          date: date,
+          time: time24,
           businessId: businessId,
           userId: userId ?? null,
         }}
@@ -172,13 +175,13 @@ function CheckoutContent() {
       />
 
       <p className="text-center text-[11px] text-muted-foreground mt-6 font-medium">
-        Secured encrypted by Paystack • Your appointment will be confirmed instantly.
+        Secured encrypted by Paystack • Your appointment will be confirmed
+        instantly.
       </p>
     </div>
   );
 }
 
-// Kept exactly matching your target destination URL path routing rules
 export default function CheckoutPage() {
   return (
     <Suspense

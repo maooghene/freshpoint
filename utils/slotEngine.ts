@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import {
+  zonedWallTimeToUtc,
+  formatTimeInZone,
+  addDaysToDateStr,
+} from "@/lib/timezone";
 
 interface SlotConfig {
   businessId: string;
@@ -11,7 +16,6 @@ export async function getAvailableSlots({
   serviceDurationMinutes,
   dateStr,
 }: SlotConfig) {
-  // 1. Fetch Business, Schedules, and count total active staff
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     include: {
@@ -25,10 +29,9 @@ export async function getAvailableSlots({
   const totalStaffCount = business.staff.length;
   if (totalStaffCount === 0) return [];
 
-  // Parse YYYY-MM-DD reliably without local timezone parsing shifts
+  // Determine the day of week from the calendar date itself — this part was never
+  // timezone-sensitive, since a calendar date doesn't shift based on wall-clock offset.
   const [year, month, day] = dateStr.split("-").map(Number);
-
-  // Construct a reference string to safely read the target day of the week
   const referenceDate = new Date(Date.UTC(year, month - 1, day));
   const dayOfWeek = referenceDate
     .toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })
@@ -37,23 +40,32 @@ export async function getAvailableSlots({
   const daySchedule = business.schedules.find((s) => s.day === dayOfWeek);
   if (!daySchedule || daySchedule.isClosed) return [];
 
-  const [openHour, openMin] = daySchedule.openTime.split(":").map(Number);
-  const [closeHour, closeMin] = daySchedule.closeTime.split(":").map(Number);
+  // Convert the business's LOCAL wall-clock open/close times into true UTC instants
+  const startWindow = zonedWallTimeToUtc(
+    dateStr,
+    daySchedule.openTime,
+    business.timezone,
+  );
+  const endWindow = zonedWallTimeToUtc(
+    dateStr,
+    daySchedule.closeTime,
+    business.timezone,
+  );
 
-  // Parse bounds safely inside the business's explicit timezone setting
-  const startWindow = new Date(`${dateStr}T${daySchedule.openTime}:00.000Z`);
-  const endWindow = new Date(`${dateStr}T${daySchedule.closeTime}:00.000Z`);
+  // Bound the existing-bookings query to the full LOCAL calendar day, not the UTC day
+  const dayStart = zonedWallTimeToUtc(dateStr, "00:00", business.timezone);
+  const nextDateStr = addDaysToDateStr(dateStr, 1);
+  const dayEndExclusive = zonedWallTimeToUtc(
+    nextDateStr,
+    "00:00",
+    business.timezone,
+  );
 
-  // Broad database query filter bounds for the selected date
-  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
-  const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
-
-  // 2. Fetch concurrent active bookings running on this date range
   const existingBookings = await prisma.booking.findMany({
     where: {
       businessId,
       status: { in: ["CONFIRMED", "PENDING"] },
-      startTime: { gte: dayStart, lte: dayEnd },
+      startTime: { gte: dayStart, lt: dayEndExclusive },
     },
     select: { startTime: true, endTime: true, staffId: true },
   });
@@ -65,7 +77,6 @@ export async function getAvailableSlots({
 
   let currentSlotStart = new Date(startWindow.getTime());
 
-  // 3. Grid allocation iteration
   while (
     currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000 <=
     endWindow.getTime()
@@ -74,25 +85,21 @@ export async function getAvailableSlots({
       currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000,
     );
 
-    // Count how many bookings overlap with this explicit time block
     const overlappingBookingsCount = existingBookings.filter((booking) => {
       const bStart = booking.startTime.getTime();
       const bEnd = booking.endTime.getTime();
       const sStart = currentSlotStart.getTime();
       const sEnd = currentSlotEnd.getTime();
-
       return sStart < bEnd && sEnd > bStart;
     }).length;
 
-    // Multi-staff capacity verification
     if (overlappingBookingsCount < totalStaffCount) {
-      // Return unmutated clean 24hr format text representation
-      const hh = String(currentSlotStart.getUTCHours()).padStart(2, "0");
-      const mm = String(currentSlotStart.getUTCMinutes()).padStart(2, "0");
-      availableSlots.push(`${hh}:${mm}`);
+      // Format back into the business's LOCAL wall-clock time for display
+      availableSlots.push(
+        formatTimeInZone(currentSlotStart, business.timezone),
+      );
     }
 
-    // Progress grid slot pointer securely without reference pollution
     currentSlotStart = new Date(
       currentSlotStart.getTime() + gridIntervalMinutes * 60 * 1000,
     );

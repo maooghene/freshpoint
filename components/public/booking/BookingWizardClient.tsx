@@ -39,6 +39,15 @@ interface ItemDetails {
   };
 }
 
+// Display-only: "14:30" -> "2:30 PM". Does not affect the value sent to checkout.
+function formatSlotForDisplay(time24: string): string {
+  const [hourStr, minute] = time24.split(":");
+  const hour = Number(hourStr);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${ampm}`;
+}
+
 export default function BookingWizardClient({ item }: { item: ItemDetails }) {
   const router = useRouter();
   const {
@@ -84,6 +93,8 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
       return;
     }
 
+    // selectedSlot is "HH:MM" 24-hour format — passed through as-is, untouched,
+    // all the way to the server where it's converted using the business's timezone.
     const params = new URLSearchParams({
       itemId: item.id,
       businessId: item.business.id,
@@ -218,7 +229,7 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
               <Info size={16} className="text-primary shrink-0 mt-0.5" />
               <p className="font-medium leading-relaxed">
                 {selectedSlot && !isSelectedSpecialistOffDuty
-                  ? `${getReadableSelectedDate()} at ${selectedSlot}. Proceed to confirm your booking.`
+                  ? `${getReadableSelectedDate()} at ${formatSlotForDisplay(selectedSlot)}. Proceed to confirm your booking.`
                   : "Select a date and time slot to continue to checkout."}
               </p>
             </div>

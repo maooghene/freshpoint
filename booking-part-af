@@ -1,0 +1,1482 @@
+          {schedule.map((day) => (
+            <div
+              key={day.day}
+              className={`flex items-center gap-3 p-3 rounded-xl border transition ${
+                day.isOff
+                  ? "border-border bg-muted/30 opacity-60"
+                  : "border-border bg-background/50"
+              }`}
+            >
+              {/* DAY NAME */}
+              <span className="text-xs font-black text-foreground w-24 shrink-0">
+                {day.day.charAt(0) + day.day.slice(1).toLowerCase()}
+              </span>
+
+              {/* DAY OFF TOGGLE */}
+              <button
+                type="button"
+                onClick={() => updateDay(day.day, "isOff", !day.isOff)}
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition shrink-0 cursor-pointer ${
+                  day.isOff
+                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
+                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
+                }`}
+              >
+                {day.isOff ? "Day Off" : "Working"}
+              </button>
+
+              {/* TIME INPUTS */}
+              {!day.isOff && (
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="time"
+                    value={day.startTime}
+                    onChange={(e) =>
+                      updateDay(day.day, "startTime", e.target.value)
+                    }
+                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition cursor-pointer"
+                  />
+                  <span className="text-xs text-muted-foreground shrink-0 select-none">
+                    {"to"}
+                  </span>
+                  <input
+                    type="time"
+                    value={day.endTime}
+                    onChange={(e) =>
+                      updateDay(day.day, "endTime", e.target.value)
+                    }
+                    className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary transition cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* FOOTER */}
+        <div className="flex gap-3 p-6 border-t border-border">
+          <Button
+            onClick={() => {
+              void handleSaveSchedules();
+            }}
+            disabled={saving}
+            className="flex-1 rounded-xl font-bold gap-2 cursor-pointer"
+          >
+            <SaveIcon className="w-4 h-4" />
+            {saving ? "Saving..." : "Save Schedule"}
+          </Button>
+          <Button
+            onClick={onClose}
+            variant="outline"
+            className="rounded-xl font-bold cursor-pointer"
+          >
+            {"Cancel"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- ./components/checkout/BookingCheckoutContent.tsx ---
+// components/checkout/BookingCheckoutContent.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { CreditCard, Loader2, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+// Import small sub-presenter segments safely
+import { ItemDetails } from "./settings/types";
+import { TreatmentSummaryCard } from "./settings/TreatmentSummaryCard";
+import { TotalCard } from "./settings/TotalCard";
+import { PaymentAction } from "./settings/PaymentAction";
+
+const convertTo24Hour = (time: string) => {
+  const [timePart, modifier] = time.split(" ");
+  const [hoursString, minutes] = timePart.split(":");
+  let hours = hoursString;
+
+  if (modifier === "AM" && hours === "12") hours = "00";
+  else if (modifier === "PM" && hours !== "12")
+    hours = String(Number(hours) + 12).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+};
+
+export function BookingCheckoutContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { userId } = useAuth();
+  const { user } = useUser();
+
+  const itemId = searchParams.get("itemId");
+  const businessId = searchParams.get("businessId");
+  const date = searchParams.get("date");
+  const rawTime = searchParams.get("time");
+
+  const decodedTime = rawTime ? decodeURIComponent(rawTime) : null;
+  const time24 = decodedTime ? convertTo24Hour(decodedTime) : null;
+  const dateTime = date && time24 ? `${date}T${time24}:00` : null;
+
+  const [item, setItem] = useState<ItemDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+
+  useEffect(() => {
+    if (!itemId) return;
+    fetch(`/api/items/${itemId}`)
+      .then((res) => res.json())
+      .then((data) => setItem(data))
+      .catch((err) => console.error(err))
+      .finally(() => setLoading(false));
+  }, [itemId]);
+
+  const formattedDate = date
+    ? new Date(date).toLocaleDateString("en-NG", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const handlePaymentSuccess = async (reference: string) => {
+    if (!userId) return alert("Please log in to complete your transaction.");
+    try {
+      setPaying(true);
+      const res = await fetch("/api/bookings/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference,
+          businessId,
+          itemId,
+          startTime: dateTime,
+        }),
+      });
+      if (res.ok) router.push(`/bookings/success?reference=${reference}`);
+      else alert("Booking confirmation dropped. Please contact support.");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-primary size-7" />
+      </div>
+    );
+
+  if (!item || !dateTime) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center px-6 bg-background text-foreground">
+        <div className="text-center space-y-4 max-w-sm">
+          <p className="text-destructive font-medium text-lg">
+            Missing booking details. Please start again.
+          </p>
+          <Button
+            onClick={() => router.back()}
+            variant="outline"
+            className="w-full"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-6 pt-24 min-h-screen bg-background text-foreground w-full">
+      <div className="flex items-center gap-3 mb-8 border-b border-border pb-4">
+        <CreditCard className="w-7 h-7 text-primary" />
+        <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
+      </div>
+
+      <TreatmentSummaryCard
+        item={item}
+        formattedDate={formattedDate}
+        decodedTime={decodedTime}
+      />
+      <TotalCard price={item.price} />
+
+      <PaymentAction
+        paying={paying}
+        price={item.price}
+        email={
+          user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
+        }
+        name={user?.fullName || item.business.name}
+        metadata={{
+          itemId: item.id,
+          dateTime: dateTime ?? undefined,
+          businessId: businessId ?? undefined,
+          userId: userId ?? undefined,
+        }}
+        onSuccess={handlePaymentSuccess}
+        onClose={() => setPaying(false)}
+      />
+
+      <p className="text-center text-[11px] text-muted-foreground mt-6 font-medium">
+        Secured encrypted by Paystack • Your appointment will be confirmed
+        instantly.
+      </p>
+    </div>
+  );
+}
+
+--- ./components/public/booking/BookingWizardClient.tsx ---
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Sparkles, ClockIcon, MapPinIcon, Calendar, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+import { useBookingState } from "@/hooks/useBookingState";
+import { BookingSlotsGrid } from "@/components/BookingSlotsGrid";
+import { SpecialistSidebar } from "@/components/SpecialistSidebar";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
+
+interface StaffScheduleDetails {
+  day: string;
+  isOff: boolean;
+}
+
+interface StaffMemberDetails {
+  id: string;
+  name: string;
+  schedules?: StaffScheduleDetails[];
+}
+
+interface ItemDetails {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  duration: number | null;
+  image: string | null;
+  type: string;
+  business: {
+    id: string;
+    slug: string;
+    name: string;
+    address: string;
+    staff: StaffMemberDetails[];
+  };
+}
+
+export default function BookingWizardClient({ item }: { item: ItemDetails }) {
+  const router = useRouter();
+  const {
+    selectedDate,
+    setSelectedDate,
+    selectedSlot,
+    setSelectedSlot,
+    selectedStaff,
+    setSelectedStaff,
+    calculatedSlots,
+    fetchingHours,
+    evaluatedStaffRoster,
+    isSelectedSpecialistOffDuty,
+    todayString,
+  } = useBookingState(item);
+
+  const getReadableSelectedDate = () => {
+    if (!selectedDate) return "";
+    const [year, month, day] = selectedDate.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-NG", {
+      weekday: "long",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const handleAddToBasket = () => {
+    if (!selectedDate) {
+      alert("Please choose a day on the calendar first.");
+      return;
+    }
+
+    if (isSelectedSpecialistOffDuty) {
+      alert(
+        "This professional is scheduled to be off duty on this day. You cannot proceed to checkout with this selection.",
+      );
+      return;
+    }
+
+    if (!selectedSlot) {
+      alert("Please pick an available time slot before clicking checkout.");
+      return;
+    }
+
+    const params = new URLSearchParams({
+      itemId: item.id,
+      businessId: item.business.id,
+      date: selectedDate,
+      time: encodeURIComponent(selectedSlot),
+    });
+
+    if (selectedStaff !== "any") {
+      params.set("staffId", selectedStaff);
+    }
+
+    router.push(`/checkout?${params.toString()}`);
+  };
+
+  return (
+    <div className="w-full space-y-8 py-12 animate-in fade-in duration-300">
+      <div className="bg-card border border-border rounded-[2rem] p-6 flex flex-col sm:flex-row gap-6 items-center shadow-xs">
+        <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-muted border border-border shrink-0">
+          <ImageWithFallback
+            src={item.image}
+            alt={item.name}
+            icon={Sparkles}
+            label="Treatment"
+            sizes="96px"
+          />
+        </div>
+
+        <div className="flex-1 text-center sm:text-left space-y-1.5 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+            <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground truncate">
+              {item.name}
+            </h1>
+            <Badge
+              variant="secondary"
+              className="w-fit mx-auto sm:mx-0 text-[10px] font-bold bg-primary/10 text-primary border-none"
+            >
+              SERVICE TREATMENT
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium line-clamp-2 max-w-xl">
+            {item.description ||
+              "Premium treatment option tailored to your wellness needs."}
+          </p>
+          <div className="flex flex-wrap justify-center sm:justify-start gap-x-5 gap-y-1.5 pt-3 border-t border-border text-xs font-bold text-muted-foreground/80">
+            <div className="flex items-center gap-1 text-foreground">
+              <Sparkles size={14} className="text-primary" />
+              <span>{item.business.name}</span>
+            </div>
+            {item.duration && (
+              <div className="flex items-center gap-1">
+                <ClockIcon size={14} className="text-primary" />
+                <span>{item.duration} mins</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <MapPinIcon size={14} className="text-primary" />
+              <span className="truncate max-w-[180px]">
+                {item.business.address}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center sm:text-right border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6 shrink-0 min-w-[120px]">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            Rate Cost
+          </p>
+          <p className="text-2xl font-black text-foreground">
+            ₦{Number(item.price).toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 bg-card border border-border rounded-[2rem] p-6 space-y-8 shadow-xs">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-extrabold text-lg tracking-tight">
+                Select Appointment Date
+              </h3>
+              {selectedDate && (
+                <span className="text-xs text-primary font-bold bg-primary/10 px-3 py-1 rounded-full animate-in fade-in">
+                  {getReadableSelectedDate()}
+                </span>
+              )}
+            </div>
+
+            <div className="relative w-full max-w-sm flex items-center bg-background border border-border rounded-2xl px-4 py-3.5 focus-within:border-primary transition-all">
+              <Calendar className="text-muted-foreground size-5 mr-3 shrink-0" />
+              <input
+                type="date"
+                value={selectedDate}
+                min={todayString}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedSlot("");
+                }}
+                className="w-full bg-transparent outline-none text-sm font-bold text-foreground cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <BookingSlotsGrid
+            fetchingHours={fetchingHours}
+            isSelectedSpecialistOffDuty={isSelectedSpecialistOffDuty}
+            calculatedSlots={calculatedSlots}
+            selectedSlot={selectedSlot}
+            setSelectedSlot={setSelectedSlot}
+          />
+        </div>
+
+        <div className="space-y-6">
+          <SpecialistSidebar
+            selectedStaff={selectedStaff}
+            setSelectedStaff={setSelectedStaff}
+            setSelectedSlot={setSelectedSlot}
+            evaluatedStaffRoster={evaluatedStaffRoster}
+          />
+
+          <div className="bg-card border border-border rounded-[2rem] p-5 shadow-xs space-y-4">
+            {isSelectedSpecialistOffDuty && (
+              <div className="flex gap-2 text-xs text-destructive bg-destructive/5 p-3 rounded-xl border border-destructive/20 items-start">
+                <Info size={16} className="shrink-0 mt-0.5" />
+                <p className="font-medium leading-relaxed">
+                  The selected specialist is off duty on this day. Please choose
+                  a different specialist or date.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2 text-xs text-muted-foreground bg-muted/60 p-3 rounded-xl border border-border/50 items-start">
+              <Info size={16} className="text-primary shrink-0 mt-0.5" />
+              <p className="font-medium leading-relaxed">
+                {selectedSlot && !isSelectedSpecialistOffDuty
+                  ? `${getReadableSelectedDate()} at ${selectedSlot}. Proceed to confirm your booking.`
+                  : "Select a date and time slot to continue to checkout."}
+              </p>
+            </div>
+
+            <Button
+              onClick={handleAddToBasket}
+              disabled={!selectedSlot || isSelectedSpecialistOffDuty}
+              className="w-full h-12 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add to Booking Basket
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- ./hooks/useBookingState.ts ---
+import { useState, useEffect, useMemo } from "react";
+
+interface HookStaffSchedule {
+  day: string;
+  isOff: boolean;
+}
+
+interface HookStaffMember {
+  id: string;
+  name: string;
+  schedules?: HookStaffSchedule[];
+}
+
+interface HookItemDetails {
+  id: string;
+  business: {
+    slug: string;
+    staff: HookStaffMember[];
+  };
+}
+
+interface HookBusinessSchedule {
+  id: string;
+  day: string;
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+}
+
+interface EvaluatedStaffMember extends HookStaffMember {
+  isOffDutyToday: boolean;
+}
+
+// ✅ Timezone-safe local date string (YYYY-MM-DD) using local clock not UTC
+function getLocalTodayString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// ✅ Parse date string as LOCAL date to avoid UTC timezone day shift
+function parseDateLocal(dateString: string): Date {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+const DAY_NAMES = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+] as const;
+
+function getDayName(dateString: string): string {
+  return DAY_NAMES[parseDateLocal(dateString).getDay()];
+}
+
+export function useBookingState(item: HookItemDetails) {
+  const todayString = getLocalTodayString(); // ✅ local timezone, not UTC
+  const [selectedDate, setSelectedDate] = useState<string>(todayString);
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [selectedStaff, setSelectedStaff] = useState<string>("any");
+  const [storeSchedules, setStoreSchedules] = useState<HookBusinessSchedule[]>(
+    [],
+  );
+  const [fetchingHours, setFetchingHours] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLiveBusinessHours() {
+      try {
+        setFetchingHours(true);
+        const res = await fetch(
+          `/api/businesses/slug/${item.business.slug}/schedule`,
+        );
+        if (!res.ok) throw new Error("Failed to load schedule");
+        const data = await res.json();
+        if (isMounted) setStoreSchedules(data.schedules || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setFetchingHours(false);
+      }
+    }
+
+    if (item.business.slug) void loadLiveBusinessHours();
+    return () => {
+      isMounted = false;
+    };
+  }, [item.business.slug]);
+
+  const calculatedSlots = useMemo<string[]>(() => {
+    if (storeSchedules.length === 0 || !selectedDate) return [];
+
+    const targetDayStr = getDayName(selectedDate); // ✅ timezone-safe
+    const dayRule = storeSchedules.find((s) => s.day === targetDayStr);
+
+    if (!dayRule || dayRule.isClosed) return [];
+
+    const [startHour, startMin] = dayRule.openTime.split(":").map(Number);
+    const [endHour, endMin] = dayRule.closeTime.split(":").map(Number);
+    const slots: string[] = [];
+    let ch = startHour;
+    let cm = startMin;
+
+    while (ch < endHour || (ch === endHour && cm <= endMin)) {
+      const ampm = ch >= 12 ? "PM" : "AM";
+      const dh = ch % 12 === 0 ? 12 : ch % 12;
+      slots.push(
+        `${dh.toString().padStart(2, "0")}:${cm.toString().padStart(2, "0")} ${ampm}`,
+      );
+      cm += 30;
+      if (cm >= 60) {
+        ch += 1;
+        cm = 0;
+      }
+    }
+    return slots;
+  }, [selectedDate, storeSchedules]);
+
+  const evaluatedStaffRoster = useMemo<EvaluatedStaffMember[]>(() => {
+    if (!selectedDate || !item.business.staff) return [];
+
+    const targetDayStr = getDayName(selectedDate);
+
+    console.log(
+      "STAFF DATA RECEIVED:",
+      JSON.stringify(item.business.staff, null, 2),
+    );
+    console.log("TARGET DAY:", targetDayStr);
+
+    return item.business.staff.map((staffMember: HookStaffMember) => {
+      if (!staffMember.schedules || staffMember.schedules.length === 0) {
+        console.log(
+          `${staffMember.name}: NO SCHEDULES FOUND — defaulting to available`,
+        );
+        return { ...staffMember, isOffDutyToday: false };
+      }
+      const sched = staffMember.schedules.find(
+        (s: HookStaffSchedule) => s.day.toUpperCase() === targetDayStr,
+      );
+      console.log(`${staffMember.name}: schedule for ${targetDayStr}:`, sched);
+      return {
+        ...staffMember,
+        isOffDutyToday: sched ? sched.isOff : false,
+      };
+    });
+  }, [selectedDate, item.business.staff]);
+
+  const isSelectedSpecialistOffDuty = useMemo<boolean>(() => {
+    if (selectedStaff === "any") return false;
+    const found = evaluatedStaffRoster.find((s) => s.id === selectedStaff);
+    return found?.isOffDutyToday ?? false;
+  }, [selectedStaff, evaluatedStaffRoster]);
+
+  return {
+    selectedDate,
+    setSelectedDate,
+    selectedSlot,
+    setSelectedSlot,
+    selectedStaff,
+    setSelectedStaff,
+    calculatedSlots,
+    fetchingHours,
+    evaluatedStaffRoster,
+    isSelectedSpecialistOffDuty,
+    todayString,
+  };
+}
+
+--- ./lib/booking-validator.ts ---
+// lib/booking-validator.ts
+import { prisma } from "@/lib/prisma";
+import { BookingStatus } from "@prisma/client";
+
+interface ServingCapacityCheck {
+  businessId: string;
+  staffId: string; // "any" or specific ID
+  dateString: string; // "YYYY-MM-DD"
+  startTime: Date;
+  durationMinutes: number;
+}
+
+export async function validateServingCapacity({
+  businessId,
+  staffId,
+  dateString,
+  startTime,
+  durationMinutes,
+}: ServingCapacityCheck) {
+  const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+
+  // 1. Calculate the day name cleanly using a local unshifted timeline split
+  const daysMap = [
+    "SUNDAY",
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+  ];
+  const [year, month, day] = dateString.split("-").map(Number);
+  const localDateObject = new Date(year, month - 1, day);
+  const targetDayStr = daysMap[localDateObject.getDay()]; // e.g., "THURSDAY"
+
+  // 2. Fetch the active staff profiles along with ALL their schedule lines
+  const businessData = await prisma.business.findUnique({
+    where: { id: businessId },
+    include: {
+      staff: {
+        where: { isActive: true },
+        include: { schedules: true },
+      },
+    },
+  });
+
+  const activeStaff = businessData?.staff || [];
+
+  // 3. 💡 CRITICAL SAFETY FILTER: Exclude staff who are scheduled to be OFF DUTY
+  const availableStaffOnDuty = activeStaff.filter((member) => {
+    if (!member.schedules || member.schedules.length === 0) return true;
+
+    // Defensive check matching UPPERCASE, lowercase, and Capitalized words safely
+    const daySchedule = member.schedules.find((s) => {
+      const dbDay = s.day.trim().toUpperCase();
+      return dbDay === targetDayStr;
+    });
+
+    // If a schedule rule is found, return the opposite of isOff (if isOff is true, they are NOT available)
+    return daySchedule ? !daySchedule.isOff : true;
+  });
+
+  const totalServingCapacity = availableStaffOnDuty.length;
+
+  // 🚨 BACKEND FIREWALL 1: Block the slot completely if NO staff are on duty today
+  if (totalServingCapacity === 0) {
+    return {
+      isValid: false,
+      reason:
+        "No specialists are scheduled to work on this calendar day. Please pick a different date.",
+    };
+  }
+
+  // 4. Query active bookings that overlap with this requested window
+  const overlappingBookings = await prisma.booking.findMany({
+    where: {
+      businessId,
+      status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+      NOT: {
+        OR: [{ startTime: { gte: endTime } }, { endTime: { lte: startTime } }],
+      },
+    },
+  });
+
+  // 🚨 BACKEND FIREWALL 2: Block if global shop capacity is filled
+  if (overlappingBookings.length >= totalServingCapacity) {
+    return {
+      isValid: false,
+      reason:
+        "This time slot is fully booked. All available on-duty staff members are scheduled for this window.",
+    };
+  }
+
+  // 5. Specific Staff Member Availability & Off-Duty Check
+  if (staffId && staffId !== "any") {
+    // Verify if the specifically chosen worker is included in our ON-DUTY array helper
+    const isSpecificWorkerOnDuty = availableStaffOnDuty.some(
+      (s) => s.id === staffId,
+    );
+
+    if (!isSpecificWorkerOnDuty) {
+      return {
+        isValid: false,
+        reason:
+          "The requested professional is scheduled to be off duty on this day. Please select another provider or choose 'Any Professional'.",
+      };
+    }
+
+    // Verify if they have a localized scheduling collision block
+    const isSpecialistBusy = overlappingBookings.some(
+      (b) => b.staffId === staffId,
+    );
+    if (isSpecialistBusy) {
+      return {
+        isValid: false,
+        reason:
+          "The requested professional is currently busy serving another client during this time slot.",
+      };
+    }
+    return { isValid: true, assignedStaffId: staffId };
+  }
+
+  // 6. Success Auto-Routing Flow: Assign a free professional from the pool of active ON-DUTY workers
+  const busyStaffIds = overlappingBookings
+    .map((b) => b.staffId)
+    .filter(Boolean) as string[];
+
+  const freeStaff = availableStaffOnDuty.find(
+    (member) => !busyStaffIds.includes(member.id),
+  );
+
+  return {
+    isValid: true,
+    assignedStaffId: freeStaff ? freeStaff.id : null,
+  };
+}
+
+--- ./lib/features/bookingSlice.ts ---
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+
+export interface SelectedService {
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+  image: string | null;
+}
+
+interface BookingState {
+  businessId: string | null;
+  businessName: string | null;
+  selectedService: SelectedService | null;
+  bookingTime: string | null; // Stores the ISO string datetime slot
+  staffId: string | null; // Added parameter support for your specialist tracker
+
+  // Live aggregated notification metric field properties
+  upcomingCount: number;
+}
+
+const initialState: BookingState = {
+  businessId: null,
+  businessName: null,
+  selectedService: null,
+  bookingTime: null,
+  staffId: null,
+  upcomingCount: 0, // Default baseline initialization counter
+};
+
+const bookingSlice = createSlice({
+  name: "bookingSlice",
+  initialState,
+  reducers: {
+    // Maps business profiles explicitly and handles core item properties
+    selectService: (
+      state,
+      action: PayloadAction<{
+        businessId: string;
+        businessName: string;
+        service: SelectedService;
+      }>,
+    ) => {
+      state.businessId = action.payload.businessId;
+      state.businessName = action.payload.businessName;
+      state.selectedService = action.payload.service;
+    },
+
+    // Formally registers the named action needed by BookingConfirmPage
+    setBookingTime: (state, action: PayloadAction<string>) => {
+      state.bookingTime = action.payload;
+    },
+
+    // Allows saving everything simultaneously from the booking page
+    setCompleteBooking: (
+      state,
+      action: PayloadAction<{
+        businessId: string;
+        businessName: string;
+        selectedService: SelectedService;
+        bookingTime: string;
+        staffId: string | null;
+      }>,
+    ) => {
+      state.businessId = action.payload.businessId;
+      state.businessName = action.payload.businessName;
+      state.selectedService = action.payload.selectedService;
+      state.bookingTime = action.payload.bookingTime;
+      state.staffId = action.payload.staffId;
+    },
+
+    // Notification reducers to manage active live dashboard metrics
+    setBookingCount: (state, action: PayloadAction<number>) => {
+      state.upcomingCount = action.payload;
+    },
+
+    incrementBookingCount: (state) => {
+      state.upcomingCount += 1;
+    },
+
+    clearBookingFlow: (state) => {
+      state.businessId = null;
+      state.businessName = null;
+      state.selectedService = null;
+      state.bookingTime = null;
+      state.staffId = null;
+      // We deliberately DO NOT wipe upcomingCount here so the Navbar stays hydrated
+    },
+  },
+});
+
+export const {
+  selectService,
+  setBookingTime,
+  setCompleteBooking,
+  setBookingCount,
+  incrementBookingCount,
+  clearBookingFlow,
+} = bookingSlice.actions;
+
+export default bookingSlice.reducer;
+
+--- ./lib/schedule-rule.ts ---
+// src/lib/schedule-rule.ts
+
+interface BusinessScheduleRow {
+  day: string;
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+}
+
+/**
+ * Validates if a requested booking slot falls within the shop's live operating limits
+ * @param targetDate The exact arrival timestamp the customer selected
+ * @param storeSchedules The live array returned from your BusinessSchedule table
+ */
+export function isStoreOpen(
+  targetDate: Date,
+  storeSchedules: BusinessScheduleRow[],
+): boolean {
+  // Convert standard numeric weekdays to match your uppercase string schema (e.g., 0 -> "SUNDAY")
+  const daysMap = [
+    "SUNDAY",
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+  ];
+  const targetDayString = daysMap[targetDate.getDay()];
+
+  // Locate the calendar restriction row for that specific day
+  const dayRule = storeSchedules.find((s) => s.day === targetDayString);
+
+  // Guard clause: If there is no rule or if the shop toggle is switched off, block the checkout
+  if (!dayRule || dayRule.isClosed) return false;
+
+  // Convert the target date object into a clean "HH:MM" text string format
+  const hours = targetDate.getHours().toString().padStart(2, "0");
+  const minutes = targetDate.getMinutes().toString().padStart(2, "0");
+  const targetTimeStr = `${hours}:${minutes}`;
+
+  // Return true only if the arrival window falls within the custom time settings
+  return (
+    targetTimeStr >= dayRule.openTime && targetTimeStr <= dayRule.closeTime
+  );
+}
+
+--- ./utils/googleCalendar.ts ---
+import { prisma } from "@/lib/prisma";
+
+// Helper function to handle background token refreshes
+async function getValidGoogleAccessToken(
+  businessId: string,
+): Promise<string | null> {
+  const credential = await prisma.googleCredential.findUnique({
+    where: { businessId },
+  });
+
+  if (!credential) return null;
+
+  const now = new Date();
+  // Buffer of 5 minutes to prevent race conditions near expiration
+  const safetyBufferTime = now.getTime() + 5 * 60 * 1000;
+
+  // If the access token is still valid, use it directly
+  if (credential.expiresAt.getTime() > safetyBufferTime) {
+    return credential.accessToken;
+  }
+
+  // Token has expired or is about to expire -> Refresh it in the background
+  try {
+    const response = await fetch("https://googleapis.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID || "",
+        client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+        refresh_token: credential.refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(
+        `[GOOGLE REFRESH FAILURE] Could not refresh token for business ${businessId}:`,
+        data,
+      );
+      return null;
+    }
+
+    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+    // Persist the freshly generated access token back to our database
+    const updated = await prisma.googleCredential.update({
+      where: { businessId },
+      data: {
+        accessToken: data.access_token,
+        expiresAt,
+      },
+    });
+
+    return updated.accessToken;
+  } catch (error) {
+    console.error(
+      `[GOOGLE REFRESH EXCEPTION] Error updating token for business ${businessId}:`,
+      error,
+    );
+    return null;
+  }
+}
+
+interface SyncEventConfig {
+  bookingId: string;
+}
+
+// Main utility to sync a booking into the owner's Google Calendar
+export async function syncBookingToGoogleCalendar({
+  bookingId,
+}: SyncEventConfig) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        business: true,
+        user: true,
+        items: { include: { item: true } }, // Fetches name of service
+      },
+    });
+
+    if (!booking || booking.status !== "CONFIRMED") return;
+
+    // Fetch or renew authorization access token
+    const accessToken = await getValidGoogleAccessToken(booking.businessId);
+    if (!accessToken) {
+      console.log(
+        `[CALENDAR SYNC SKIPPED] Business ${booking.businessId} has not paired Google Calendar.`,
+      );
+      return;
+    }
+
+    const firstBookingItem = booking.items?.[0];
+
+    const serviceName = firstBookingItem?.itemId
+      ? await prisma.item
+          .findUnique({ where: { id: firstBookingItem.itemId } })
+          .then((i) => i?.name)
+      : "Wellness Session";
+    const clientName = booking.user.firstName ?? "Valued Client";
+
+    // Format fields for the Google Calendar event payload
+    const eventBody = {
+      summary: `${serviceName} with ${clientName}`,
+      description: `FreshPoint Appointment\n\nClient Email: ${booking.user.email}\nNotes: ${booking.notes || "None"}`,
+      start: {
+        dateTime: booking.startTime.toISOString(),
+        timeZone: booking.business.timezone,
+      },
+      end: {
+        dateTime: booking.endTime.toISOString(),
+        timeZone: booking.business.timezone,
+      },
+    };
+
+    let url = "https://googleapis.com";
+    let method = "POST";
+
+    // If an event already exists (e.g., this is a rescheduled appointment), update it instead
+    if (booking.googleEventId) {
+      url = `${url}/${booking.googleEventId}`;
+      method = "PUT";
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventBody),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`[GOOGLE CALENDAR API ERROR] Failed to push event:`, data);
+      return;
+    }
+
+    // Save the returned googleEventId on the booking so we can modify or delete it later
+    if (method === "POST" && data.id) {
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { googleEventId: data.id },
+      });
+      console.log(
+        `✅ Google Calendar Event synced successfully for booking: ${bookingId}`,
+      );
+    }
+  } catch (error) {
+    console.error(`[GOOGLE CALENDAR EXCEPTION] Fatal sync failure:`, error);
+  }
+}
+
+--- ./utils/slotEngine.ts ---
+import { prisma } from "@/lib/prisma";
+
+interface SlotConfig {
+  businessId: string;
+  serviceDurationMinutes: number;
+  dateStr: string; // "YYYY-MM-DD"
+}
+
+export async function getAvailableSlots({
+  businessId,
+  serviceDurationMinutes,
+  dateStr,
+}: SlotConfig) {
+  // 1. Fetch Business, Schedules, and count total active staff
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    include: {
+      schedules: true,
+      staff: true,
+    },
+  });
+
+  if (!business) throw new Error("Business not found");
+
+  const totalStaffCount = business.staff.length;
+  if (totalStaffCount === 0) return [];
+
+  // Parse YYYY-MM-DD reliably without local timezone parsing shifts
+  const [year, month, day] = dateStr.split("-").map(Number);
+
+  // Construct a reference string to safely read the target day of the week
+  const referenceDate = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = referenceDate
+    .toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })
+    .toUpperCase();
+
+  const daySchedule = business.schedules.find((s) => s.day === dayOfWeek);
+  if (!daySchedule || daySchedule.isClosed) return [];
+
+  const [openHour, openMin] = daySchedule.openTime.split(":").map(Number);
+  const [closeHour, closeMin] = daySchedule.closeTime.split(":").map(Number);
+
+  // Parse bounds safely inside the business's explicit timezone setting
+  const startWindow = new Date(`${dateStr}T${daySchedule.openTime}:00.000Z`);
+  const endWindow = new Date(`${dateStr}T${daySchedule.closeTime}:00.000Z`);
+
+  // Broad database query filter bounds for the selected date
+  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+  // 2. Fetch concurrent active bookings running on this date range
+  const existingBookings = await prisma.booking.findMany({
+    where: {
+      businessId,
+      status: { in: ["CONFIRMED", "PENDING"] },
+      startTime: { gte: dayStart, lte: dayEnd },
+    },
+    select: { startTime: true, endTime: true, staffId: true },
+  });
+
+  const availableSlots: string[] = [];
+  const gridIntervalMinutes = 15;
+  const totalServiceTimeNeeded =
+    serviceDurationMinutes + business.bufferTimeMinutes;
+
+  let currentSlotStart = new Date(startWindow.getTime());
+
+  // 3. Grid allocation iteration
+  while (
+    currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000 <=
+    endWindow.getTime()
+  ) {
+    const currentSlotEnd = new Date(
+      currentSlotStart.getTime() + totalServiceTimeNeeded * 60 * 1000,
+    );
+
+    // Count how many bookings overlap with this explicit time block
+    const overlappingBookingsCount = existingBookings.filter((booking) => {
+      const bStart = booking.startTime.getTime();
+      const bEnd = booking.endTime.getTime();
+      const sStart = currentSlotStart.getTime();
+      const sEnd = currentSlotEnd.getTime();
+
+      return sStart < bEnd && sEnd > bStart;
+    }).length;
+
+    // Multi-staff capacity verification
+    if (overlappingBookingsCount < totalStaffCount) {
+      // Return unmutated clean 24hr format text representation
+      const hh = String(currentSlotStart.getUTCHours()).padStart(2, "0");
+      const mm = String(currentSlotStart.getUTCMinutes()).padStart(2, "0");
+      availableSlots.push(`${hh}:${mm}`);
+    }
+
+    // Progress grid slot pointer securely without reference pollution
+    currentSlotStart = new Date(
+      currentSlotStart.getTime() + gridIntervalMinutes * 60 * 1000,
+    );
+  }
+
+  return availableSlots;
+}
+
+
+=== REMINDER / CRON / NOTIFICATION FILES ===
+
+--- ./app/api/cron/booking-reminders/route.ts ---
+export const dynamic = "force-dynamic";
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Helper to format milestones into reader-friendly text for emails
+const formatMilestoneText = (milestone: string): string => {
+  switch (milestone) {
+    case "1_DAY":
+      return "tomorrow";
+    case "2_HOURS":
+      return "in 2 hours";
+    case "30_MINUTES":
+      return "in 30 minutes";
+    case "5_MINUTES":
+      return "in 5 minutes";
+    default:
+      return "soon";
+  }
+};
+
+export async function GET(request: Request) {
+  try {
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const now = new Date();
+
+    // 1. Fetch pending logs scheduled for NOW or in the PAST that haven't been sent
+    const dueReminders = await prisma.bookingReminderLog.findMany({
+      where: {
+        scheduledFor: {
+          lte: now,
+        },
+        sentAt: null, // Only fetch items still in the queue
+        booking: {
+          status: "CONFIRMED", // Safety check: ensure booking wasn't cancelled
+        },
+      },
+      include: {
+        booking: {
+          include: {
+            user: true,
+            business: true,
+          },
+        },
+      },
+      take: 50, // Batch limit to safely manage serverless execution windows
+    });
+
+    let emailsDispatched = 0;
+
+    for (const log of dueReminders) {
+      const { booking, milestone } = log;
+      const { business, user } = booking;
+
+      // Skip processing if the business turned off email notifications entirely
+      if (!business.emailAlertsActive) {
+        // Mark as sent anyway so it drops out of the active processing queue
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: now },
+        });
+        continue;
+      }
+
+      const timeString = booking.startTime.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: business.timezone,
+      });
+
+      const dateString = booking.startTime.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        timeZone: business.timezone,
+      });
+
+      const clientName = user.firstName ?? "Valued Client";
+      const vendorName = business.name;
+      const horizonText = formatMilestoneText(milestone);
+
+      try {
+        // 2. Dispatch email notification to the CUSTOMER
+        await resend.emails.send({
+          from: "FreshPoint Alerts <onboarding@resend.dev>",
+          to: user.email,
+          subject: `Reminder: Your booking with ${vendorName} is ${horizonText}!`,
+          html: `<p>Hi ${clientName}, this is a friendly reminder that your upcoming appointment with <strong>${vendorName}</strong> is ${horizonText}, ${dateString} at ${timeString}.</p>`,
+        });
+
+        // 3. Dispatch email notification to the BUSINESS OWNER
+        await resend.emails.send({
+          from: "FreshPoint Studio <onboarding@resend.dev>",
+          to: business.email,
+          subject: `Upcoming Session: Appointment with ${clientName} ${horizonText}`,
+          html: `<p>Hello ${vendorName}, your session with client <strong>${clientName}</strong> is scheduled for ${horizonText}, ${dateString} at ${timeString}.</p>`,
+        });
+
+        emailsDispatched += 2;
+      } catch (emailError) {
+        console.error(
+          `Failed to dispatch email for log ID ${log.id}:`,
+          emailError,
+        );
+        // Continue processing other records even if an email fails
+      }
+
+      // 4. Mark this specific queue milestone item as completed
+      await prisma.bookingReminderLog.update({
+        where: { id: log.id },
+        data: { sentAt: now },
+      });
+    }
+
+    return NextResponse.json({ success: true, emailsSent: emailsDispatched });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 },
+    );
+  }
+}
+
+--- ./app/api/cron/purge-stale-data/route.ts ---
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+
+export async function GET(request: NextRequest) {
+  try {
+    // 1️⃣ SECURITY GUARD: Verify the request is coming from your trusted automated scheduler
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return NextResponse.json(
+        { error: "Unauthorized access blocked" },
+        { status: 401 },
+      );
+    }
+
+    // 2️⃣ RETENTION WINDOW CALCULATION: Calculate exactly 1 year ago from today
+    const retentionCutoff = new Date();
+    retentionCutoff.setFullYear(retentionCutoff.getFullYear() - 1);
+
+    console.log(
+      `🧹 DISK STORAGE MAINTENANCE: Sweeping data older than ${retentionCutoff.toISOString()}`,
+    );
+
+    // 3️⃣ ATOMIC PURGE TRANSACTION: Safely wipe old database records
+    // Because your Prisma schema has `onDelete: Cascade` set up on your relation mappings,
+    // deleting a Booking row will automatically clean up matching child join tables (like BookingItem) completely!
+    const purgeSummary = await prisma.booking.deleteMany({
+      where: {
+        createdAt: {
+          lt: retentionCutoff, // Less than 1 year old
+        },
+      },
+    });
+
+    console.log(
+      `✅ DISK PURGE SUCCESSFUL: Removed ${purgeSummary.count} stale booking records from disk.`,
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Database pruning execution complete.",
+        rowsDeleted: purgeSummary.count,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    console.error("❌ CRITICAL DATABASE PURGE FAILURE:", error);
+    return NextResponse.json(
+      { error: "Database maintenance loop collapsed" },
+      { status: 500 },
+    );
+  }
+}
+
+--- ./components/business/bookings/BookingReminderBadge.tsx ---
+"use client";
+
+import * as React from "react";
+import { MailCheck, MailWarning } from "lucide-react";
+
+interface ReminderBadgeProps {
+  isReminderSent: boolean;
+}
+
+export function BookingReminderBadge({ isReminderSent }: ReminderBadgeProps) {
+  if (isReminderSent) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-mono font-medium mt-1">
+        <MailCheck className="h-3 w-3" />
+        <span>24h Email Sent</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-muted text-muted-foreground border border-border/60 text-[10px] font-mono mt-1">
+      <MailWarning className="h-3 w-3 opacity-60" />
+      <span>Reminder Queued</span>
+    </span>
+  );
+}
+
+--- ./utils/reminders.ts ---
+import { prisma } from "@/lib/prisma";
+import { syncBookingToGoogleCalendar } from "./googleCalendar"; // 🚀 Import calendar sync
+
+export async function queueBookingReminders(bookingId: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { business: true },
+  });
+
+  if (!booking || booking.status !== "CONFIRMED") return;
+
+  // 🚀 TRIGGER GOOGLE CALENDAR SYNC INSTANTLY
+  // Wrapped in a detached promise catch block so calendar failures NEVER crash your booking flow
+  syncBookingToGoogleCalendar({ bookingId: booking.id }).catch((err) =>
+    console.error("Delayed async background calendar sync crashed:", err),
+  );
+
+  // --- Your existing reminder calculation code below remains completely untouched ---
+  const reminderTiers = [
+    { milestone: "1_DAY", minutesBefore: 24 * 60 },
+    { milestone: "2_HOURS", minutesBefore: 2 * 60 },
+    { milestone: "30_MINUTES", minutesBefore: 30 },
+    { milestone: "5_MINUTES", minutesBefore: 5 },
+  ];
+
+  const reminderData = reminderTiers.map((tier) => {
+    const scheduledTime = new Date(
+      booking.startTime.getTime() - tier.minutesBefore * 60 * 1000,
+    );
+    return {
+      bookingId: booking.id,
+      milestone: tier.milestone,
+      scheduledFor: scheduledTime,
+      sentAt: null,
+    };
+  });
+
+  await prisma.bookingReminderLog.deleteMany({
+    where: { bookingId: booking.id, sentAt: null },
+  });
+
+  await prisma.bookingReminderLog.createMany({
+    data: reminderData,
+    skipDuplicates: true,
+  });
+}
+
+
+=== VERCEL CRON CONFIG (if any) ===
+--- ./vercel.json ---
+{
+  "crons": [
+    {
+      "path": "/api/cron/purge-stale-data",
+      "schedule": "0 0 * * 0"
+    },
+    {
+      "path": "/api/cron/booking-reminders",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

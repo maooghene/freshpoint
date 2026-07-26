@@ -8,18 +8,18 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Helper to format milestones into reader-friendly text for emails
 const formatMilestoneText = (milestone: string): string => {
-  switch (milestone) {
-    case "1_DAY":
-      return "tomorrow";
-    case "2_HOURS":
-      return "in 2 hours";
-    case "30_MINUTES":
-      return "in 30 minutes";
-    case "5_MINUTES":
-      return "in 5 minutes";
-    default:
-      return "soon";
+  const match = milestone.match(/^(\d+)_HOURS_BEFORE$/);
+  if (!match) return "soon"; // handles any leftover old-format rows gracefully
+
+  const hours = parseInt(match[1], 10);
+  if (hours >= 24 && hours % 24 === 0) {
+    const days = hours / 24;
+    return days === 1 ? "tomorrow" : `in ${days} days`;
   }
+  if (hours >= 1) {
+    return `in ${hours} hour${hours > 1 ? "s" : ""}`;
+  }
+  return "soon";
 };
 
 export async function GET(request: Request) {

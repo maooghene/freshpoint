@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard } from "lucide-react";
 
-// Maintain your custom lazy configuration block identically
 const PaystackBtn = dynamic(() => import("@/components/PaystackButton"), {
   ssr: false,
   loading: () => (
@@ -26,7 +25,8 @@ interface PaymentSectionProps {
   name: string;
   metadata: {
     itemId: string;
-    dateTime: string | null;
+    date: string | null;
+    time: string | null;
     businessId: string | null;
     userId: string | null;
   };
@@ -60,7 +60,8 @@ export function PaymentSection({
           name={name}
           metadata={{
             ...metadata,
-            dateTime: metadata.dateTime ?? undefined,
+            date: metadata.date ?? undefined,
+            time: metadata.time ?? undefined,
             businessId: metadata.businessId ?? undefined,
             userId: metadata.userId ?? undefined,
           }}
