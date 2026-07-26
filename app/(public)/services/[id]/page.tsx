@@ -175,9 +175,7 @@ export default function ServicePage() {
                 size="lg"
                 className="rounded-xl font-bold shadow-md hover:shadow-lg transition-all duration-300"
               >
-                <Link href={`/bookings/confirm?itemId=${service.id}`}>
-                  Book Session Opening
-                </Link>
+                <Link href={`/book/${service.id}`}>Book Session Opening</Link>
               </Button>
             </div>
           </div>
