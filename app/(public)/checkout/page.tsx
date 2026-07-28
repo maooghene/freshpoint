@@ -10,6 +10,7 @@ import { CreditCard, ArrowLeft, Loader2 } from "lucide-react";
 import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
 import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
 import { PaymentSection } from "@/components/checkout/PaymentSection";
+import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
 
 interface ItemDetails {
   id: string;
@@ -42,13 +43,13 @@ function CheckoutContent() {
   const date = searchParams?.get("date");
   const rawTime = searchParams?.get("time");
 
-  // Already "HH:MM" 24-hour format — no conversion needed anymore.
   const time24 = rawTime ? decodeURIComponent(rawTime) : null;
   const displayTime = time24 ? formatTimeDisplay(time24) : null;
 
   const [item, setItem] = useState<ItemDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [customerPhone, setCustomerPhone] = useState<string>("");
 
   useEffect(() => {
     if (!itemId) return;
@@ -68,6 +69,20 @@ function CheckoutContent() {
 
     fetchItem();
   }, [itemId]);
+
+  // Background hook to pull last used contact choice
+  useEffect(() => {
+    if (!userId) return;
+
+    fetch("/api/users/profile-phone")
+      .then((res) => (res.ok ? res.json() : { phone: null }))
+      .then((data) => {
+        if (data.phone) {
+          setCustomerPhone(data.phone);
+        }
+      })
+      .catch((err) => console.error("Profile phone look-up failed:", err));
+  }, [userId]);
 
   const formattedDate = date
     ? new Date(date).toLocaleDateString("en-NG", {
@@ -93,8 +108,9 @@ function CheckoutContent() {
           reference,
           businessId,
           itemId,
-          date, // "YYYY-MM-DD" — business's local calendar date
-          time: time24, // "HH:MM" — business's local wall-clock time
+          date,
+          time: time24,
+          customerPhone: customerPhone.trim(), // Appended to payload
         }),
       });
 
@@ -142,6 +158,8 @@ function CheckoutContent() {
     );
   }
 
+  const isContactValid = customerPhone.trim().length >= 8;
+
   return (
     <div className="max-w-2xl mx-auto p-6 pt-24 min-h-screen bg-background text-foreground w-full">
       <div className="flex items-center gap-3 mb-8 border-b border-border pb-4">
@@ -156,23 +174,40 @@ function CheckoutContent() {
       />
       <TotalAmountCard price={Number(item.price)} />
 
-      <PaymentSection
-        paying={paying}
-        price={Number(item.price)}
-        email={
-          user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
-        }
-        name={user?.fullName || item.business.name}
-        metadata={{
-          itemId: item.id,
-          date: date,
-          time: time24,
-          businessId: businessId,
-          userId: userId ?? null,
-        }}
-        onSuccess={handlePaymentSuccess}
-        onClose={() => setPaying(false)}
-      />
+      {/* Embedded WhatsApp/Emergency Input Box Field */}
+      <div className="my-6">
+        <CheckoutContactField
+          value={customerPhone}
+          onChange={setCustomerPhone}
+        />
+      </div>
+
+      {isContactValid ? (
+        <PaymentSection
+          paying={paying}
+          price={Number(item.price)}
+          email={
+            user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
+          }
+          name={user?.fullName || item.business.name}
+          metadata={{
+            itemId: item.id,
+            date: date,
+            time: time24,
+            businessId: businessId,
+            userId: userId ?? null,
+          }}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setPaying(false)}
+        />
+      ) : (
+        <Button
+          disabled
+          className="w-full py-6 rounded-xl font-bold bg-muted text-muted-foreground opacity-60 flex items-center justify-center gap-2 cursor-not-allowed select-none"
+        >
+          Provide WhatsApp Contact to Pay
+        </Button>
+      )}
 
       <p className="text-center text-[11px] text-muted-foreground mt-6 font-medium">
         Secured encrypted by Paystack • Your appointment will be confirmed

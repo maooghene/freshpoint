@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { PaystackVerifyResponse } from "@/app/api/orders/confirm/utils"; // or move this type to a shared types file
 
 const secretKey = process.env.PAYSTACK_SECRET_KEY;
@@ -42,6 +43,102 @@ export async function verifyPaystackPayment(
       "💥 [FreshPoint Gateway] Socket execution failed:",
       fetchError,
     );
+    return false;
+  }
+}
+
+/**
+ * Result of attempting to initiate a Paystack refund.
+ * `success` only means Paystack ACCEPTED the refund request for processing —
+ * it does NOT mean the customer has their money back yet. The actual outcome
+ * arrives later via the refund.* webhook events (see app/api/webhooks/paystack/route.ts).
+ */
+export interface PaystackRefundResult {
+  success: boolean;
+  refundId: number | null;
+  status: string | null;
+}
+
+/**
+ * Initiates a refund for a previously successful transaction.
+ * Used when an order can't be fulfilled after payment was already captured
+ * (e.g. stock sold out to a concurrent order before this one could claim it).
+ */
+export async function refundPaystackPayment(
+  reference: string,
+  merchantNote: string,
+): Promise<PaystackRefundResult> {
+  if (!secretKey) {
+    console.error(
+      "❌ [FreshPoint Gateway] CRITICAL ERROR: PAYSTACK_SECRET_KEY is missing.",
+    );
+    return { success: false, refundId: null, status: null };
+  }
+
+  try {
+    const response = await fetch("https://api.paystack.co/refund", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        transaction: reference,
+        merchant_note: merchantNote,
+        customer_note:
+          "Your order could not be fulfilled and is being refunded.",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.status) {
+      console.error("💥 [FreshPoint Gateway] Refund initiation failed:", data);
+      return { success: false, refundId: null, status: null };
+    }
+
+    console.log(
+      `💸 [FreshPoint Gateway] Refund initiated for ${reference}. Refund ID: ${data.data?.id}`,
+    );
+
+    return {
+      success: true,
+      refundId: typeof data.data?.id === "number" ? data.data.id : null,
+      status: data.data?.status ?? null,
+    };
+  } catch (fetchError: unknown) {
+    console.error(
+      "💥 [FreshPoint Gateway] Refund request crashed:",
+      fetchError,
+    );
+    return { success: false, refundId: null, status: null };
+  }
+}
+
+/**
+ * Verifies that an incoming webhook request actually originated from Paystack.
+ * Paystack signs the raw request body with HMAC SHA512 using your secret key
+ * and sends it in the x-paystack-signature header. Must be checked BEFORE
+ * the body is parsed or trusted in any way.
+ */
+export function verifyPaystackWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+): boolean {
+  if (!secretKey || !signatureHeader) return false;
+
+  const expectedHash = crypto
+    .createHmac("sha512", secretKey)
+    .update(rawBody)
+    .digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expectedHash, "utf8"),
+      Buffer.from(signatureHeader, "utf8"),
+    );
+  } catch {
+    // Buffers of different lengths throw rather than returning false
     return false;
   }
 }

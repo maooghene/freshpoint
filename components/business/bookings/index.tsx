@@ -1,3 +1,4 @@
+// components/business/bookings/index.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -5,8 +6,9 @@ import Loading from "@/components/Loading";
 import { toast } from "react-toastify";
 import { Booking, BookingStatus } from "./types";
 import BookingTable from "./BookingTable";
-import { X, QrCode, Phone, Mail } from "lucide-react";
+import { X, QrCode, Mail } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
+import { ContactActionBar } from "@/components/business/ContactActionBar";
 
 interface FreshpointBookingsDashboardProps {
   businessSlug: string;
@@ -24,7 +26,6 @@ export default function FreshpointBookingsDashboard({
   const fetchBookingsData = useCallback(
     async (slug: string, isMounted: boolean) => {
       try {
-        // Enforce cookie passage across client boundary using the plural endpoint structure
         const res = await fetch(`/api/businesses/bookings?slug=${slug}`, {
           method: "GET",
           credentials: "include",
@@ -33,7 +34,6 @@ export default function FreshpointBookingsDashboard({
           },
         });
 
-        // Safe status evaluation to prevent HTML payload parse crashes
         if (!res.ok) {
           const contentType = res.headers.get("content-type");
           if (contentType && contentType.includes("text/html")) {
@@ -65,7 +65,7 @@ export default function FreshpointBookingsDashboard({
         if (isMounted) setLoading(false);
       }
     },
-    [], // Absolute loop isolation for React 19 safety rules
+    [],
   );
 
   useEffect(() => {
@@ -87,7 +87,6 @@ export default function FreshpointBookingsDashboard({
     status: BookingStatus,
   ): Promise<void> => {
     try {
-      // Synchronized endpoint to target your exact plural route
       const res = await fetch("/api/businesses/bookings", {
         method: "POST",
         credentials: "include",
@@ -214,21 +213,23 @@ export default function FreshpointBookingsDashboard({
                 <h4 className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
                   Customer Info
                 </h4>
-                <div className="p-4 bg-secondary/30 rounded-xl border border-border/40 space-y-2.5">
+                <div className="p-4 bg-secondary/30 rounded-xl border border-border/40 space-y-3.5">
                   <div className="font-bold text-base text-foreground whitespace-normal break-words leading-relaxed">
                     {clientName}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1 min-w-0 border-b border-border/50 pb-2.5">
                     <Mail size={14} className="text-primary shrink-0" />
                     <span className="truncate">
                       {selectedBooking.user?.email}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1 min-w-0">
-                    <Phone size={14} className="text-primary shrink-0" />
-                    <span className="truncate">
-                      {selectedBooking.user?.phone || "No phone added"}
-                    </span>
+
+                  {/* Reusable Click-to-Dial / WhatsApp Action Component Core Block */}
+                  <div className="pt-0.5">
+                    <ContactActionBar
+                      phone={selectedBooking.customerPhone}
+                      label="Client"
+                    />
                   </div>
                 </div>
               </div>

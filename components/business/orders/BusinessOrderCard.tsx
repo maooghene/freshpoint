@@ -1,8 +1,11 @@
+// components/business/orders/BusinessOrderCard.tsx
 "use client";
 
 import React from "react";
 import { PackageIcon, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ContactActionBar } from "@/components/business/ContactActionBar";
+
 
 type OrderStatus =
   | "PENDING"
@@ -25,6 +28,7 @@ interface BusinessOrderCardProps {
     status: OrderStatus;
     totalAmount: number;
     createdAt: string;
+    customerPhone: string | null; // Added interface extension property support
     user: { firstName: string | null; lastName: string | null; email: string };
     items: OrderItem[];
   };
@@ -53,7 +57,6 @@ export function BusinessOrderCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* ── UNIFIED ALPHANUMERIC IDENTIFIER MATCH BLOCK ── */}
             <p className="text-xs font-mono font-black text-foreground bg-muted border border-border/80 px-2 py-0.5 rounded-lg shadow-2xs">
               {order.code ? order.code : `#${order.id.slice(-8).toUpperCase()}`}
             </p>
@@ -83,6 +86,11 @@ export function BusinessOrderCard({
             ₦{Number(order.totalAmount).toLocaleString()}
           </p>
         </div>
+      </div>
+
+      {/* EMERGENCY DISPATCH AND RE-VERIFICATION COMMUNICATION BAR BLOCK */}
+      <div className="max-w-xs pt-1">
+        <ContactActionBar phone={order.customerPhone} label="Customer" />
       </div>
 
       {/* ITEMS MAP LOOP */}

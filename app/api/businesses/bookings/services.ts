@@ -1,3 +1,4 @@
+// app/api/businesses/bookings/services.ts
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { prisma } from "@/lib/prisma";
 import { BookingStatus, Booking, User, BookingItem } from "@prisma/client";
@@ -25,7 +26,6 @@ interface CustomUserSubset {
   image: string | null;
 }
 
-// ✅ EXPLICIT TYPE ADJUSTMENT: Included relation tracker
 interface CustomReminderLog {
   milestone: string;
 }
@@ -33,7 +33,7 @@ interface CustomReminderLog {
 interface RichBookingRecord extends Booking {
   user: CustomUserSubset | null;
   items?: CustomBookingItemRelation[];
-  reminderLogs?: CustomReminderLog[]; // Injected safely into memory
+  reminderLogs?: CustomReminderLog[];
 }
 
 export interface FormattedBookingResponse {
@@ -44,8 +44,9 @@ export interface FormattedBookingResponse {
   notes: string;
   createdAt: string;
   queueCode: string;
+  customerPhone: string | null; // ✅ Added to the frontend output schema layout
   paymentStatus: string;
-  isReminderSent: boolean; // ✅ NEW EXPOSED FLAG FOR FRONTEND
+  isReminderSent: boolean;
   user: {
     firstName: string;
     lastName: string;
@@ -202,7 +203,6 @@ export async function getFormattedBookings(
         },
         address: true,
         items: { include: { item: { select: { name: true, price: true } } } },
-        // ✅ INJECTED HERE: Pulling logs into memory layout mapping
         reminderLogs: { select: { milestone: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -227,7 +227,6 @@ export async function getFormattedBookings(
             image: true,
           },
         },
-        // ✅ INJECTED HERE IN FALLBACK AS WELL
         reminderLogs: { select: { milestone: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -243,7 +242,6 @@ export async function getFormattedBookings(
         ? firstRelationRecord.item
         : null;
 
-      // ✅ COMPUTE REMINDER STATE FROM SAVED RELATION DATA STRIP
       const foundLog =
         b.reminderLogs?.some((log) => log.milestone === "24_HOUR") ?? false;
 
@@ -261,8 +259,9 @@ export async function getFormattedBookings(
           ? new Date(b.createdAt).toISOString()
           : new Date().toISOString(),
         queueCode: b.queueCode || "NO-CODE",
+        customerPhone: b.customerPhone || null, // ✅ Maps snapshot field value out of database records
         paymentStatus: b.paymentStatus || "PENDING",
-        isReminderSent: foundLog, // ✅ RECONCILED DATA FIELD SENT DOWNSTREAM
+        isReminderSent: foundLog,
         user: {
           firstName: b.user?.firstName || "Client",
           lastName: b.user?.lastName || "Profile",

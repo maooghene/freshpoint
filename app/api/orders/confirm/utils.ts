@@ -1,3 +1,4 @@
+// app/api/orders/confirm/utils.ts
 export interface CheckoutPayloadItem {
   itemId: string;
   quantity: number;
@@ -13,6 +14,7 @@ export interface CheckoutRequestBody {
   deliveryAddress?: string;
   deliveryNotes?: string;
   deliveryFee?: number;
+  customerPhone?: string; // Appended for emergency contact routing
 }
 
 export interface PaystackVerifyResponse {

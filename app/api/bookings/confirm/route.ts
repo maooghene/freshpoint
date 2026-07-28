@@ -1,3 +1,4 @@
+// app/api/bookings/confirm/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       date: bodyDate,
       time: bodyTime,
       staffId: bodyStaffId,
+      customerPhone, // Extracted from client fetch body
     } = body;
 
     if (!reference) {
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     const verifyResponse = await fetch(
-      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      `https://paystack.co{encodeURIComponent(reference)}`,
       { headers: { Authorization: `Bearer ${secretKey}` } },
     );
     const verifyData = await verifyResponse.json();
@@ -185,6 +187,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const activePhone = customerPhone ? String(customerPhone).trim() : null;
+
     const existingBooking = await prisma.booking.findUnique({
       where: { paymentReference: reference },
     });
@@ -232,6 +236,7 @@ export async function POST(request: NextRequest) {
             providerPayout: fees.providerPayout,
             freshpointNet: fees.freshpointNet,
             staffId: check.assignedStaffId ?? undefined,
+            customerPhone: activePhone, // Snapshotted directly into service record rows
             items: {
               create: [{ itemId: resolvedItemId, price: servicePrice }],
             },

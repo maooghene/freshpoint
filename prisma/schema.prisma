@@ -231,6 +231,7 @@ model Booking {
   status            BookingStatus @default(CONFIRMED)
   locationType      LocationType  @default(IN_SHOP)
   notes             String?
+  customerPhone   String?
   paymentReference  String?       @unique
   paymentStatus     String?       @default("pending")
   totalAmount       Float?
@@ -284,7 +285,6 @@ model BookingReminderLog {
   @@index([bookingId])
 }
 
-
 model GoogleCredential {
   id           String   @id @default(cuid())
   businessId   String   @unique
@@ -315,7 +315,10 @@ model Order {
   deliveryAddress String?
   deliveryNotes   String?
   deliveryFee     Float       @default(0.0)
+  customerPhone   String?
   addressId       String?
+  paystackRefundId Int?
+  refundStatus     String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   address         Address?    @relation(fields: [addressId], references: [id])
@@ -540,6 +543,7 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  REFUNDED
 }
 
 enum ComplaintCategory {

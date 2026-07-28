@@ -1,24 +1,37 @@
 // app/(public)/checkout/products/page.tsx
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useAppSelector, useAppDispatch } from "@/lib/store";
 import { clearCart, CartItem } from "@/lib/features/cartSlice";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useState } from "react";
 import { useDeliveryFeeCalculation } from "@/hooks/useDeliveryFeeCalculation";
 import { DeliveryMethodToggle } from "@/components/checkout/DeliveryMethodToggle";
 import { DeliveryAddressField } from "@/components/checkout/DeliveryAddressField";
 import { OrderSummaryCard } from "@/components/checkout/OrderSummaryCard";
 
+// Modular sub-components
+import { CheckoutStockAlert } from "@/components/checkout/CheckoutStockAlert";
+import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
+import { CheckoutEmptyState } from "@/components/checkout/CheckoutEmptyState";
+
 const PaystackButton = dynamic(() => import("@/components/PaystackButton"), {
   ssr: false,
 });
+
+interface StockIssue {
+  itemId: string;
+  name: string;
+  cartQty: number;
+  available: number;
+  exists: boolean;
+}
+
+type StockCheckStatus = "checking" | "ok" | "issues" | "error";
 
 export default function ProductCheckoutPage() {
   return (
@@ -48,32 +61,92 @@ function ProductCheckoutContent() {
 
   const [isDelivery, setIsDelivery] = useState<boolean>(false);
   const [address, setAddress] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
 
-  // Fixed: Short-Circuit Null Gate Override satisfies compiler constraints perfectly
+  const [stockCheckStatus, setStockCheckStatus] =
+    useState<StockCheckStatus>("checking");
+  const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
+
   const { deliveryFee, estimatedDistance, calculatingFee, fallbackMessage } =
     useDeliveryFeeCalculation(businessId ?? "", isDelivery, address);
 
   const currency = "₦";
 
+  // Single mount effect: runs stock evaluation and historical profile pre-filling concurrently
+  useEffect(() => {
+    if (items.length === 0) return;
+    let cancelled = false;
+
+    async function checkStockAndProfile() {
+      setStockCheckStatus("checking");
+      const ids = Array.from(new Set(items.map((i: CartItem) => i.itemId)));
+
+      try {
+        // Run lookups in parallel to minimize load times
+        const [stockRes, profileRes] = await Promise.all([
+          fetch(
+            `/api/items/stock-check?ids=${ids.map(encodeURIComponent).join(",")}`,
+          ),
+          fetch("/api/users/profile-phone"),
+        ]);
+
+        if (!stockRes.ok) throw new Error("Stock check request failed");
+
+        // Set phone string directly if a previous record matches
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.phone && !cancelled) {
+            setCustomerPhone(profileData.phone);
+          }
+        }
+
+        const data: {
+          items: { itemId: string; stock: number; exists: boolean }[];
+        } = await stockRes.json();
+        const stockByItemId = new Map(
+          data.items.map((entry) => [entry.itemId, entry]),
+        );
+
+        const issues: StockIssue[] = [];
+        for (const cartItem of items as CartItem[]) {
+          const current = stockByItemId.get(cartItem.itemId);
+          const available = current ? current.stock : 0;
+          const exists = current ? current.exists : false;
+
+          if (!exists || available < cartItem.quantity) {
+            issues.push({
+              itemId: cartItem.itemId,
+              name: cartItem.name,
+              cartQty: cartItem.quantity,
+              available,
+              exists,
+            });
+          }
+        }
+
+        if (cancelled) return;
+        setStockIssues(issues);
+        setStockCheckStatus(issues.length > 0 ? "issues" : "ok");
+      } catch (error) {
+        console.error("CHECKOUT_INITIALIZATION_ERROR:", error);
+        if (!cancelled) setStockCheckStatus("error");
+      }
+    }
+
+    checkStockAndProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
+
   if (items.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-background text-foreground animate-fadeIn">
-        <p className="text-sm font-medium text-muted-foreground mb-4">
-          Your basket is currently empty.
-        </p>
-        <Button
-          asChild
-          variant="outline"
-          className="rounded-xl font-bold border-border shadow-xs hover:bg-muted/40 transition-colors"
-        >
-          <Link href="/explore">Start Shopping</Link>
-        </Button>
-      </div>
-    );
+    return <CheckoutEmptyState />;
   }
 
   const absoluteFinalTotal = cartSubtotal + deliveryFee;
-  const canPay = !isDelivery || (address.trim().length > 0 && !calculatingFee);
+  const isFormValid =
+    (!isDelivery || (address.trim().length > 0 && !calculatingFee)) &&
+    customerPhone.trim().length >= 8;
 
   const handleSuccess = async (reference: string) => {
     try {
@@ -87,6 +160,7 @@ function ProductCheckoutContent() {
           isDelivery,
           deliveryAddress: isDelivery ? address.trim() : null,
           deliveryFee,
+          customerPhone: customerPhone.trim(),
           items: items.map((i: CartItem) => ({
             itemId: i.itemId,
             quantity: i.quantity,
@@ -95,25 +169,72 @@ function ProductCheckoutContent() {
         }),
       });
 
-      const result = await res.json();
-
-      if (result.success || res.ok) {
+      if (res.ok) {
         dispatch(clearCart());
         router.push(
           `/orders/success?reference=${encodeURIComponent(reference)}`,
         );
       } else {
         alert(
-          "Payment was approved by Paystack, but database synchronization failed. Please contact support.",
+          "Payment approved by Paystack, but database sync failed. Please contact support.",
         );
       }
-    } catch (error: unknown) {
-      const errorMsg =
-        error instanceof Error ? error.message : "Operational Failure";
-      console.error("ORDER_CONFIRMATION_NETWORK_ERROR:", errorMsg);
+    } catch (error) {
+      console.error("ORDER_CONFIRMATION_NETWORK_ERROR:", error);
       alert("Operational connection drop. Please contact customer support.");
     }
   };
+
+  function renderPayButton() {
+    if (stockCheckStatus === "checking") {
+      return (
+        <Button
+          disabled
+          className="w-full py-5 rounded-xl text-xs font-bold opacity-50 flex items-center justify-center gap-2 bg-muted text-muted-foreground"
+        >
+          <Loader2 className="animate-spin h-4 w-4" />
+          Checking stock availability...
+        </Button>
+      );
+    }
+
+    if (stockCheckStatus === "error") {
+      return (
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setStockCheckStatus("checking");
+            router.refresh();
+          }}
+          className="w-full py-5 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+        >
+          <AlertTriangleIcon className="h-4 w-4" />
+          Couldn&apos;t verify stock — Click to retry
+        </Button>
+      );
+    }
+
+    if (stockCheckStatus === "issues") {
+      return <CheckoutStockAlert issues={stockIssues} />;
+    }
+
+    return (
+      <PaystackButton
+        amount={absoluteFinalTotal}
+        email={
+          user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
+        }
+        name={user?.fullName || "Customer"}
+        metadata={{
+          userId,
+          businessId: businessId ?? "",
+          orderType: "PRODUCT",
+        }}
+        onSuccess={handleSuccess}
+        onClose={() => {}}
+      />
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto p-6 pt-24 min-h-screen space-y-6 bg-background text-foreground">
@@ -133,30 +254,17 @@ function ProductCheckoutContent() {
         />
       )}
 
+      <CheckoutContactField value={customerPhone} onChange={setCustomerPhone} />
+
       <OrderSummaryCard
         currency={currency}
         cartSubtotal={cartSubtotal}
         isDelivery={isDelivery}
         deliveryFee={deliveryFee}
         absoluteFinalTotal={absoluteFinalTotal}
-        canPay={canPay}
+        canPay={isFormValid}
         calculatingFee={calculatingFee}
-        payButton={
-          <PaystackButton
-            amount={absoluteFinalTotal}
-            email={
-              user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
-            }
-            name={user?.fullName || "Customer"}
-            metadata={{
-              userId,
-              businessId: businessId ?? "",
-              orderType: "PRODUCT",
-            }}
-            onSuccess={handleSuccess}
-            onClose={() => {}}
-          />
-        }
+        payButton={renderPayButton()}
       />
     </div>
   );

@@ -34,9 +34,11 @@ interface Order {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
+  customerPhone: string | null; // Appended for emergency dispatch tracking
   user: { firstName: string | null; lastName: string | null; email: string };
   items: OrderItem[];
 }
+
 
 const statusStyles: Record<OrderStatus, string> = {
   PENDING:

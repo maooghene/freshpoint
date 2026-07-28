@@ -7,6 +7,8 @@ import { ShoppingBagIcon, ChevronDown, ChevronUp, Box } from "lucide-react";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 
+const LOW_STOCK_THRESHOLD = 5;
+
 interface ProductItem {
   id: string;
   name: string;
@@ -20,9 +22,36 @@ interface ProductCatalogGridProps {
   products: ProductItem[];
 }
 
+function StockBadge({ stock }: { stock: number | null }) {
+  if (stock === null || isNaN(stock)) return null;
+
+  if (stock <= 0) {
+    return (
+      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-500">
+        Out of Stock
+      </span>
+    );
+  }
+
+  if (stock <= LOW_STOCK_THRESHOLD) {
+    return (
+      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
+        Only {stock} left
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      In Stock
+    </span>
+  );
+}
+
 export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
   const router = useRouter();
 
+  // Added the opening parenthesis right here:
   const [expandedReviews, setExpandedReviews] = useState<
     Record<string, boolean>
   >({});
@@ -116,17 +145,7 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
                 <p className="font-black text-primary text-sm">
                   ₦{product.price.toLocaleString()}
                 </p>
-                {product.stock !== null && !isNaN(product.stock) && (
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
-                      product.stock > 0
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-red-500/10 text-red-500"
-                    }`}
-                  >
-                    {product.stock > 0 ? "In Stock" : "OOS"}
-                  </span>
-                )}
+                <StockBadge stock={product.stock} />
               </div>
             </div>
           </div>

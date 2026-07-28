@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeftIcon, ShoppingBagIcon } from "lucide-react";
 import Loading from "@/components/Loading";
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { ServiceCatalogGrid } from "@/components/ServiceCatalogGrid";
 import { ProductCatalogGrid } from "@/components/ProductCatalogGrid";
 import { BusinessProfileHeader } from "@/components/BusinessProfileHeader";
+
+const STOCK_POLL_INTERVAL_MS = 15000;
 
 interface UnifiedItem {
   id: string;
@@ -38,6 +40,18 @@ interface BusinessProfileInfo {
   reviewCount?: number;
 }
 
+// Moved outside the component to fix the React Compiler skip
+const resolveWorkspaceImage = (savedPath: string | null): string => {
+  if (!savedPath || savedPath.trim().length === 0) {
+    return "/placeholder-business.jpg";
+  }
+  if (savedPath.startsWith("http://") || savedPath.startsWith("https://")) {
+    return savedPath;
+  }
+  const cleanPath = savedPath.replace(/^\//, "");
+  return `https://imagekit.io{cleanPath}`;
+};
+
 export default function BusinessProfile() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
@@ -50,66 +64,65 @@ export default function BusinessProfile() {
   const [products, setProducts] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // First load shows the full-page spinner; subsequent polling refreshes
+  // happen silently in the background so the grid doesn't flash/reset.
+  const hasLoadedOnce = useRef(false);
+
+  const fetchWorkspaceData = useCallback(async (currentSlug: string) => {
+    try {
+      const cleanSlug = decodeURIComponent(currentSlug);
+      const res = await fetch(`/api/businesses/slug/${cleanSlug}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        if (!hasLoadedOnce.current) setBusinessInfo(null);
+        return;
+      }
+
+      const data = await res.json();
+
+      setBusinessInfo({
+        id: data.id,
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        image: resolveWorkspaceImage(data.image),
+        address: data.address,
+        email: data.email,
+        phone: data.phone,
+        categories: data.categories || [],
+        isActive: data.isActive,
+        rating: data.rating || "New",
+        reviewCount: data.totalReviews || 0,
+      });
+
+      const allItems: UnifiedItem[] = data.items || [];
+      setServices(allItems.filter((item) => item.type === "SERVICE"));
+      setProducts(allItems.filter((item) => item.type === "PRODUCT"));
+    } catch (error) {
+      console.error("Error loading profile:", error);
+      if (!hasLoadedOnce.current) setBusinessInfo(null);
+    } finally {
+      hasLoadedOnce.current = true;
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!slug) return;
-    let isMounted = true;
 
-    const resolveWorkspaceImage = (savedPath: string | null): string => {
-      if (!savedPath || savedPath.trim().length === 0) {
-        return "/placeholder-business.jpg";
-      }
-      if (savedPath.startsWith("http://") || savedPath.startsWith("https://")) {
-        return savedPath;
-      }
-      const cleanPath = savedPath.replace(/^\//, "");
-      return `https://imagekit.io{cleanPath}`;
-    };
+    hasLoadedOnce.current = false;
+    void fetchWorkspaceData(slug);
 
-    const fetchWorkspaceData = async () => {
-      try {
-        const cleanSlug = decodeURIComponent(slug);
-        const res = await fetch(`/api/businesses/slug/${cleanSlug}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          if (isMounted) setBusinessInfo(null);
-          return;
-        }
+    // Silent background refresh so stock badges ("Only X left" / "Out of
+    // Stock") stay current for anyone browsing the storefront, without
+    // requiring a manual refresh or full page reload.
+    const intervalId = setInterval(() => {
+      void fetchWorkspaceData(slug);
+    }, STOCK_POLL_INTERVAL_MS);
 
-        const data = await res.json();
-        if (!isMounted) return;
-
-        setBusinessInfo({
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          image: resolveWorkspaceImage(data.image), // Fixed: Sanitizes raw payload path cleanly
-          address: data.address,
-          email: data.email,
-          phone: data.phone,
-          categories: data.categories || [],
-          isActive: data.isActive,
-          rating: data.rating || "New",
-          reviewCount: data.totalReviews || 0,
-        });
-
-        const allItems: UnifiedItem[] = data.items || [];
-        setServices(allItems.filter((item) => item.type === "SERVICE"));
-        setProducts(allItems.filter((item) => item.type === "PRODUCT"));
-      } catch (error) {
-        console.error("Error loading profile:", error);
-        if (isMounted) setBusinessInfo(null);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    void fetchWorkspaceData();
-    return () => {
-      isMounted = false;
-    };
-  }, [slug]);
+    return () => clearInterval(intervalId);
+  }, [slug, fetchWorkspaceData]);
 
   if (loading) return <Loading />;
 
