@@ -11,6 +11,7 @@ import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
 import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
 import { PaymentSection } from "@/components/checkout/PaymentSection";
 import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
+import { isValidNigerianPhone } from "@/components/checkout/CheckoutContactField";
 
 interface ItemDetails {
   id: string;
@@ -158,7 +159,7 @@ function CheckoutContent() {
     );
   }
 
-  const isContactValid = customerPhone.trim().length >= 8;
+  const isContactValid = isValidNigerianPhone(customerPhone);
 
   return (
     <div className="max-w-2xl mx-auto p-6 pt-24 min-h-screen bg-background text-foreground w-full">
@@ -179,6 +180,7 @@ function CheckoutContent() {
         <CheckoutContactField
           value={customerPhone}
           onChange={setCustomerPhone}
+          variant="booking"
         />
       </div>
 

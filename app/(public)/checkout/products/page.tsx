@@ -18,6 +18,7 @@ import { OrderSummaryCard } from "@/components/checkout/OrderSummaryCard";
 import { CheckoutStockAlert } from "@/components/checkout/CheckoutStockAlert";
 import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
 import { CheckoutEmptyState } from "@/components/checkout/CheckoutEmptyState";
+import { isValidNigerianPhone } from "@/components/checkout/CheckoutContactField";
 
 const PaystackButton = dynamic(() => import("@/components/PaystackButton"), {
   ssr: false,
@@ -146,7 +147,7 @@ function ProductCheckoutContent() {
   const absoluteFinalTotal = cartSubtotal + deliveryFee;
   const isFormValid =
     (!isDelivery || (address.trim().length > 0 && !calculatingFee)) &&
-    customerPhone.trim().length >= 8;
+    isValidNigerianPhone(customerPhone);
 
   const handleSuccess = async (reference: string) => {
     try {
@@ -254,7 +255,11 @@ function ProductCheckoutContent() {
         />
       )}
 
-      <CheckoutContactField value={customerPhone} onChange={setCustomerPhone} />
+      <CheckoutContactField
+        value={customerPhone}
+        onChange={setCustomerPhone}
+        variant="order"
+      />
 
       <OrderSummaryCard
         currency={currency}
