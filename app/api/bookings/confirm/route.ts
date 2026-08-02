@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
-import { verifyPaystackPayment } from "@/lib/paystack";
+import { getPaystackTransaction } from "@/lib/paystack";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
 import { zonedWallTimeToUtc } from "@/lib/timezone";
@@ -50,22 +50,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isPaymentValid = await verifyPaystackPayment(reference);
-    if (!isPaymentValid) {
+    // 🚀 FIXED: This used to call verifyPaystackPayment() (boolean only) and
+    // then make a SECOND, hand-rolled fetch to re-fetch the transaction data
+    // — and that second fetch had a broken template literal
+    // (`https://paystack.co{encodeURIComponent(reference)}`, missing the `$`
+    // and the correct API path), which threw on every request and caused
+    // every booking confirmation to fail with a 500 in production, even
+    // though the customer's payment had already gone through successfully.
+    // One correct call now does both the verification and the data fetch.
+    const payment = (await getPaystackTransaction(
+      reference,
+    )) as PaystackWebhookData | null;
+
+    if (!payment) {
       return NextResponse.json(
         { error: "Payment verification failed" },
         { status: 400 },
       );
     }
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    const verifyResponse = await fetch(
-      `https://paystack.co{encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${secretKey}` } },
-    );
-    const verifyData = await verifyResponse.json();
-
-    const payment: PaystackWebhookData = verifyData.data;
     const metadata = payment.metadata;
 
     const resolvedUserId = metadata?.userId;

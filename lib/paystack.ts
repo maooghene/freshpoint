@@ -48,6 +48,56 @@ export async function verifyPaystackPayment(
 }
 
 /**
+ * 🚀 FIXED: Some routes (booking confirmation) needed the actual transaction
+ * payload — amount, metadata — not just a yes/no verification. That need
+ * previously led to a *second*, hand-rolled fetch call being written
+ * directly in the booking route, which had a broken template literal
+ * (`https://paystack.co{encodeURIComponent(reference)}` — missing the `$`
+ * before the interpolation, and missing the correct API path entirely).
+ * That malformed URL threw on every single booking confirmation in
+ * production. This single shared helper now does the one correct fetch and
+ * returns the full transaction payload, so nothing needs to re-implement it.
+ */
+export async function getPaystackTransaction(
+  reference: string,
+): Promise<PaystackVerifyResponse["data"] | null> {
+  if (!secretKey) {
+    console.error(
+      "❌ [FreshPoint Gateway] CRITICAL ERROR: PAYSTACK_SECRET_KEY is missing.",
+    );
+    throw new Error(
+      "Internal Server Configuration Error: Missing Secret Authorization Key",
+    );
+  }
+
+  const verifyUrl = `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`;
+
+  try {
+    const response = await fetch(verifyUrl, {
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const verifyData = (await response.json()) as PaystackVerifyResponse;
+
+    if (!verifyData?.status || verifyData?.data?.status !== "success") {
+      return null;
+    }
+
+    return verifyData.data;
+  } catch (fetchError: unknown) {
+    console.error(
+      "💥 [FreshPoint Gateway] Transaction fetch failed:",
+      fetchError,
+    );
+    return null;
+  }
+}
+
+/**
  * Result of attempting to initiate a Paystack refund.
  * `success` only means Paystack ACCEPTED the refund request for processing —
  * it does NOT mean the customer has their money back yet. The actual outcome
@@ -98,7 +148,7 @@ export async function refundPaystackPayment(
     }
 
     console.log(
-      `💸 [FreshPoint Gateway] Refund initiated for ${reference}. Refund ID: ${data.data?.id}`,
+      `💸 [FreshPoint Gateway] Refund initiated for ${reference}. Refund ID:${data.data?.id}`,
     );
 
     return {

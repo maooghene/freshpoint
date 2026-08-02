@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Landmark,
   Clock,
@@ -41,10 +42,9 @@ interface HistoryOrder {
 
 interface RowProps {
   order: HistoryOrder;
-  onSelect: (order: HistoryOrder) => void;
 }
 
-export function OrderTableRow({ order, onSelect }: RowProps) {
+export function OrderTableRow({ order }: RowProps) {
   const displayId = order.code
     ? order.code
     : `#${order.id.slice(-6).toUpperCase()}`;
@@ -61,6 +61,14 @@ export function OrderTableRow({ order, onSelect }: RowProps) {
       notation: "compact",
     }).format(val);
   };
+
+  // 🚀 FIXED: The "Receipt" button used to call onSelect(order), which only
+  // set local state with nothing ever rendering it — clicking did nothing
+  // visible. Now it routes straight to the real receipt page, reusing the
+  // same lookup that already powers /orders/success after checkout.
+  const receiptHref = `/orders/success?reference=${encodeURIComponent(
+    order.code || order.id,
+  )}`;
 
   return (
     <tr className="hover:bg-muted/40 transition-colors">
@@ -164,13 +172,15 @@ export function OrderTableRow({ order, onSelect }: RowProps) {
       {/* COLUMN 8: Actions */}
       <td className="px-6 py-4 text-right whitespace-nowrap">
         <Button
+          asChild
           size="sm"
           variant="ghost"
-          onClick={() => onSelect(order)}
           className="text-primary hover:bg-primary/10 rounded-xl font-bold gap-1 text-xs cursor-pointer"
         >
-          <ReceiptText className="h-3.5 w-3.5" />
-          <span>Receipt</span>
+          <Link href={receiptHref}>
+            <ReceiptText className="h-3.5 w-3.5" />
+            <span>Receipt</span>
+          </Link>
         </Button>
       </td>
     </tr>

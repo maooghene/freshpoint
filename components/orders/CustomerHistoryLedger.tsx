@@ -1,4 +1,3 @@
-// components/orders/CustomerHistoryLedger.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -42,7 +41,6 @@ export default function CustomerHistoryLedger({
   initialOrders,
 }: CustomerHistoryLedgerProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [activeReceipt, setActiveReceipt] = useState<HistoryOrder | null>(null);
 
   const filteredOrders = initialOrders.filter((order) => {
     const rawSearch = searchQuery.trim().toLowerCase();
@@ -129,11 +127,6 @@ export default function CustomerHistoryLedger({
     });
   });
 
-  const handleOpenReceiptModal = (order: HistoryOrder) => {
-    setActiveReceipt(order);
-    console.log("Mounting full layout view receipt metadata:", order.id);
-  };
-
   if (initialOrders.length === 0) {
     return (
       <div className="text-center py-16 border border-dashed border-border rounded-3xl bg-card">
@@ -179,7 +172,6 @@ export default function CustomerHistoryLedger({
         /* Bounded Grid Mesh Table Frame */
         <div className="rounded-xl border border-border overflow-hidden table-mesh bg-card w-full overflow-x-auto">
           <table className="w-full text-sm text-left border-collapse min-w-[950px]">
-            {/* 🌟 FIXED: Formatted 8 exact header cells matching across the data row cells cleanly */}
             <thead className="bg-muted/50 border-b border-border select-none">
               <tr>
                 <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4 w-[140px]">
@@ -210,11 +202,7 @@ export default function CustomerHistoryLedger({
             </thead>
             <tbody className="divide-y divide-border">
               {filteredOrders.map((order) => (
-                <OrderTableRow
-                  key={order.id}
-                  order={order}
-                  onSelect={handleOpenReceiptModal}
-                />
+                <OrderTableRow key={order.id} order={order} />
               ))}
             </tbody>
           </table>
