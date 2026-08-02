@@ -5,6 +5,7 @@ interface DeliveryFeeCalculationResult {
   estimatedDistance: number;
   calculatingFee: boolean;
   fallbackMessage: string | null;
+  coordinates: { latitude: number; longitude: number } | null;
 }
 
 interface DeliveryCalculateApiResponse {
@@ -13,6 +14,8 @@ interface DeliveryCalculateApiResponse {
   distanceKm: number;
   isFallback: boolean;
   message?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export function useDeliveryFeeCalculation(
@@ -24,14 +27,25 @@ export function useDeliveryFeeCalculation(
   const [estimatedDistance, setEstimatedDistance] = useState<number>(0);
   const [calculatingFee, setCalculatingFee] = useState<boolean>(false);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [coordinates, setCoordinates] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   useEffect(() => {
     const trimmedAddress = address.trim();
 
-    if (!isDelivery || trimmedAddress.length < 6) {
+    // Guards against isDelivery=true with no valid businessId — this can
+    // happen for a moment during post-checkout navigation, when clearCart()
+    // empties the Redux businessId while this page is still mounted
+    // waiting for the route transition to finish. Without this guard the
+    // effect fires a doomed request and logs a confusing 400 after
+    // checkout has already succeeded.
+    if (!isDelivery || !businessId || trimmedAddress.length < 6) {
       setDeliveryFee(0);
       setEstimatedDistance(0);
       setFallbackMessage(null);
+      setCoordinates(null);
       return;
     }
 
@@ -71,6 +85,21 @@ export function useDeliveryFeeCalculation(
         setDeliveryFee(data.deliveryFee);
         setEstimatedDistance(data.distanceKm ?? 0);
 
+        // Only trust coordinates when the backend actually resolved a real
+        // location (not the base-fee fallback path, which has none).
+        if (
+          !data.isFallback &&
+          typeof data.latitude === "number" &&
+          typeof data.longitude === "number"
+        ) {
+          setCoordinates({
+            latitude: data.latitude,
+            longitude: data.longitude,
+          });
+        } else {
+          setCoordinates(null);
+        }
+
         if (data.isFallback) {
           setFallbackMessage(data.message || "Flat rate applied.");
         }
@@ -96,5 +125,11 @@ export function useDeliveryFeeCalculation(
     };
   }, [address, isDelivery, businessId]);
 
-  return { deliveryFee, estimatedDistance, calculatingFee, fallbackMessage };
+  return {
+    deliveryFee,
+    estimatedDistance,
+    calculatingFee,
+    fallbackMessage,
+    coordinates,
+  };
 }

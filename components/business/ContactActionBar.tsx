@@ -25,10 +25,10 @@ export function ContactActionBar({ phone, label }: ContactActionBarProps) {
   const numericOnly = cleanPhone.replace(/\D/g, "");
 
   // If a number starts with a local zero format (e.g. 080...), map it to Nigeria's standard country code +234
-  let whatsappUrl = `https://wa.me{numericOnly}`;
-  if (cleanPhone.startsWith("0") && cleanPhone.length === 11) {
-    whatsappUrl = `https://wa.me{numericOnly.slice(1)}`;
-  }
+let whatsappUrl = `https://wa.me/${numericOnly}`;
+if (cleanPhone.startsWith("0") && cleanPhone.length === 11) {
+  whatsappUrl = `https://wa.me/${numericOnly.slice(1)}`;
+}
 
   return (
     <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">

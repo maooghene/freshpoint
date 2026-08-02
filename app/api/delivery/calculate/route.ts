@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
       distanceKm: roundedDistance,
       deliveryFee: Math.round(deliveryFee),
       isFallback: false,
+      latitude: customerCoordinates.latitude,
+      longitude: customerCoordinates.longitude,
     });
   } catch (error) {
     console.error("DELIVERY_CALCULATION_ERROR:", error);

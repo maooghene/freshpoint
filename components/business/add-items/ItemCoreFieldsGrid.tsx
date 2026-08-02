@@ -73,7 +73,7 @@ export function ItemCoreFieldsGrid({
   return (
     <div className="grid gap-6 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
       {/* ✓ CATEGORY FIRST */}
-      <div className="space-y-2">
+      {/* <div className="space-y-2">
         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block select-none">
           Category (optional)
         </label>
@@ -101,7 +101,7 @@ export function ItemCoreFieldsGrid({
             ))}
           </select>
         </div>
-      </div>
+      </div> */}
 
       {type === "PRODUCT" && (
         <div className="flex items-center gap-3">

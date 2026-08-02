@@ -314,6 +314,8 @@ model Order {
   isDelivery      Boolean     @default(false)
   deliveryAddress String?
   deliveryNotes   String?
+  deliveryLatitude Float?
+  deliveryLongitude Float?
   deliveryFee     Float       @default(0.0)
   customerPhone   String?
   addressId       String?

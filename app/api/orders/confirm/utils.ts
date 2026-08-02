@@ -12,6 +12,8 @@ export interface CheckoutRequestBody {
   totalAmount: number;
   isDelivery?: boolean;
   deliveryAddress?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
   deliveryNotes?: string;
   deliveryFee?: number;
   customerPhone?: string; // Appended for emergency contact routing

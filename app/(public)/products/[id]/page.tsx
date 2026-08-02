@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { useAppDispatch } from "@/lib/store"; // FIXED: Uses your central type-safe hook
+import Link from "next/link";
+import { toast } from "react-toastify";
+import { useAppDispatch } from "@/lib/store";
 import { addItemToCart } from "@/lib/features/cartSlice";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, ShoppingCart, ArrowLeft, Loader2 } from "lucide-react";
@@ -11,7 +13,14 @@ import { Plus, Minus, ShoppingCart, ArrowLeft, Loader2 } from "lucide-react";
 const LOW_STOCK_THRESHOLD = 5;
 const STOCK_POLL_INTERVAL_MS = 15000;
 
-// Completely mapped against your unified Prisma Item model structure
+interface FreshpointItemVariant {
+  id: string;
+  size: string | null;
+  color: string | null;
+  price: number | null;
+  stock: number;
+}
+
 interface FreshpointItemProduct {
   id: string;
   name: string;
@@ -20,6 +29,11 @@ interface FreshpointItemProduct {
   image: string | null;
   businessId: string;
   stock: number | null;
+  variants: FreshpointItemVariant[];
+}
+
+function variantLabel(v: FreshpointItemVariant): string {
+  return [v.size, v.color].filter(Boolean).join(" / ") || "Option";
 }
 
 export default function ProductPage() {
@@ -30,6 +44,9 @@ export default function ProductPage() {
   const [product, setProduct] = useState<FreshpointItemProduct | null>(null);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null,
+  );
 
   // Tracks whether this is the first load (shows spinner) vs a background
   // poll refresh (silent — no spinner flash while the user is browsing).
@@ -38,22 +55,37 @@ export default function ProductPage() {
   const productId = params?.id;
 
   const fetchProductDetails = useCallback(async () => {
-    // 2. Return early if there is no ID
     if (!productId) return;
 
     try {
       if (!hasLoadedOnce.current) setLoading(true);
 
-      // 3. Use the isolated variable here
       const res = await fetch(`/api/items/${productId}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Product data unavailable");
 
       const data = await res.json();
       setProduct(data);
 
+      // Default to the first available variant once, on first load only —
+      // don't clobber the user's active selection on background polls.
+      if (
+        !hasLoadedOnce.current &&
+        Array.isArray(data.variants) &&
+        data.variants.length > 0
+      ) {
+        const firstInStock =
+          data.variants.find((v: FreshpointItemVariant) => v.stock > 0) ||
+          data.variants[0];
+        setSelectedVariantId(firstInStock.id);
+      }
+
       setQty((currentQty) => {
-        if (typeof data.stock === "number" && data.stock > 0) {
-          return Math.min(currentQty, data.stock);
+        const stockCeiling =
+          Array.isArray(data.variants) && data.variants.length > 0
+            ? undefined // resolved below once selectedVariant is known
+            : data.stock;
+        if (typeof stockCeiling === "number" && stockCeiling > 0) {
+          return Math.min(currentQty, stockCeiling);
         }
         return currentQty;
       });
@@ -64,7 +96,7 @@ export default function ProductPage() {
       hasLoadedOnce.current = true;
       setLoading(false);
     }
-  }, [productId]); //
+  }, [productId]);
 
   useEffect(() => {
     if (!params?.id) return;
@@ -72,9 +104,6 @@ export default function ProductPage() {
     hasLoadedOnce.current = false;
     void fetchProductDetails();
 
-    // Poll for live stock changes (restocks, other customers buying) without
-    // requiring a full page reload. Simple interval — fits a Vercel
-    // serverless app better than SSE/websockets for this scale.
     const intervalId = setInterval(() => {
       void fetchProductDetails();
     }, STOCK_POLL_INTERVAL_MS);
@@ -82,30 +111,86 @@ export default function ProductPage() {
     return () => clearInterval(intervalId);
   }, [params?.id, fetchProductDetails]);
 
-  const isOutOfStock = product?.stock !== null && (product?.stock ?? 0) <= 0;
+  const hasVariants = !!product && product.variants.length > 0;
+  const selectedVariant =
+    hasVariants && product
+      ? (product.variants.find((v) => v.id === selectedVariantId) ?? null)
+      : null;
+
+  // Effective price/stock: falls back to base product values when there
+  // are no variants, or when a variant's price override is null.
+  const effectivePrice = selectedVariant?.price ?? product?.price ?? 0;
+  const effectiveStock = hasVariants
+    ? (selectedVariant?.stock ?? 0)
+    : (product?.stock ?? null);
+
+  const isOutOfStock = hasVariants
+    ? !selectedVariant || selectedVariant.stock <= 0
+    : product?.stock !== null && (product?.stock ?? 0) <= 0;
+
   const isAtMaxQty =
-    product?.stock !== null && qty >= (product?.stock ?? Infinity);
+    typeof effectiveStock === "number" && effectiveStock !== null
+      ? qty >= effectiveStock
+      : false;
+
+  useEffect(() => {
+    // Clamp quantity down whenever the selected variant changes to
+    // something with less stock than the currently chosen qty.
+    if (typeof effectiveStock === "number" && effectiveStock > 0) {
+      setQty((q) => Math.min(q, effectiveStock));
+    }
+  }, [effectiveStock]);
 
   const handleAddToCart = () => {
     if (!product || isOutOfStock) return;
 
-    // FIXED: Formally aligns structure to clear multi-tenant slice payload expectations
+    if (hasVariants && !selectedVariant) {
+      toast.error("Please select an option before adding to basket.");
+      return;
+    }
+
     dispatch(
       addItemToCart({
         businessId: product.businessId,
         item: {
-          id: `${product.id}-${Date.now()}`,
+          id: `${product.id}-${selectedVariant?.id ?? "base"}-${Date.now()}`,
           itemId: product.id,
-          name: product.name,
-          price: product.price,
+          name: selectedVariant
+            ? `${product.name} (${variantLabel(selectedVariant)})`
+            : product.name,
+          price: effectivePrice,
           quantity: qty,
-          priceAtAdd: product.price,
-          image: product.image || null, // ← add this
+          priceAtAdd: effectivePrice,
+          image: product.image || null,
+          variantId: selectedVariant?.id ?? null,
+          variantLabel: selectedVariant ? variantLabel(selectedVariant) : null,
+          maxStock: effectiveStock,
         },
       }),
     );
 
-    router.push("/cart");
+    // 🚀 FIXED: No longer navigates to /cart — the customer stays on the
+    // product page and can keep browsing/adding items. A toast confirms
+    // the add and offers a direct link to the cart if they want to check out.
+    toast.success(
+      <div className="flex items-center justify-between gap-3">
+        <span>
+          {qty} × {product.name}
+          {selectedVariant ? ` (${variantLabel(selectedVariant)})` : ""} added
+          to basket
+        </span>
+        <button
+          type="button"
+          onClick={() => router.push("/cart")}
+          className="shrink-0 text-xs font-bold underline underline-offset-2"
+        >
+          View Cart
+        </button>
+      </div>,
+    );
+
+    // Reset quantity back to 1 so the next add starts fresh.
+    setQty(1);
   };
 
   if (loading) {
@@ -136,18 +221,26 @@ export default function ProductPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 pt-24 min-h-screen bg-background text-foreground">
-      {/* HEADER GO BACK ROW NAVIGATION */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8 cursor-pointer group"
-      >
-        <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
-        Back to Catalog
-      </button>
+      <div className="flex items-center justify-between mb-8">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
+        >
+          <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Catalog
+        </button>
+
+        <Link
+          href="/cart"
+          className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:text-primary/80 transition-colors"
+        >
+          <ShoppingCart className="size-4" />
+          View Cart
+        </Link>
+      </div>
 
       <div className="grid md:grid-cols-2 gap-10 items-start">
-        {/* RETAIL PRODUCT DEEP PRESENTATION FRAME */}
         <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-border bg-muted shadow-xs max-w-md mx-auto md:mx-0">
           <Image
             src={product.image || "/placeholder-product.jpg"}
@@ -158,27 +251,25 @@ export default function ProductPage() {
           />
         </div>
 
-        {/* COMPREHENSIVE TEXT METADATA SPECS */}
         <div className="space-y-6">
           <div className="space-y-2">
             <h1 className="text-3xl font-extrabold tracking-tight leading-tight">
               {product.name}
             </h1>
             <p className="text-2xl font-black text-primary">
-              ₦{product.price.toLocaleString()}
+              ₦{effectivePrice.toLocaleString()}
             </p>
           </div>
 
-          {/* STOCK STATUS INDICATOR */}
-          {product.stock !== null && (
+          {typeof effectiveStock === "number" && (
             <div>
-              {product.stock <= 0 ? (
+              {effectiveStock <= 0 ? (
                 <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500">
                   Out of Stock
                 </span>
-              ) : product.stock <= LOW_STOCK_THRESHOLD ? (
+              ) : effectiveStock <= LOW_STOCK_THRESHOLD ? (
                 <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  Only {product.stock} left
+                  Only {effectiveStock} left
                 </span>
               ) : (
                 <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -191,11 +282,40 @@ export default function ProductPage() {
           <div className="border-t border-b border-border py-4">
             <p className="text-sm text-muted-foreground leading-relaxed font-medium">
               {product.description ||
-                "No product summary details configured by vendor spaceprovider."}
+                "No product summary details configured by vendor space provider."}
             </p>
           </div>
 
-          {/* HIGH-UTILITY QUANTITY STEP CONTROLLER CHIPS */}
+          {hasVariants && (
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Choose an Option
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {product.variants.map((v) => {
+                  const isSelected = v.id === selectedVariantId;
+                  const isSoldOut = v.stock <= 0;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setSelectedVariantId(v.id)}
+                      disabled={isSoldOut}
+                      className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background border-border hover:border-primary/50 text-foreground"
+                      }`}
+                    >
+                      {variantLabel(v)}
+                      {isSoldOut && " (Sold out)"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {!isOutOfStock && (
             <div className="space-y-2">
               <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -220,8 +340,8 @@ export default function ProductPage() {
                   type="button"
                   onClick={() =>
                     setQty((q) =>
-                      product.stock !== null
-                        ? Math.min(product.stock, q + 1)
+                      typeof effectiveStock === "number"
+                        ? Math.min(effectiveStock, q + 1)
                         : q + 1,
                     )
                   }
@@ -240,11 +360,10 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* DISPATCH ACTION TRIGGER GATES */}
           <Button
             onClick={handleAddToCart}
             size="lg"
-            disabled={isOutOfStock}
+            disabled={isOutOfStock || (hasVariants && !selectedVariant)}
             className="w-full md:w-auto px-10 py-6 rounded-xl font-bold text-base shadow-md hover:shadow-lg transition-all duration-300 gap-2 cursor-pointer mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ShoppingCart className="size-5" />

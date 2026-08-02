@@ -68,8 +68,13 @@ function ProductCheckoutContent() {
     useState<StockCheckStatus>("checking");
   const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
 
-  const { deliveryFee, estimatedDistance, calculatingFee, fallbackMessage } =
-    useDeliveryFeeCalculation(businessId ?? "", isDelivery, address);
+  const {
+    deliveryFee,
+    estimatedDistance,
+    calculatingFee,
+    fallbackMessage,
+    coordinates,
+  } = useDeliveryFeeCalculation(businessId ?? "", isDelivery, address || "");
 
   const currency = "₦";
 
@@ -146,10 +151,10 @@ function ProductCheckoutContent() {
 
   const absoluteFinalTotal = cartSubtotal + deliveryFee;
   const isFormValid =
-    (!isDelivery || (address.trim().length > 0 && !calculatingFee)) &&
+    (!isDelivery || (coordinates !== null && !calculatingFee)) &&
     isValidNigerianPhone(customerPhone);
 
-  const handleSuccess = async (reference: string) => {
+  const handleSuccess = async (reference: any) => {
     try {
       const res = await fetch("/api/orders/confirm", {
         method: "POST",
@@ -160,6 +165,10 @@ function ProductCheckoutContent() {
           totalAmount: absoluteFinalTotal,
           isDelivery,
           deliveryAddress: isDelivery ? address.trim() : null,
+          deliveryLatitude: isDelivery ? (coordinates?.latitude ?? null) : null,
+          deliveryLongitude: isDelivery
+            ? (coordinates?.longitude ?? null)
+            : null,
           deliveryFee,
           customerPhone: customerPhone.trim(),
           items: items.map((i: CartItem) => ({
@@ -172,17 +181,16 @@ function ProductCheckoutContent() {
 
       if (res.ok) {
         dispatch(clearCart());
-        router.push(
-          `/orders/success?reference=${encodeURIComponent(reference)}`,
-        );
+              router.push(
+                `/orders/success?reference=${encodeURIComponent(reference)}`,
+              );
+              dispatch(clearCart());
+
       } else {
-        alert(
-          "Payment approved by Paystack, but database sync failed. Please contact support.",
-        );
+        console.error("Order completion failed at backend processing step");
       }
-    } catch (error) {
-      console.error("ORDER_CONFIRMATION_NETWORK_ERROR:", error);
-      alert("Operational connection drop. Please contact customer support.");
+    } catch (err) {
+      console.error("ORDER_CONFIRMATION_FALLBACK_CATCH:", err);
     }
   };
 
@@ -243,7 +251,10 @@ function ProductCheckoutContent() {
         Checkout Manifest
       </h1>
 
-      <DeliveryMethodToggle isDelivery={isDelivery} onChange={setIsDelivery} />
+      <DeliveryMethodToggle
+        isDelivery={isDelivery}
+        onChange={(val) => setIsDelivery(val)}
+      />
 
       {isDelivery && (
         <DeliveryAddressField

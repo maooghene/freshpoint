@@ -13,6 +13,8 @@ export interface CartItem {
   createdAt: string;
   maxStock?: number | null; // Tracked to ensure cart screen displays real-time limits
   stockStatus?: "OK" | "LOW_STOCK" | "OUT_OF_STOCK"; // UI-ready indicator state flag
+  variantId?: string | null; // Which ItemVariant (size/color combo) was selected, if any
+  variantLabel?: string | null; // Human-readable label, e.g. "M / Black", for display
 }
 
 interface CartState {
@@ -44,6 +46,15 @@ const adjustItemStockStatus = (item: CartItem) => {
   }
 };
 
+// Two cart lines are "the same line" only if both the item AND the
+// selected variant match. This lets a Medium/Black and a Large/Black of
+// the same product coexist as separate lines with their own price and
+// quantity, instead of silently merging and overwriting each other.
+const isSameCartLine = (
+  a: { itemId: string; variantId?: string | null },
+  b: { itemId: string; variantId?: string | null },
+) => a.itemId === b.itemId && (a.variantId ?? null) === (b.variantId ?? null);
+
 const cartSlice = createSlice({
   name: "cart",
   initialState,
@@ -64,7 +75,7 @@ const cartSlice = createSlice({
         state.totalAmount = 0;
       }
 
-      const existingItem = state.items.find((i) => i.itemId === item.itemId);
+      const existingItem = state.items.find((i) => isSameCartLine(i, item));
       let quantityToAdd = item.quantity;
 
       if (!existingItem) {
@@ -106,17 +117,23 @@ const cartSlice = createSlice({
 
     updateItemQuantity: (
       state,
-      action: PayloadAction<{ itemId: string; quantity: number }>,
+      action: PayloadAction<{
+        itemId: string;
+        quantity: number;
+        variantId?: string | null;
+      }>,
     ) => {
-      const { itemId, quantity } = action.payload;
-      const existing = state.items.find((i) => i.itemId === itemId);
+      const { itemId, quantity, variantId } = action.payload;
+      const existing = state.items.find((i) =>
+        isSameCartLine(i, { itemId, variantId }),
+      );
       if (!existing) return;
 
       // Handle raw deletion sequence if drops to or below zero bounds
       if (quantity <= 0) {
         state.totalQuantity -= existing.quantity;
         state.totalAmount -= existing.price * existing.quantity;
-        state.items = state.items.filter((i) => i.itemId !== itemId);
+        state.items = state.items.filter((i) => !isSameCartLine(i, existing));
         if (state.items.length === 0) state.businessId = null;
         return;
       }
@@ -134,15 +151,31 @@ const cartSlice = createSlice({
       state.totalAmount += existing.price * diff;
     },
 
-    removeItemFromCart: (state, action: PayloadAction<string>) => {
-      const itemId = action.payload;
-      const existingItem = state.items.find((item) => item.itemId === itemId);
+    removeItemFromCart: (
+      state,
+      action: PayloadAction<
+        string | { itemId: string; variantId?: string | null }
+      >,
+    ) => {
+      // Backward compatible: accepts either a plain itemId string (old call
+      // sites, matches any variant of that item) or an { itemId, variantId }
+      // object for precise single-line removal.
+      const target =
+        typeof action.payload === "string"
+          ? { itemId: action.payload }
+          : action.payload;
 
-      if (existingItem) {
+      const matches =
+        typeof action.payload === "string"
+          ? (i: CartItem) => i.itemId === target.itemId
+          : (i: CartItem) => isSameCartLine(i, target);
+
+      const toRemove = state.items.filter(matches);
+      for (const existingItem of toRemove) {
         state.totalQuantity -= existingItem.quantity;
         state.totalAmount -= existingItem.price * existingItem.quantity;
-        state.items = state.items.filter((item) => item.itemId !== itemId);
       }
+      state.items = state.items.filter((item) => !matches(item));
 
       if (state.items.length === 0) state.businessId = null;
     },

@@ -45,6 +45,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
             },
           },
         },
+        // 🚀 FIXED: Variants weren't being fetched at all, so the product
+        // page had no way to offer a size/color picker or per-variant price.
+        variants: {
+          orderBy: { createdAt: "asc" },
+        },
         ratings: true,
       },
     });

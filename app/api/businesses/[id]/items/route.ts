@@ -112,8 +112,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // 🚀 FASHION VARIANT HANDLING: Extract raw JSON variant data from the formData stream
     const variantsRaw = formData.get("variants") as string | null;
-    let parsedVariants: Array<{ size: string; color: string; stock: number }> =
-      [];
+    let parsedVariants: Array<{
+      size: string;
+      color: string;
+      stock: number;
+      price?: number | null;
+    }> = [];
 
     if (parsedData.type === "PRODUCT" && variantsRaw) {
       try {
@@ -161,7 +165,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             size: v.size || null,
             color: v.color || null,
             stock: v.stock,
-            price: parsedData.price, // Bind variant price to base item price
+            // Use the variant's own price if the owner set one; otherwise
+            // leave it null so it inherits the base item price at read-time.
+            price:
+              typeof v.price === "number" && !isNaN(v.price) ? v.price : null,
           })),
         });
       }
@@ -226,7 +233,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     // 🚀 FASHION VARIANT HANDLING: Pull structural parameters from incoming FormData
     const variantsRaw = formData.get("variants") as string | null;
-    let parsedVariants: Array<{ size: string; color: string; stock: number }> = [];
+    let parsedVariants: Array<{
+      size: string;
+      color: string;
+      stock: number;
+      price?: number | null;
+    }> = [];
     let hasExplicitVariants = false;
 
     if (parsedData.type === "PRODUCT" && variantsRaw) {
@@ -294,7 +306,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
               size: v.size || null,
               color: v.color || null,
               stock: v.stock,
-              price: parsedData.price, // Default variant price to base item price
+              price:
+                typeof v.price === "number" && !isNaN(v.price) ? v.price : null,
             })),
           });
         }

@@ -12,6 +12,7 @@ export interface RegisterErrors {
   phone?: string;
   address?: string;
   sittingCapacity?: string;
+  coordinates?: string;
 }
 
 export interface RegisterState {
@@ -83,6 +84,20 @@ export async function createBusiness(
         "Global operational layout capacity must be at least 1.";
     }
 
+    // 🚀 FIXED: This used to silently default to 6.5244 / 3.3792 (a
+    // hardcoded Lagos coordinate) whenever latitude/longitude weren't
+    // supplied — which meant every business ever created through a form
+    // that didn't explicitly capture GPS ended up mislocated in Lagos,
+    // even when the typed address was somewhere else entirely (e.g.
+    // Felele, Ibadan). Now a real captured location is required.
+    const latitude = latitudeRaw ? parseFloat(latitudeRaw) : NaN;
+    const longitude = longitudeRaw ? parseFloat(longitudeRaw) : NaN;
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      errors.coordinates =
+        'Please tap "Set Shop Location" while standing at your shop before submitting — this is required for accurate customer delivery fees.';
+    }
+
     if (Object.keys(errors).length > 0) {
       return {
         success: false,
@@ -116,9 +131,6 @@ export async function createBusiness(
         },
       };
     }
-
-    const latitude = latitudeRaw ? parseFloat(latitudeRaw) : 6.5244;
-    const longitude = longitudeRaw ? parseFloat(longitudeRaw) : 3.3792;
 
     const newBusiness = await prisma.business.create({
       data: {

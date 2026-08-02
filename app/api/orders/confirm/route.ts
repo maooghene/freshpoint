@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
       totalAmount,
       isDelivery,
       deliveryAddress,
+      deliveryLatitude,
+      deliveryLongitude,
       deliveryNotes,
       deliveryFee,
       customerPhone, // Added for emergency contact tracking
@@ -148,6 +150,14 @@ export async function POST(request: NextRequest) {
       activeIsDelivery && deliveryAddress
         ? String(deliveryAddress).trim()
         : null;
+        const activeLatitude =
+          activeIsDelivery && typeof deliveryLatitude === "number"
+            ? deliveryLatitude
+            : null;
+        const activeLongitude =
+          activeIsDelivery && typeof deliveryLongitude === "number"
+            ? deliveryLongitude
+            : null;
     const activeNotes =
       activeIsDelivery && deliveryNotes ? String(deliveryNotes).trim() : null;
     const activeFee =
@@ -307,6 +317,8 @@ export async function POST(request: NextRequest) {
             deliveryAddress: activeAddress,
             deliveryNotes: activeNotes,
             deliveryFee: activeFee,
+            deliveryLatitude: activeLatitude,
+            deliveryLongitude: activeLongitude,
             customerPhone: activePhone, // Recorded for administrative tracking
             paystackRefundId: refundResult.refundId,
 

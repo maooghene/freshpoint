@@ -33,6 +33,7 @@ interface DatabaseOrderRecord {
   status: string;
   totalAmount: number;
   createdAt: Date;
+  customerPhone: string | null;
   user: UserRelationPayload;
   business?: BusinessRelationPayload;
   items: OrderLineItemPayload[];
@@ -159,6 +160,7 @@ export async function GET(request: NextRequest) {
           code: order.code,
           status: order.status,
           totalAmount: order.totalAmount,
+          customerPhone: order.customerPhone,
           createdAt:
             order.createdAt instanceof Date
               ? order.createdAt.toISOString()

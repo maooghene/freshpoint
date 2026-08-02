@@ -96,6 +96,11 @@ export default function CartPage() {
                   <h3 className="text-base font-bold text-foreground tracking-tight truncate">
                     {item.name}
                   </h3>
+                  {item.variantLabel && (
+                    <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                      {item.variantLabel}
+                    </span>
+                  )}
                   <p className="text-xs text-muted-foreground font-medium">
                     {currency}
                     {Number(item.price).toLocaleString()} each
@@ -115,6 +120,7 @@ export default function CartPage() {
                         dispatch(
                           updateItemQuantity({
                             itemId: item.itemId,
+                            variantId: item.variantId ?? null,
                             quantity: item.quantity - 1,
                           }),
                         )
@@ -134,6 +140,7 @@ export default function CartPage() {
                         dispatch(
                           updateItemQuantity({
                             itemId: item.itemId,
+                            variantId: item.variantId ?? null,
                             quantity: item.quantity + 1,
                           }),
                         )
@@ -147,7 +154,14 @@ export default function CartPage() {
 
                   <button
                     type="button"
-                    onClick={() => dispatch(removeItemFromCart(item.itemId))}
+                    onClick={() =>
+                      dispatch(
+                        removeItemFromCart({
+                          itemId: item.itemId,
+                          variantId: item.variantId ?? null,
+                        }),
+                      )
+                    }
                     className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all cursor-pointer"
                     aria-label="Remove item"
                   >
