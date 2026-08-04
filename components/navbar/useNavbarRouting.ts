@@ -65,6 +65,12 @@ export function useNavbarRouting() {
           ) {
             setPortalLabel("My Shop");
             setMerchantDashboardHref(data.destination);
+          } else if (
+            data.destination &&
+            data.destination.startsWith("/staff")
+          ) {
+            setPortalLabel("Staff Dashboard");
+            setMerchantDashboardHref(data.destination);
           } else {
             setPortalLabel("Manage Spaces");
             setMerchantDashboardHref("/select-workspace");

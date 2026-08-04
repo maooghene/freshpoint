@@ -9,6 +9,7 @@ import {
   Clock,
   Receipt,
   QrCode,
+  User,
 } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -17,13 +18,14 @@ interface BookingDetailsModalProps {
   onClose: () => void;
   bookingData: {
     id: string;
-    queueCode: string;
+    queueCode: string | null;
     startTime: string;
-    totalAmount: number;
+    totalAmount: number | null;
     status: string;
     isVerifiedByStaff: boolean;
-    businessName: string;
-    itemName: string;
+    staffName: string | null;
+    business: { name: string } | null;
+    items: { item: { name: string } }[];
   };
 }
 
@@ -37,7 +39,6 @@ export default function BookingDetailsModal({
 
   if (!isOpen) return null;
 
-  // Provider-side verification pipeline simulation handler
   const handleStaffVerificationToggle = async () => {
     setLoading(true);
     try {
@@ -73,10 +74,11 @@ export default function BookingDetailsModal({
     },
   );
 
+  const primaryItemName = bookingData.items?.[0]?.item?.name || "Service";
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-background border border-border max-w-sm w-full rounded-2xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
-        {/* Header Section */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
@@ -86,14 +88,17 @@ export default function BookingDetailsModal({
 
         <div className="text-center pb-4 border-b border-muted/60">
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-            {bookingData.businessName}
+            {bookingData.business?.name || "Wellness Provider"}
           </p>
           <h2 className="text-xl font-bold mt-1 text-foreground">
-            {bookingData.itemName}
+            {primaryItemName}
           </h2>
+          <p className="text-xs text-muted-foreground font-medium mt-1 flex items-center justify-center gap-1">
+            <User className="size-3" /> with{" "}
+            {bookingData.staffName || "Any available professional"}
+          </p>
         </div>
 
-        {/* 🎫 BIG SUB-VISUAL QUEUE CODE IDENTIFICATION CARD CONTAINER */}
         <div className="my-6 p-4 rounded-xl bg-muted/50 border border-dashed border-border flex flex-col items-center justify-center text-center">
           <span className="text-xs font-medium text-muted-foreground mb-1">
             Check-in Sequence Pass
@@ -102,7 +107,6 @@ export default function BookingDetailsModal({
             {bookingData.queueCode || "FP-TBD"}
           </h3>
 
-          {/* Simulated QR placeholder icon layer acting as anchor link framework */}
           <div className="mt-3 p-2 bg-white rounded-lg border border-border/40">
             <QrCode className="size-20 text-slate-900 stroke-[1.5]" />
           </div>
@@ -122,7 +126,6 @@ export default function BookingDetailsModal({
           </div>
         </div>
 
-        {/* Booking Parameters & Invoice Log */}
         <div className="space-y-3 text-sm border-b pb-4 mb-4">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground flex items-center gap-1.5">
@@ -148,9 +151,7 @@ export default function BookingDetailsModal({
           </div>
         </div>
 
-        {/* Action Options Grid Section */}
         <div className="space-y-2">
-          {/* Simulated Business Portal Button: Allows provider to scan/verify client instantly */}
           {!isVerified && (
             <Button
               onClick={handleStaffVerificationToggle}

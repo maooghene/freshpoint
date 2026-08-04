@@ -95,6 +95,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         : NextResponse.json({ destination: "/register-business" });
     }
 
+    if (isStaffMember && activeStaffWorkspace) {
+      return NextResponse.json(
+        {
+          destination: "/staff/dashboard",
+          isStaffMember: true,
+          staffBusinessSlug: activeStaffWorkspace.business?.slug || null,
+        },
+        {
+          headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" },
+        },
+      );
+    }
+
+    return NextResponse.json({ destination: "/" });
+
+
     return NextResponse.json({ destination: "/" });
   } catch (error: unknown) {
     console.error("ONBOARDING_CHECK_ERROR:", error);

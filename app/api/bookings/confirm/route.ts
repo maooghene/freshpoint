@@ -13,6 +13,7 @@ import {
 } from "@/lib/booking-rules";
 import { validateServingCapacity } from "@/lib/booking-validator";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
+import { notifyBusinessNewBooking } from "@/lib/notify-business";
 
 interface PaystackWebhookData {
   status: string;
@@ -227,7 +228,7 @@ export async function POST(request: NextRequest) {
           data: {
             startTime,
             endTime,
-            status: BookingStatus.CONFIRMED,
+            status: BookingStatus.PENDING,
             locationType: "IN_SHOP",
             businessId: resolvedBusinessId,
             userId: user.id,
@@ -248,6 +249,19 @@ export async function POST(request: NextRequest) {
       });
 
       await queueBookingReminders(booking.id);
+
+      // 🔔 Fire-and-forget business notification (email + web push). Never
+      // awaited before the response, errors swallowed so a notification
+      // failure can never break the customer's booking confirmation.
+      notifyBusinessNewBooking({
+        businessId: resolvedBusinessId,
+        queueCode: booking.queueCode ?? uniqueQueueCode,
+        bookingId: booking.id,
+        customerName:
+          `${user.firstName || "A customer"} ${user.lastName || ""}`.trim(),
+        totalAmount: servicePrice,
+        startTime: booking.startTime,
+      }).catch((err: unknown) => console.error("Booking notify failed:", err));
 
       return NextResponse.json({ success: true, bookingId: booking.id });
     } catch (err) {

@@ -35,6 +35,9 @@ interface Order {
   totalAmount: number;
   createdAt: string;
   customerPhone: string | null; // Appended for emergency dispatch tracking
+  isDelivery: boolean;
+  deliveryAddress: string | null;
+  deliveryFee: number;
   user: { firstName: string | null; lastName: string | null; email: string };
   items: OrderItem[];
 }
@@ -68,6 +71,9 @@ export default function BusinessOrdersPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<
+    "all" | "delivery" | "pickup"
+  >("all");
 
   // 🚀 FIXED RESOLUTION: Moved inner pipeline logic into the hook wrapper closure
   // to avoid cascading synchronous render traps completely
@@ -159,6 +165,12 @@ export default function BusinessOrdersPage() {
     );
   }
 
+  const filteredOrders = orders.filter((o) => {
+    if (fulfillmentFilter === "delivery") return o.isDelivery;
+    if (fulfillmentFilter === "pickup") return !o.isDelivery;
+    return true;
+  });
+
   return (
     <div className="space-y-8 w-full max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
@@ -192,7 +204,7 @@ export default function BusinessOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <BusinessOrderCard
               key={order.id}
               order={order}

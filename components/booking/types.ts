@@ -1,5 +1,15 @@
 // components/booking/types.ts
 
+interface BookingLineItem {
+  id: string;
+  price: number;
+  item: {
+    name: string;
+    image: string | null;
+    type: string;
+  };
+}
+
 export interface LocalBookingTableData {
   id: string;
   startTime: Date | string;
@@ -9,6 +19,8 @@ export interface LocalBookingTableData {
   notes: string | null;
   queueCode: string | null;
   totalAmount: number | null;
+  staffName: string | null;
+  items: BookingLineItem[];
   business: {
     id: string;
     name: string;

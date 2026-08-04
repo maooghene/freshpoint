@@ -34,6 +34,10 @@ interface DatabaseOrderRecord {
   totalAmount: number;
   createdAt: Date;
   customerPhone: string | null;
+  isDelivery: boolean;
+ deliveryAddress: string | null;
+ deliveryNotes: string | null;
+ deliveryFee: number;
   user: UserRelationPayload;
   business?: BusinessRelationPayload;
   items: OrderLineItemPayload[];
@@ -161,6 +165,10 @@ export async function GET(request: NextRequest) {
           status: order.status,
           totalAmount: order.totalAmount,
           customerPhone: order.customerPhone,
+          isDelivery: order.isDelivery,
+          deliveryAddress: order.deliveryAddress,
+          deliveryNotes: order.deliveryNotes,
+          deliveryFee: order.deliveryFee,
           createdAt:
             order.createdAt instanceof Date
               ? order.createdAt.toISOString()

@@ -76,6 +76,7 @@ model Business {
   orders            Order[]
   ratings           Rating[]
   staff             StaffProfile[]
+  pushSubscriptions PushSubscription[]
   announcements Announcement[]
   reminderMilestonesHours Int[]        @default([48, 2])
 
@@ -484,6 +485,19 @@ model AnnouncementDismissal {
   dismissedAt    DateTime     @default(now())
 
   @@unique([announcementId, userId])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  businessId String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
 }
 
 enum UserRole {

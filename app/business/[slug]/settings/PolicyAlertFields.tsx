@@ -4,11 +4,13 @@ import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, HelpCircle } from "lucide-react";
+import { PushNotificationToggle } from "@/components/business/PushNotificationToggle";
 
 interface AlertFieldsProps {
   business: {
     emailAlertsActive: boolean;
     customInvoiceNote: string | null;
+    id: string;
   };
   isPending: boolean;
 }
@@ -35,6 +37,8 @@ export function PolicyAlertFields({ business, isPending }: AlertFieldsProps) {
           </div>
         </label>
       </div>
+
+      <PushNotificationToggle businessId={business.id} />
 
       <div className="space-y-2 border-t border-border/60 pt-4">
         <Label

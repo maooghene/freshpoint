@@ -14,6 +14,7 @@ interface SuccessBookingDetails {
   startTime: string;
   totalAmount: number | null;
   paymentStatus: string | null;
+  staffName: string | null;
   business: {
     name: string;
   };
@@ -104,6 +105,19 @@ export function BookingSuccessContent() {
               </p>
               <p className="font-semibold text-foreground text-sm">
                 {bookingDetails.item.name}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mb-0.5">
+                Your Specialist{" "}
+              </p>{" "}
+              <p className="font-semibold text-foreground text-sm">
+                {bookingDetails.staffName || "Any Available Professional"}{" "}
+              </p>{" "}
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mb-0.5">
+                Scheduled Block
               </p>
             </div>
             <div>

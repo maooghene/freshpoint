@@ -10,6 +10,7 @@ import {
   CheckoutPayloadItem,
 } from "./utils";
 import { verifyPaystackPayment } from "./services";
+import { notifyBusinessNewOrder } from "@/lib/notify-business";
 
 /**
  * Thrown inside the transaction when a line item can't be fulfilled.
@@ -129,9 +130,11 @@ export async function POST(request: NextRequest) {
     );
 
     // 2. Identify and validate the user context profile record
+    // NOTE: expanded select to include firstName/lastName — needed for the
+    // business notification's customer-name display.
     const user = await prisma.user.findUnique({
       where: { clerkId },
-      select: { id: true },
+      select: { id: true, firstName: true, lastName: true },
     });
 
     if (!user) {
@@ -150,14 +153,14 @@ export async function POST(request: NextRequest) {
       activeIsDelivery && deliveryAddress
         ? String(deliveryAddress).trim()
         : null;
-        const activeLatitude =
-          activeIsDelivery && typeof deliveryLatitude === "number"
-            ? deliveryLatitude
-            : null;
-        const activeLongitude =
-          activeIsDelivery && typeof deliveryLongitude === "number"
-            ? deliveryLongitude
-            : null;
+    const activeLatitude =
+      activeIsDelivery && typeof deliveryLatitude === "number"
+        ? deliveryLatitude
+        : null;
+    const activeLongitude =
+      activeIsDelivery && typeof deliveryLongitude === "number"
+        ? deliveryLongitude
+        : null;
     const activeNotes =
       activeIsDelivery && deliveryNotes ? String(deliveryNotes).trim() : null;
     const activeFee =
@@ -281,6 +284,19 @@ export async function POST(request: NextRequest) {
         `🎉 [FreshPoint API] TRANSACTION RECORD LOCKED: Order ID ${order.id} | Code: ${order.code}`,
       );
       console.log("------------------------------------------------");
+
+      // 🔔 Fire-and-forget business notification (email + web push). Never
+      // awaited before the response, and errors are swallowed here so a
+      // notification failure can never break the customer's checkout.
+      notifyBusinessNewOrder({
+        businessId,
+        orderCode: order.code,
+        orderId: order.id,
+        customerName:
+          `${user.firstName || "A customer"} ${user.lastName || ""}`.trim(),
+        totalAmount: Number(totalAmount),
+        isDelivery: activeIsDelivery,
+      }).catch((err) => console.error("Order notify failed:", err));
 
       return NextResponse.json(
         {

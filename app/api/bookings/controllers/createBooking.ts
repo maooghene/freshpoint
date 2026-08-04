@@ -10,6 +10,7 @@ import {
 } from "@/lib/booking-rules";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { queueBookingReminders } from "@/utils/reminders";
+import { notifyBusinessNewBooking } from "@/lib/notify-business";
 
 interface CreateBookingPayload {
   itemId: string;
@@ -158,7 +159,7 @@ export async function handleCreateNewBooking(
             totalAmount: serviceItem.price,
             freshpointFee: calculatedCommissionFee,
             providerPayout: computedProviderPayout,
-            status: BookingStatus.CONFIRMED,
+            status: BookingStatus.PENDING,
             queueCode: generatedPassCode,
             items: {
               create: {
@@ -171,6 +172,19 @@ export async function handleCreateNewBooking(
       });
 
       await queueBookingReminders(newBooking.id);
+
+      // 🔔 Fire-and-forget business notification (email + web push). Never
+      // awaited before the response, errors swallowed so a notification
+      // failure can never break the customer's booking creation.
+      notifyBusinessNewBooking({
+        businessId,
+        queueCode: generatedPassCode,
+        bookingId: newBooking.id,
+        customerName:
+          `${userRecord.firstName || "A customer"} ${userRecord.lastName || ""}`.trim(),
+        totalAmount: serviceItem.price,
+        startTime: newBooking.startTime,
+      }).catch((err: unknown) => console.error("Booking notify failed:", err));
 
       return NextResponse.json(
         { success: true, booking: newBooking },

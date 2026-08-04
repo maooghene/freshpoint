@@ -33,6 +33,9 @@ export function BookingTableRow({ booking, onSelect }: RowProps) {
     }).format(val);
   };
 
+  const primaryServiceName = booking.items?.[0]?.item?.name || "Service";
+  const extraServicesCount = (booking.items?.length || 0) - 1;
+
   return (
     <tr className="hover:bg-muted/40 transition-colors">
       {/* 🌟 COLUMN 1: Isolated High-Contrast Access Voucher Code */}
@@ -54,6 +57,22 @@ export function BookingTableRow({ booking, onSelect }: RowProps) {
             {booking.business?.address || "Storefront Location"}
           </span>
         </div>
+      </td>
+
+      {/* COLUMN: Service Booked */}
+      <td className="px-6 py-4 max-w-[180px]">
+        <span className="font-bold text-foreground text-sm truncate block">
+          {primaryServiceName}
+          {extraServicesCount > 0 && (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+             {extraServicesCount} more
+            </span>
+          )}
+        </span>
+        <span className="text-[11px] text-muted-foreground font-medium block truncate">
+          with {booking.staffName || "Any available professional"}{" "}
+        </span>
       </td>
 
       {/* COLUMN 3: Lifecycle Timeline Matrix */}

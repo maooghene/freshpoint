@@ -6,7 +6,6 @@ import { PackageIcon, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ContactActionBar } from "@/components/business/ContactActionBar";
 
-
 type OrderStatus =
   | "PENDING"
   | "PROCESSING"
@@ -29,6 +28,9 @@ interface BusinessOrderCardProps {
     totalAmount: number;
     createdAt: string;
     customerPhone: string | null; // Added interface extension property support
+    isDelivery: boolean;
+    deliveryAddress: string | null;
+    deliveryFee: number;
     user: { firstName: string | null; lastName: string | null; email: string };
     items: OrderItem[];
   };
@@ -83,8 +85,13 @@ export function BusinessOrderCard({
             {formattedDate}
           </p>
           <p className="text-lg font-black text-foreground">
-            ₦{Number(order.totalAmount).toLocaleString()}
-          </p>
+            ₦{Number(order.totalAmount).toLocaleString()}{" "}
+          </p>{" "}
+          <Badge
+            className={`text-[9px] font-bold mt-1 ${order.isDelivery ? "bg-sky-500/10 text-sky-600 border-sky-500/20" : "bg-slate-500/10 text-slate-600 border-slate-500/20"}`}
+          >
+            {order.isDelivery ? "Home Delivery" : "Pickup"}{" "}
+          </Badge>
         </div>
       </div>
 
@@ -114,6 +121,34 @@ export function BusinessOrderCard({
             </span>
           </div>
         ))}
+      </div>
+
+      {/* PRICE BREAKDOWN */}
+      <div className="border-t border-border pt-3 space-y-1 text-xs">
+        <div className="flex justify-between text-muted-foreground">
+          <span>Items subtotal</span>
+          <span>
+            ₦
+            {Number(
+              order.totalAmount - (order.isDelivery ? order.deliveryFee : 0),
+            ).toLocaleString()}
+          </span>
+        </div>
+        {order.isDelivery && (
+          <div className="flex justify-between text-muted-foreground">
+            <span>Delivery fee</span>
+            <span>₦{Number(order.deliveryFee).toLocaleString()}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/50">
+          <span>Total</span>
+          <span>₦{Number(order.totalAmount).toLocaleString()}</span>
+        </div>
+        {order.isDelivery && order.deliveryAddress && (
+          <p className="text-muted-foreground pt-1 truncate">
+            📍 {order.deliveryAddress}
+          </p>
+        )}
       </div>
 
       {/* MUTATION TRIGGERS CONTROLS */}

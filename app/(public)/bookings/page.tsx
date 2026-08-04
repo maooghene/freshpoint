@@ -101,6 +101,9 @@ export default function MyBookings() {
                     <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
                       Treatment Provider
                     </th>
+                     <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
+                    Service
+                  </th>
                     <th className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 py-4">
                       Lifecycle Timeline
                     </th>

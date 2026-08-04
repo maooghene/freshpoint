@@ -53,6 +53,9 @@ export function OrderTableRow({ order }: RowProps) {
     0,
   );
 
+  const primaryItemName = order.items[0]?.name || "Item";
+  const extraItemsCount = order.items.length - 1;
+
   const compactCurrency = (val: number | null) => {
     if (val === null) return "₦0";
     return new Intl.NumberFormat("en-NG", {
@@ -94,10 +97,21 @@ export function OrderTableRow({ order }: RowProps) {
       </td>
 
       {/* COLUMN 3: Quantity Purchased */}
-      <td className="px-6 py-4 whitespace-nowrap text-foreground font-semibold">
-        <span className="text-xs bg-muted px-2.5 py-1 rounded-lg border border-border">
-          {totalItemsCount} {totalItemsCount === 1 ? "Item" : "Items"}
-        </span>
+      <td className="px-6 py-4 max-w-[180px]">
+        <div className="flex flex-col gap-1">
+          <span className="font-bold text-foreground text-sm truncate block">
+            {primaryItemName}
+            {extraItemsCount > 0 && (
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                {extraItemsCount} more
+              </span>
+            )}
+          </span>
+          <span className="text-xs bg-muted px-2.5 py-1 rounded-lg border border-border w-fit">
+            {totalItemsCount} {totalItemsCount === 1 ? "Item" : "Items"}
+          </span>
+        </div>
       </td>
 
       {/* COLUMN 4: Lifecycle Timeline Matrix */}

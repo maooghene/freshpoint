@@ -2,19 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 
-/**
- * Defensive runtime interceptor that catches and repairs corrupted
- * legacy ImageKit string parameters saved by older buggy features.
- */
 function cleanLegacyImageUrl(url: string | null): string | null {
   if (!url) return null;
-
-  // Rule 1: Strip out accidental literal string quotes inside parameters
   let cleaned = url.replace(/%22/g, "").replace(/"/g, "");
-
-  // Rule 2: Repair broken transformation strings (e.g., tr:w-"768" -> tr:w-768)
   cleaned = cleaned.replace(/tr:w-\[?["']?(\d+)["']?\]?/g, "tr:w-$1");
-
   return cleaned;
 }
 
@@ -48,6 +39,7 @@ export async function handleGetBookingHistory(): Promise<NextResponse> {
       orderBy: { createdAt: "desc" },
       include: {
         business: { select: { name: true, address: true } },
+        staff: { select: { id: true, name: true } },
         items: {
           include: {
             item: { select: { name: true, image: true, type: true } },
@@ -65,6 +57,7 @@ export async function handleGetBookingHistory(): Promise<NextResponse> {
       totalAmount: b.totalAmount || 0,
       queueCode: b.queueCode || "FP-TBD",
       isVerifiedByStaff: b.isVerifiedByStaff || false,
+      staffName: b.staff?.name || null,
       business: {
         id: b.businessId,
         name: b.business.name,
@@ -75,7 +68,6 @@ export async function handleGetBookingHistory(): Promise<NextResponse> {
         price: i.price,
         item: {
           name: i.item?.name || "Premium Wellness Asset",
-          // CORRECTED: Intercept and repair image parameters on the fly
           image: cleanLegacyImageUrl(i.item?.image || null),
           type: i.item?.type || "SERVICE",
         },
