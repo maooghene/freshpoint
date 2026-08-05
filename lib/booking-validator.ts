@@ -61,8 +61,7 @@ export async function validateServingCapacity({
 
         // 🎯 FIXED TRACKING RULE: Check true system ownership using the business record ownerId
         if (!daySchedule) {
-          const isOwnerProvider =
-            member.user?.clerkId === businessData?.ownerId;
+          const isOwnerProvider = member.userId === businessData?.ownerId;
           return isOwnerProvider; // Only the owner remains active; unseeded barbers default to off-duty
         }
 

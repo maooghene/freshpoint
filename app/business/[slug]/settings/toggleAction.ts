@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 export async function toggleOwnerRosterStatus(
   businessId: string,
@@ -12,29 +13,35 @@ export async function toggleOwnerRosterStatus(
     const { userId: clerkId } = await auth();
     if (!clerkId) throw new Error("Authentication required");
 
-    // Retrieve system user matching Clerk identity sequence
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true },
     });
     if (!user) throw new Error("User record not found");
 
-    // Verify ownership bound to businessId parameter limits
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       select: { ownerId: true, slug: true },
     });
+    if (!business) throw new Error("Business not found");
 
-    if (!business || business.ownerId !== clerkId) {
+    // Route through the shared helper instead of an inline ID comparison —
+    // keeps this in sync with every other authorization check in the app.
+    // allowStaff: false because this action is owner-only (toggling the
+    // owner's own roster status shouldn't be delegable to regular staff).
+    const isAuthorized = await authorizeBusinessAccess({
+      businessId,
+      ownerId: business.ownerId,
+      systemUserId: user.id,
+      allowStaff: false,
+    });
+
+    if (!isAuthorized) {
       throw new Error("Unauthorized tenant control boundary violation");
     }
 
-    // Locate owner's corresponding row inside StaffProfile table map
     const ownerProfile = await prisma.staffProfile.findFirst({
-      where: {
-        businessId: businessId,
-        userId: user.id,
-      },
+      where: { businessId, userId: user.id },
     });
 
     if (!ownerProfile) {
