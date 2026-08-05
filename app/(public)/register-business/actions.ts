@@ -174,7 +174,50 @@ export async function createBusiness(
           ownerId: systemUser.id,
           categories,
           schedules: {
-            // Option to initialize default operating days if needed
+            create: [
+              {
+                day: "MONDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "TUESDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "WEDNESDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "THURSDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "FRIDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "SATURDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: false,
+              },
+              {
+                day: "SUNDAY",
+                openTime: "09:00",
+                closeTime: "17:00",
+                isOff: true,
+              },
+            ],
           },
           staffProfiles: {
             create: {

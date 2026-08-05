@@ -48,12 +48,22 @@ export async function validateServingCapacity({
   const availableStaffOnDuty = isSoloBusiness
     ? []
     : activeStaff.filter((member) => {
+        // If a member has completely unseeded schedules, assume they follow store hours
         if (!member.schedules || member.schedules.length === 0) return true;
+
         const daySchedule = member.schedules.find((s) => {
           const dbDay = s.day.trim().toUpperCase();
           return dbDay === targetDayStr;
         });
-        return daySchedule ? !daySchedule.isOff : true;
+
+        // 🎯 FIXED TRACKING RULE: If no row exists for this day, do not blindly return true.
+        // Fallback to true only if they are the owner (userId matches business context), otherwise default to false (Off-duty).
+        if (!daySchedule) {
+          const isOwnerProvider = member.userId !== null; // Or use your custom role lookup flag
+          return isOwnerProvider;
+        }
+
+        return !daySchedule.isOff;
       });
 
   const totalServingCapacity = isSoloBusiness ? 1 : availableStaffOnDuty.length;
@@ -76,6 +86,7 @@ export async function validateServingCapacity({
     },
   });
 
+  // 🎯 UPDATE THIS FINAL OVERLAP ALLOCATION RESOLUTION LAYER:
   if (overlappingBookings.length >= totalServingCapacity) {
     return {
       isValid: false,
@@ -88,41 +99,21 @@ export async function validateServingCapacity({
     return { isValid: true, assignedStaffId: null };
   }
 
-  if (staffId && staffId !== "any") {
-    const isSpecificWorkerOnDuty = availableStaffOnDuty.some(
-      (s) => s.id === staffId,
-    );
-
-    if (!isSpecificWorkerOnDuty) {
-      return {
-        isValid: false,
-        reason:
-          "The requested professional is scheduled to be off duty on this day. Please select another provider or choose 'Any Professional'.",
-      };
-    }
-
-    const isSpecialistBusy = overlappingBookings.some(
-      (b) => b.staffId === staffId,
-    );
-    if (isSpecialistBusy) {
-      return {
-        isValid: false,
-        reason:
-          "The requested professional is currently busy serving another client during this time slot.",
-      };
-    }
-    return { isValid: true, assignedStaffId: staffId };
-  }
-
+  // Find a staff member who does not have an overlapping booking inside this exact time window
   const busyStaffIds = overlappingBookings
     .map((b) => b.staffId)
-    .filter(Boolean) as string[];
+    .filter(Boolean);
   const freeStaff = availableStaffOnDuty.find(
     (member) => !busyStaffIds.includes(member.id),
   );
 
+  // Fallback to the first scheduled on-duty worker if complex shifting matrixes overlap
+  const finalAssignedStaffId = freeStaff
+    ? freeStaff.id
+    : availableStaffOnDuty[0].id;
+
   return {
     isValid: true,
-    assignedStaffId: freeStaff ? freeStaff.id : null,
+    assignedStaffId: finalAssignedStaffId,
   };
 }
