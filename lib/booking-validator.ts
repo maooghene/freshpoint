@@ -32,12 +32,15 @@ export async function validateServingCapacity({
   const localDateObject = new Date(year, month - 1, day);
   const targetDayStr = daysMap[localDateObject.getDay()];
 
+  // 🎯 CRITICAL FIX: Include ownerId string match layer to securely track the creator profile context
   const businessData = await db.business.findUnique({
     where: { id: businessId },
-    include: {
+    select: {
+      id: true,
+      ownerId: true, // Used to verify ownership against staff user IDs
       staff: {
         where: { isActive: true },
-        include: { schedules: true },
+        include: { schedules: true, user: true }, // Include the linked user profile match parameters
       },
     },
   });
@@ -56,11 +59,11 @@ export async function validateServingCapacity({
           return dbDay === targetDayStr;
         });
 
-        // 🎯 FIXED TRACKING RULE: If no row exists for this day, do not blindly return true.
-        // Fallback to true only if they are the owner (userId matches business context), otherwise default to false (Off-duty).
+        // 🎯 FIXED TRACKING RULE: Check true system ownership using the business record ownerId
         if (!daySchedule) {
-          const isOwnerProvider = member.userId !== null; // Or use your custom role lookup flag
-          return isOwnerProvider;
+          const isOwnerProvider =
+            member.user?.clerkId === businessData?.ownerId;
+          return isOwnerProvider; // Only the owner remains active; unseeded barbers default to off-duty
         }
 
         return !daySchedule.isOff;
@@ -86,7 +89,6 @@ export async function validateServingCapacity({
     },
   });
 
-  // 🎯 UPDATE THIS FINAL OVERLAP ALLOCATION RESOLUTION LAYER:
   if (overlappingBookings.length >= totalServingCapacity) {
     return {
       isValid: false,
@@ -103,14 +105,18 @@ export async function validateServingCapacity({
   const busyStaffIds = overlappingBookings
     .map((b) => b.staffId)
     .filter(Boolean);
+
   const freeStaff = availableStaffOnDuty.find(
     (member) => !busyStaffIds.includes(member.id),
   );
 
-  // Fallback to the first scheduled on-duty worker if complex shifting matrixes overlap
+  // 🎯 SAFE ARRAY EXTRACTION: Guard array lookup cleanly to ensure it never crashes if empty
+  const fallbackStaff = availableStaffOnDuty[0] || null;
   const finalAssignedStaffId = freeStaff
     ? freeStaff.id
-    : availableStaffOnDuty[0].id;
+    : fallbackStaff
+      ? fallbackStaff.id
+      : null;
 
   return {
     isValid: true,
