@@ -19,6 +19,8 @@ interface OrderShape {
   totalAmount: number | null;
   createdAt: Date;
   user: UserPayload | null;
+  // Included optional parameter if your prisma model stores the receipt value directly
+  receiptCode?: string | null;
 }
 
 interface StaffOrdersClientProps {
@@ -31,7 +33,6 @@ export function StaffOrdersClient({ initialOrders }: StaffOrdersClientProps) {
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
 
-  // Sync state if initialProps updates server-side
   React.useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
@@ -51,7 +52,6 @@ export function StaffOrdersClient({ initialOrders }: StaffOrdersClientProps) {
         );
       }
 
-      // Update local state smoothly
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
       );
@@ -78,8 +78,16 @@ export function StaffOrdersClient({ initialOrders }: StaffOrdersClientProps) {
         `${order.user?.firstName || ""} ${order.user?.lastName || ""}`.toLowerCase();
       const matchId = order.id.toLowerCase();
 
+      // Compute the display code context dynamically for real-time text filter match arrays
+      const generatedDisplayCode =
+        order.receiptCode || `FP-${order.id.slice(-6).toUpperCase()}`;
+      const matchDisplayId = generatedDisplayCode.toLowerCase();
+
       return (
-        matchStatus && (fullName.includes(query) || matchId.includes(query))
+        matchStatus &&
+        (fullName.includes(query) ||
+          matchId.includes(query) ||
+          matchDisplayId.includes(query))
       );
     });
   }, [orders, search, statusFilter]);
@@ -142,68 +150,74 @@ export function StaffOrdersClient({ initialOrders }: StaffOrdersClientProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {filteredOrders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="hover:bg-muted/30 transition-colors group"
-                  >
-                    <td className="p-4 font-mono text-[11px] font-bold text-primary uppercase tracking-wider">
-                      {"#"}
-                      {order.id.slice(-8)}
-                    </td>
-                    <td className="p-4 font-semibold text-foreground">
-                      {order.user?.firstName
-                        ? `${order.user.firstName} ${order.user.lastName || ""}`
-                        : "Walk-in Client"}
-                    </td>
-                    <td className="p-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                          order.status === "DELIVERED"
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            : order.status === "PROCESSING"
-                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                              : order.status === "CANCELLED"
-                                ? "bg-red-500/10 text-red-600 border-red-500/20"
-                                : "bg-zinc-500/10 text-zinc-600 border-zinc-500/20"
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <select
-                          disabled={updatingId === order.id}
-                          value={order.status}
-                          onChange={(e) =>
-                            handleStatusUpdate(order.id, e.target.value)
-                          }
-                          className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-semibold text-foreground outline-none disabled:opacity-50"
+                {filteredOrders.map((order) => {
+                  // 🎯 DYNAMIC RECEIPT GENERATION LAYER: Adopt receipt string tracking configurations smoothly
+                  const trackingCode =
+                    order.receiptCode ||
+                    `FP-${order.id.slice(-6).toUpperCase()}`;
+
+                  return (
+                    <tr
+                      key={order.id}
+                      className="hover:bg-muted/30 transition-colors group"
+                    >
+                      <td className="p-4 font-mono text-[11px] font-black text-primary tracking-wider whitespace-nowrap">
+                        {trackingCode}
+                      </td>
+                      <td className="p-4 font-semibold text-foreground">
+                        {order.user?.firstName
+                          ? `${order.user.firstName} ${order.user.lastName || ""}`
+                          : "Walk-in Client"}
+                      </td>
+                      <td className="p-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                            order.status === "DELIVERED"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              : order.status === "PROCESSING"
+                                ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                                : order.status === "CANCELLED"
+                                  ? "bg-red-500/10 text-red-600 border-red-500/20"
+                                  : "bg-zinc-500/10 text-zinc-600 border-zinc-500/20"
+                          }`}
                         >
-                          <option value="PENDING">Pending</option>
-                          <option value="PROCESSING">Processing</option>
-                          <option value="DELIVERED">Delivered</option>
-                          <option value="CANCELLED">Cancelled</option>
-                        </select>
-                        {updatingId === order.id && (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 text-muted-foreground text-xs font-medium whitespace-nowrap">
-                      {new Date(order.createdAt).toLocaleDateString("en-NG", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="p-4 text-right font-bold text-foreground font-mono tabular-nums min-w-[100px]">
-                      {"₦"}
-                      {(order.totalAmount || 0).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="p-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <select
+                            disabled={updatingId === order.id}
+                            value={order.status}
+                            onChange={(e) =>
+                              handleStatusUpdate(order.id, e.target.value)
+                            }
+                            className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-semibold text-foreground outline-none disabled:opacity-50"
+                          >
+                            <option value="PENDING">Pending</option>
+                            <option value="PROCESSING">Processing</option>
+                            <option value="DELIVERED">Delivered</option>
+                            <option value="CANCELLED">Cancelled</option>
+                          </select>
+                          {updatingId === order.id && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-muted-foreground text-xs font-medium whitespace-nowrap">
+                        {new Date(order.createdAt).toLocaleDateString("en-NG", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="p-4 text-right font-bold text-foreground font-mono tabular-nums min-w-[100px]">
+                        {"₦"}
+                        {(order.totalAmount || 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
