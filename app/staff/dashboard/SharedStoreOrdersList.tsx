@@ -85,8 +85,7 @@ export function SharedStoreOrdersList({ orders, search }: OrdersListProps) {
                   className="hover:bg-muted/30 transition-colors group"
                 >
                   <td className="p-4 font-mono text-[11px] font-bold text-foreground uppercase tracking-wider">
-                    {"#"}
-                    {order.id.slice(-8)}
+                    {`FP-${order.id.slice(-6).toUpperCase()}`}
                   </td>
                   <td className="p-4">
                     <div className="font-bold text-foreground">
