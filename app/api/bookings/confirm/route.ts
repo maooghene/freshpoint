@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
-import { getPaystackTransaction } from "@/lib/paystack";
+import { getPaystackTransaction, refundPaystackPayment } from "@/lib/paystack";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
 import { zonedWallTimeToUtc } from "@/lib/timezone";
@@ -167,11 +167,26 @@ export async function POST(request: NextRequest) {
         resolvedDate,
       );
       if (scheduleStatus.isOff) {
+        // Payment is already captured at this point. A customer picking a
+        // specific off-duty staff member is a real rejection, not a data
+        // error — refund immediately rather than leaving a captured charge
+        // with no booking behind it.
+        const refund = await refundPaystackPayment(
+          reference,
+          `Auto-refund: staff off duty (${scheduleStatus.dayName})`,
+        );
+        if (!refund.success) {
+          console.error(
+            "❌ CRITICAL: Refund failed after STAFF_OFF_DUTY rejection. Reference:",
+            reference,
+          );
+        }
         return NextResponse.json(
           {
             error: "Staff member is off duty on the selected day.",
             code: "STAFF_OFF_DUTY",
             day: scheduleStatus.dayName,
+            refunded: refund.success,
           },
           { status: 422 },
         );
@@ -266,7 +281,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, bookingId: booking.id });
     } catch (err) {
       if (err instanceof BookingRejected) {
-        return NextResponse.json({ error: err.message }, { status: 409 });
+        // Payment was already captured by Paystack before this validation
+        // ran inside the transaction. A rejection here — fully booked, no
+        // staff available, data drift, etc. — means we're holding money for
+        // a booking that will never exist. Refund immediately rather than
+        // relying on a webhook or manual reconciliation to catch it later.
+        const refund = await refundPaystackPayment(
+          reference,
+          `Auto-refund: booking rejected — ${err.message}`,
+        );
+        if (!refund.success) {
+          // Refund itself failing is the critical case — this is now an
+          // orphaned charge with no booking and no automatic reversal.
+          // Log loudly so it surfaces in monitoring/alerts.
+          console.error(
+            "❌ CRITICAL: Refund failed after booking rejection. Reference:",
+            reference,
+            "Reason:",
+            err.message,
+          );
+        }
+        return NextResponse.json(
+          { error: err.message, refunded: refund.success },
+          { status: 409 },
+        );
       }
       throw err;
     }

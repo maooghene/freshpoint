@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ArrowLeft, Loader2 } from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 
 import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
 import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
@@ -22,6 +22,12 @@ interface ItemDetails {
     id: string;
     name: string;
   };
+}
+
+// Shown when payment succeeded but the booking itself couldn't be confirmed.
+interface BookingFailureState {
+  message: string;
+  refunded: boolean | null; // null = we don't know (e.g. network error before a response came back)
 }
 
 // Display-only: "14:30" -> "2:30 PM"
@@ -51,6 +57,8 @@ function CheckoutContent() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [bookingFailure, setBookingFailure] =
+    useState<BookingFailureState | null>(null);
 
   useEffect(() => {
     if (!itemId) return;
@@ -100,6 +108,8 @@ function CheckoutContent() {
       return;
     }
 
+    setBookingFailure(null);
+
     try {
       setPaying(true);
       const response = await fetch("/api/bookings/confirm", {
@@ -116,16 +126,29 @@ function CheckoutContent() {
       });
 
       const result = await response.json();
+
       if (result.success || response.ok) {
         router.push(`/bookings/success?reference=${reference}`);
-      } else {
-        alert(
-          "Payment successful but booking confirmation failed. Please contact support.",
-        );
+        return;
       }
+
+      // Booking was rejected server-side. `refunded` comes from the API —
+      // true/false when the server attempted a refund, undefined for
+      // failure paths (e.g. missing metadata) that never reached the
+      // refund step because no charge-side action was needed.
+      setBookingFailure({
+        message: result.error || "This booking could not be confirmed.",
+        refunded: typeof result.refunded === "boolean" ? result.refunded : null,
+      });
     } catch (err) {
       console.error("CONFIRMATION ERROR:", err);
-      alert("Transaction secured, but server confirmation dropped.");
+      // Network/parse failure — we genuinely don't know server-side outcome,
+      // so don't claim a refund status we can't verify.
+      setBookingFailure({
+        message:
+          "Your payment went through, but we couldn't confirm the booking due to a connection issue.",
+        refunded: null,
+      });
     } finally {
       setPaying(false);
     }
@@ -183,6 +206,36 @@ function CheckoutContent() {
           variant="booking"
         />
       </div>
+
+      {bookingFailure && (
+        <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-destructive">
+              {bookingFailure.message}
+            </p>
+            {bookingFailure.refunded === true && (
+              <p className="text-xs text-muted-foreground">
+                Your payment has been automatically refunded. It may take a few
+                business days to reflect, depending on your bank.
+              </p>
+            )}
+            {bookingFailure.refunded === false && (
+              <p className="text-xs font-medium text-destructive">
+                We were unable to process an automatic refund. Please contact
+                support with your payment reference so we can resolve this
+                manually.
+              </p>
+            )}
+            {bookingFailure.refunded === null && (
+              <p className="text-xs text-muted-foreground">
+                If you were charged, please contact support with your payment
+                reference so we can confirm the status of your refund.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {isContactValid ? (
         <PaymentSection
