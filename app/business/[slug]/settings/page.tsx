@@ -20,10 +20,12 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     redirect("/sign-in");
   }
 
+  // Include staff rows to find the owner's corresponding specialist profile
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
       owner: true,
+      staff: true,
     },
   });
 
@@ -34,6 +36,21 @@ export default async function VendorSettingsPage({ params }: PageProps) {
   if (business.owner.clerkId !== userId) {
     redirect("/dashboard");
   }
+
+  // Find the exact system user id associated with the active Clerk session
+  const userRecord = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  const ownerProfileRow = business.staff.find(
+    (s) => s.userId === userRecord?.id,
+  );
+
+  // 🎯 STRICT TYPE EXCLUSION: Ensure an absolute boolean fallback value falls down
+  const computedOwnerIsActive = ownerProfileRow
+    ? ownerProfileRow.isActive
+    : true;
 
   const serializedBusinessForForm = {
     id: business.id,
@@ -47,6 +64,8 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     image: business.image ?? null,
     baseDeliveryFee: business.baseDeliveryFee ?? 0,
     deliveryFeePerKm: business.deliveryFeePerKm ?? 0,
+    // Add parameters safely to the carrier shape objects
+    initialOwnerActive: computedOwnerIsActive,
   };
 
   const serializedPoliciesForForm = {
@@ -60,7 +79,7 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     currencyCode: business.currencyCode || "NGN",
     emailAlertsActive: business.emailAlertsActive ?? true,
     customInvoiceNote: business.customInvoiceNote ?? null,
-  }; // ✅ FIXED: Stray unmatched closing blocks cleanly aligned
+  };
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl min-h-screen text-foreground transition-colors duration-200">

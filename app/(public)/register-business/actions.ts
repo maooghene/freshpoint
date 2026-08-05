@@ -173,6 +173,18 @@ export async function createBusiness(
           isActive: true,
           ownerId: systemUser.id,
           categories,
+          schedules: {
+            // Option to initialize default operating days if needed
+          },
+          staffProfiles: {
+            create: {
+              name: "Store Manager (Owner)",
+              email: email, // Business email or systemUser email
+              role: "Owner / Specialist",
+              isActive: true, // Instantly active to take bookings
+              userId: systemUser.id, // Links their workspace account boundary profile
+            },
+          },
         },
       }),
       prisma.user.update({

@@ -120,6 +120,15 @@ export async function POST(request: NextRequest) {
         sittingCapacity: parseInt(sittingCapacity, 10),
         isActive: false,
         status: "pending",
+        staffProfiles: {
+          create: {
+            name: `${dbUser.firstName || "Store Manager"} (Owner)`,
+            email: email.toLowerCase(),
+            role: "Owner / Specialist",
+            isActive: true,
+            userId: dbUser.id,
+          },
+        },
       },
     });
 
