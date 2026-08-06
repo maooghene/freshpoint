@@ -15,6 +15,8 @@ const isPublicRoute = createRouteMatcher([
   "/bookings/success(.*)",
   "/contact(.*)",
   "/api/user/sync(.*)",
+  "/api/explore(.*)", // ← ADD THIS
+  "/api/businesses", // ← ADD THIS (exact bare route)
   "/api/businesses/slug/(.*)",
   "/api/businesses/(.*)/items",
   "/api/businesses/items(.*)",
