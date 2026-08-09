@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAvailableSlots } from "@/utils/slotEngine";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  context: { params: { id: string } | Promise<{ id: string }> },
 ) {
+  const paramsObj = await context.params;
+  const params = paramsObj as { id: string };
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date"); // "2026-07-24"
   const itemId = searchParams.get("itemId");

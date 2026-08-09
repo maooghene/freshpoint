@@ -6,6 +6,7 @@ import { BookingStatus } from "@prisma/client";
 import { getPaystackTransaction, refundPaystackPayment } from "@/lib/paystack";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
+import { getCommissionRateForTier } from "@/lib/subscription-tiers";
 import { zonedWallTimeToUtc } from "@/lib/timezone";
 import {
   isWithinBusinessHours,
@@ -101,6 +102,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Single fetch — includes schedules for hours-check AND the fields we
+    // need for commission calculation (commissionRate, subscriptionTier).
     const business = await prisma.business.findUnique({
       where: { id: resolvedBusinessId },
       include: { schedules: true },
@@ -219,7 +222,10 @@ export async function POST(request: NextRequest) {
     }
 
     const servicePrice = payment.amount / 100;
-    const fees = calculateFees(servicePrice);
+    const commissionRate =
+      business.commissionRate ??
+      getCommissionRateForTier(business.subscriptionTier);
+    const fees = calculateFees(servicePrice, commissionRate);
     const uniqueQueueCode = await generateUniqueQueueCode();
 
     try {

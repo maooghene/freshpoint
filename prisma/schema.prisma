@@ -46,6 +46,12 @@ model Business {
   description       String?
   image             String?
   status            String             @default("pending")
+   subscriptionTier   SubscriptionTier @default(STARTER)
+  subscriptionExpiresAt DateTime?
+  commissionRate     Float @default(0.10) // overridden per tier
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  paystackEmailToken       String? 
   isActive          Boolean            @default(false)
   isPayoutFrozen    Boolean            @default(false) // Emergency switch to freeze cash out during disputes
   latitude          Float              @default(6.5244)
@@ -322,6 +328,9 @@ model Order {
   addressId       String?
   paystackRefundId Int?
   refundStatus     String?
+  freshpointFee    Float?
+  providerPayout   Float?
+  freshpointNet    Float?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   address         Address?    @relation(fields: [addressId], references: [id])
@@ -331,7 +340,6 @@ model Order {
 
   @@index([businessId])
   @@index([userId])
-  @@index([addressId])
 }
 
 model OrderItem {
@@ -505,6 +513,12 @@ enum UserRole {
   BUSINESS_OWNER
   STAFF
   ADMIN
+}
+
+enum SubscriptionTier {
+  STARTER
+  GROWTH
+  PRO
 }
 
 enum PlatformAdminRole {

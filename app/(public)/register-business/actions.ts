@@ -7,7 +7,6 @@ import { UserRole } from "@prisma/client";
 import { analyzeBusinessIntentWithAI } from "./aiGate";
 import { RegisterErrors } from "./types";
 
-
 export interface RegisterState {
   success: boolean;
   message: string;
@@ -179,47 +178,47 @@ export async function createBusiness(
                 day: "MONDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "TUESDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "WEDNESDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "THURSDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "FRIDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "SATURDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: false,
+                isClosed: false,
               },
               {
                 day: "SUNDAY",
                 openTime: "09:00",
                 closeTime: "17:00",
-                isOff: true,
+                isClosed: true,
               },
             ],
           },
-          staffProfiles: {
+          staff: {
             create: {
               name: "Store Manager (Owner)",
               email: email, // Business email or systemUser email

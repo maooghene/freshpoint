@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
           status: "approved", // If empty query string parameter, return all active merchants
         };
 
-    console.log(`🔍 [FreshPoint Search] Querying marketplace catalog using query: "${query}"`);
+    console.log(
+      `🔍 [FreshPoint Search] Querying marketplace catalog using query: "${query}"`,
+    );
 
     // Fetch the matched businesses from Neon Serverless Postgres
     const merchants = await prisma.business.findMany({
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
         id: true,
         name: true,
         slug: true,
-        profileImage: true,
+        image: true,
         address: true,
         phone: true,
         status: true,
@@ -51,8 +53,11 @@ export async function GET(req: NextRequest) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("🚨 [FreshPoint Explore Search Error]:", msg);
     return NextResponse.json(
-      { error: "Internal operational discovery network error processing your search catalog" },
-      { status: 500 }
+      {
+        error:
+          "Internal operational discovery network error processing your search catalog",
+      },
+      { status: 500 },
     );
   }
 }

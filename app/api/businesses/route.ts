@@ -45,16 +45,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: [
-        {
-          _count: {
-            ratings: "desc",
-          },
-        },
-        {
-          createdAt: "desc",
-        },
-      ],
+      orderBy: { createdAt: "desc" },
     });
 
     const formattedBusinesses = businesses.map((business) => ({

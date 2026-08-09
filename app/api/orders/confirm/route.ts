@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { calculateFees } from "@/lib/fees";
+import { getCommissionRateForTier } from "@/lib/subscription-tiers";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { refundPaystackPayment } from "@/lib/paystack";
 import {
@@ -139,13 +141,32 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       console.error(
-        `❌ [FreshPoint API] Database reference mismatch: Clerk ID ${clerkId} lacks user profile.`,
+        `❌ [FreshPoint API] Database reference mismatch: ClerkID ${clerkId} lacks user profile.`,
       );
       return NextResponse.json(
         { error: "User identity profile not found" },
         { status: 404 },
       );
     }
+
+    // 2b. Resolve the business's commission rate — manual override takes
+    // precedence, otherwise fall back to the rate for their subscription tier.
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { commissionRate: true, subscriptionTier: true },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 },
+      );
+    }
+
+    const commissionRate =
+      business.commissionRate ??
+      getCommissionRateForTier(business.subscriptionTier);
+    const fees = calculateFees(Number(totalAmount), commissionRate);
 
     // Normalize incoming multi-tenant physical shipping structures
     const activeIsDelivery = Boolean(isDelivery);
@@ -263,6 +284,9 @@ export async function POST(request: NextRequest) {
             userId: user.id,
             businessId: businessId,
             totalAmount: Number(totalAmount),
+            freshpointFee: fees.freshpointFee,
+            providerPayout: fees.providerPayout,
+            freshpointNet: fees.freshpointNet,
             status: OrderStatus.PENDING,
             isDelivery: activeIsDelivery,
             deliveryAddress: activeAddress,
@@ -327,6 +351,9 @@ export async function POST(request: NextRequest) {
             userId: user.id,
             businessId: businessId,
             totalAmount: Number(totalAmount),
+            freshpointFee: fees.freshpointFee,
+            providerPayout: fees.providerPayout,
+            freshpointNet: fees.freshpointNet,
             status: OrderStatus.REFUNDED,
             refundStatus: refundResult.success ? "pending" : "failed",
             isDelivery: activeIsDelivery,

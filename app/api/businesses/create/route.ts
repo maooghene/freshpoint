@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         sittingCapacity: parseInt(sittingCapacity, 10),
         isActive: false,
         status: "pending",
-        staffProfiles: {
+        staff: {
           create: {
             name: `${dbUser.firstName || "Store Manager"} (Owner)`,
             email: email.toLowerCase(),

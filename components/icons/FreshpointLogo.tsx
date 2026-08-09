@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 
 interface FreshpointLogoProps {
   size?: number;
+  variant?: string;
 }
 
 export function FreshpointLogo({ size = 50 }: FreshpointLogoProps) {

@@ -3,12 +3,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CreditCardIcon,
-  ShieldCheckIcon,
-  InfoIcon,
-  CoinsIcon,
-} from "lucide-react";
+import { CreditCardIcon, ShieldCheckIcon, InfoIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +20,7 @@ interface BookingSummaryProps {
   items: SummaryItem[];
   userEmail?: string;
   subaccountCode?: string; // The salon's unique Paystack subaccount code
+  commissionRate?: number; // Business's platform commission rate, e.g. business.commissionRate (0.05 = 5%)
   onSuccess?: (reference: string) => void;
 }
 
@@ -45,34 +41,32 @@ export function BookingSummary({
   totalPrice,
   userEmail = "customer@freshpoint.app",
   subaccountCode,
+  commissionRate = 0.05, // fallback only — parent should always pass business.commissionRate
   onSuccess,
 }: BookingSummaryProps) {
   const currency = "₦";
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 💰 HIGH-YIELD MONETIZATION ENGINE (5% + ₦500 Layout)
-  const COMMISSION_PERCENTAGE = 0.05; // 5% dynamic scale rate
-  const FLAT_MARKUP = 500; // ₦500 baseline markup protection
+  // 💰 CUSTOMER PAYS EXACTLY THE LISTED PRICE — no markup, no service charge.
+  const totalPayableAmount = totalPrice;
 
-  // Compute platform service fee dynamically
-  const platformServiceCharge =
-    totalPrice * COMMISSION_PERCENTAGE + FLAT_MARKUP;
-
-  // Total payable amount shown directly to the user
-  const totalPayableAmount = totalPrice + platformServiceCharge;
-
-  // 🧮 AUTOMATED REVENUE OVERHEAD MANAGEMENT
+  // 🧮 PLATFORM COMMISSION — deducted from the business's payout via Paystack split,
+  // never added to what the customer pays.
   const calculatePaystackSplitSettings = () => {
-    // Paystack standard network processing fees (1.5% + ₦100)
-    const paystackBaseFee = totalPayableAmount * 0.015;
+    // Our commission on this booking (comes out of the vendor's share)
+    const platformCommission = totalPrice * commissionRate;
+
+    // Paystack's own processing fee (1.5% + ₦100), also absorbed by the platform,
+    // not passed to the customer or the vendor.
+    const paystackBaseFee = totalPrice * 0.015;
     const paystackFlatFee = 100;
     const totalPaystackDeduction = paystackBaseFee + paystackFlatFee;
 
-    // Your transaction charge must pull both your service markup AND cover the payment processing fee
-    // so that the salon vendor is paid exactly 100% of their base price.
+    // Total amount we retain from this transaction: our commission + covering
+    // Paystack's processing cost. The vendor still receives totalPrice minus this.
     const amountToRetainForPlatform =
-      platformServiceCharge + totalPaystackDeduction;
+      platformCommission + totalPaystackDeduction;
 
     return {
       totalKobo: Math.round(totalPayableAmount * 100),
@@ -90,7 +84,6 @@ export function BookingSummary({
       const { totalKobo, platformChargeKobo } =
         calculatePaystackSplitSettings();
 
-      // Type asserted safely matching our configuration contract schema bounds
       const transactionConfig: PaystackTransactionConfig = {
         key:
           process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ||
@@ -161,28 +154,13 @@ export function BookingSummary({
 
       <Separator className="my-6 bg-border" />
 
-      {/* BUNDLED USER CONVERSION PRICE BREAKDOWN */}
+      {/* PRICE BREAKDOWN — no added fees, customer pays listed price */}
       <div className="space-y-3 mb-4">
         <div className="flex justify-between text-sm font-medium">
           <span className="text-muted-foreground">Salon Session Cost</span>
           <span className="text-foreground font-semibold">
             {currency}
             {totalPrice.toLocaleString()}
-          </span>
-        </div>
-
-        {/* 🚀 BUNDLED REVENUE AND PROCESSING MARGINS LINE ITEM */}
-        <div className="flex justify-between text-sm font-medium">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <CoinsIcon size={14} className="text-primary shrink-0" />
-            Transaction & Service Charge
-          </span>
-          <span className="text-foreground font-semibold">
-            {currency}
-            {platformServiceCharge.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
           </span>
         </div>
       </div>

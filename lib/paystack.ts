@@ -148,7 +148,7 @@ export async function refundPaystackPayment(
     }
 
     console.log(
-      `💸 [FreshPoint Gateway] Refund initiated for ${reference}. Refund ID:${data.data?.id}`,
+      `💸 [FreshPoint Gateway] Refund initiated for ${reference}. Refund ID: ${data.data?.id}`,
     );
 
     return {
@@ -202,4 +202,169 @@ export function getNigerianTimestamp(): Date {
   // Vercel server time is UTC. Add 1 hour to match WAT.
   const watOffsetMs = 1 * 60 * 60 * 1000;
   return new Date(now.getTime() + watOffsetMs);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SUBSCRIPTION BILLING (Growth / Pro monthly plans)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type PaidSubscriptionTier = "GROWTH" | "PRO";
+
+/**
+ * Maps each paid tier to its Paystack plan_code (created once in the
+ * Paystack dashboard) and the plan's amount in kobo — kept here so the
+ * amount sent at init always matches what the plan itself charges.
+ */
+export const SUBSCRIPTION_PLANS: Record<
+  PaidSubscriptionTier,
+  { planCode: string | undefined; amountKobo: number }
+> = {
+  GROWTH: {
+    planCode: process.env.PAYSTACK_GROWTH_PLAN_CODE,
+    amountKobo: 500_000, // ₦5,000
+  },
+  PRO: {
+    planCode: process.env.PAYSTACK_PRO_PLAN_CODE,
+    amountKobo: 1_500_000, // ₦15,000
+  },
+};
+
+/** Reverse lookup: Paystack plan_code → our tier name. Used by the webhook
+ * to figure out which tier a renewal/subscription event belongs to. */
+export function tierFromPlanCode(
+  planCode: string | undefined | null,
+): PaidSubscriptionTier | null {
+  if (!planCode) return null;
+  for (const [tier, config] of Object.entries(SUBSCRIPTION_PLANS)) {
+    if (config.planCode === planCode) return tier as PaidSubscriptionTier;
+  }
+  return null;
+}
+
+export interface SubscriptionInitResult {
+  authorizationUrl: string;
+  reference: string;
+}
+
+/**
+ * Starts a Paystack Checkout session with a recurring plan attached.
+ * On successful first charge, Paystack automatically creates a subscription
+ * and will keep charging the same card every billing cycle going forward —
+ * no extra code needed on our side for renewals, only webhook handling.
+ */
+export async function initializeSubscriptionTransaction(params: {
+  email: string;
+  tier: PaidSubscriptionTier;
+  businessId: string;
+  callbackUrl: string;
+}): Promise<SubscriptionInitResult | null> {
+  if (!secretKey) {
+    console.error(
+      "❌ [FreshPoint Gateway] CRITICAL ERROR: PAYSTACK_SECRET_KEY is missing.",
+    );
+    return null;
+  }
+
+  const plan = SUBSCRIPTION_PLANS[params.tier];
+  if (!plan.planCode) {
+    console.error(
+      `❌ [FreshPoint Gateway] No Paystack plan_code configured for tier ${params.tier}. Set the matching env var.`,
+    );
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: params.email,
+          amount: plan.amountKobo,
+          plan: plan.planCode,
+          callback_url: params.callbackUrl,
+          metadata: {
+            type: "subscription_tier_change",
+            businessId: params.businessId,
+            tier: params.tier,
+          },
+        }),
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.status) {
+      console.error("💥 [FreshPoint Gateway] Subscription init failed:", data);
+      return null;
+    }
+
+    return {
+      authorizationUrl: data.data.authorization_url,
+      reference: data.data.reference,
+    };
+  } catch (fetchError: unknown) {
+    console.error(
+      "💥 [FreshPoint Gateway] Subscription init request crashed:",
+      fetchError,
+    );
+    return null;
+  }
+}
+
+/**
+ * Cancels an active Paystack subscription. Requires both the subscription_code
+ * AND the email_token that Paystack issued for it (received via the
+ * subscription.create webhook event) — this is a Paystack API quirk, not
+ * something we chose.
+ */
+export async function disablePaystackSubscription(
+  subscriptionCode: string,
+  emailToken: string,
+): Promise<boolean> {
+  if (!secretKey) {
+    console.error(
+      "❌ [FreshPoint Gateway] CRITICAL ERROR: PAYSTACK_SECRET_KEY is missing.",
+    );
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      "https://api.paystack.co/subscription/disable",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: subscriptionCode,
+          token: emailToken,
+        }),
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.status) {
+      console.error(
+        "💥 [FreshPoint Gateway] Subscription disable failed:",
+        data,
+      );
+      return false;
+    }
+
+    return true;
+  } catch (fetchError: unknown) {
+    console.error(
+      "💥 [FreshPoint Gateway] Subscription disable request crashed:",
+      fetchError,
+    );
+    return false;
+  }
 }
