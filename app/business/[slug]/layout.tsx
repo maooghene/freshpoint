@@ -115,16 +115,6 @@ export default function BusinessLayout({
       icon: SettingsIcon,
     },
     {
-      name: "Contact Support",
-      href: `/contact`,
-      icon: HelpCircleIcon,
-    },
-    {
-      name: "Settings",
-      href: `/business/${businessSlug}/settings`,
-      icon: SettingsIcon,
-    },
-    {
       name: "Subscription",
       href: `/business/${businessSlug}/subscription`,
       icon: SparklesIcon,
