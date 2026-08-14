@@ -46,9 +46,12 @@ model Business {
   description       String?
   image             String?
   status            String             @default("pending")
-   subscriptionTier   SubscriptionTier @default(STARTER)
+  subscriptionTier   SubscriptionTier @default(STARTER)
   subscriptionExpiresAt DateTime?
   commissionRate     Float @default(0.10) // overridden per tier
+  baseDeliveryFee   Float              @default(0)
+  deliveryFeePerKm  Float              @default(0)
+  deliveryRadiusKm  Float?
   paystackCustomerCode     String?
   paystackSubscriptionCode String?
   paystackEmailToken       String? 
@@ -71,8 +74,6 @@ model Business {
   requireDeposit    Boolean            @default(false)
   smsAlertsActive   Boolean            @default(false)
   timezone          String             @default("Africa/Lagos")
-  baseDeliveryFee   Float              @default(0)
-  deliveryFeePerKm  Float              @default(0)
   bookings          Booking[]
   owner             User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   schedules         BusinessSchedule[]

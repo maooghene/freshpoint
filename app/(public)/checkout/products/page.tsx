@@ -74,6 +74,7 @@ function ProductCheckoutContent() {
     calculatingFee,
     fallbackMessage,
     coordinates,
+    outsideDeliveryZone,
   } = useDeliveryFeeCalculation(businessId ?? "", isDelivery, address || "");
 
   const currency = "₦";
@@ -151,7 +152,8 @@ function ProductCheckoutContent() {
 
   const absoluteFinalTotal = cartSubtotal + deliveryFee;
   const isFormValid =
-    (!isDelivery || (coordinates !== null && !calculatingFee)) &&
+    (!isDelivery ||
+      (coordinates !== null && !calculatingFee && !outsideDeliveryZone)) &&
     isValidNigerianPhone(customerPhone);
 
   const handleSuccess = async (reference: any) => {
@@ -181,11 +183,10 @@ function ProductCheckoutContent() {
 
       if (res.ok) {
         dispatch(clearCart());
-              router.push(
-                `/orders/success?reference=${encodeURIComponent(reference)}`,
-              );
-              dispatch(clearCart());
-
+        router.push(
+          `/orders/success?reference=${encodeURIComponent(reference)}`,
+        );
+        dispatch(clearCart());
       } else {
         console.error("Order completion failed at backend processing step");
       }
@@ -263,6 +264,7 @@ function ProductCheckoutContent() {
           calculatingFee={calculatingFee}
           estimatedDistance={estimatedDistance}
           fallbackMessage={fallbackMessage}
+          outsideDeliveryZone={outsideDeliveryZone}
         />
       )}
 
@@ -271,7 +273,6 @@ function ProductCheckoutContent() {
         onChange={setCustomerPhone}
         variant="order"
       />
-
       <OrderSummaryCard
         currency={currency}
         cartSubtotal={cartSubtotal}
@@ -280,6 +281,7 @@ function ProductCheckoutContent() {
         absoluteFinalTotal={absoluteFinalTotal}
         canPay={isFormValid}
         calculatingFee={calculatingFee}
+        outsideDeliveryZone={outsideDeliveryZone}
         payButton={renderPayButton()}
       />
     </div>

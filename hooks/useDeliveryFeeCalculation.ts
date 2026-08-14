@@ -6,6 +6,7 @@ interface DeliveryFeeCalculationResult {
   calculatingFee: boolean;
   fallbackMessage: string | null;
   coordinates: { latitude: number; longitude: number } | null;
+  outsideDeliveryZone: boolean;
 }
 
 interface DeliveryCalculateApiResponse {
@@ -13,6 +14,7 @@ interface DeliveryCalculateApiResponse {
   deliveryFee: number;
   distanceKm: number;
   isFallback: boolean;
+  outsideDeliveryZone?: boolean;
   message?: string;
   latitude?: number;
   longitude?: number;
@@ -27,6 +29,8 @@ export function useDeliveryFeeCalculation(
   const [estimatedDistance, setEstimatedDistance] = useState<number>(0);
   const [calculatingFee, setCalculatingFee] = useState<boolean>(false);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [outsideDeliveryZone, setOutsideDeliveryZone] =
+    useState<boolean>(false);
   const [coordinates, setCoordinates] = useState<{
     latitude: number;
     longitude: number;
@@ -46,6 +50,7 @@ export function useDeliveryFeeCalculation(
       setEstimatedDistance(0);
       setFallbackMessage(null);
       setCoordinates(null);
+      setOutsideDeliveryZone(false);
       return;
     }
 
@@ -84,6 +89,7 @@ export function useDeliveryFeeCalculation(
 
         setDeliveryFee(data.deliveryFee);
         setEstimatedDistance(data.distanceKm ?? 0);
+        setOutsideDeliveryZone(data.outsideDeliveryZone ?? false);
 
         // Only trust coordinates when the backend actually resolved a real
         // location (not the base-fee fallback path, which has none).
@@ -100,7 +106,7 @@ export function useDeliveryFeeCalculation(
           setCoordinates(null);
         }
 
-        if (data.isFallback) {
+        if (data.isFallback || data.outsideDeliveryZone) {
           setFallbackMessage(data.message || "Flat rate applied.");
         }
       } catch (err) {
@@ -131,5 +137,6 @@ export function useDeliveryFeeCalculation(
     calculatingFee,
     fallbackMessage,
     coordinates,
+    outsideDeliveryZone,
   };
 }

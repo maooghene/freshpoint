@@ -190,7 +190,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         where: { paystackSubscriptionCode: subscriptionCode },
         data: {
           subscriptionTier: "STARTER",
-          commissionRate: getCommissionRateForTier("STARTER" as any),
+            
           paystackSubscriptionCode: null,
           paystackEmailToken: null,
         },

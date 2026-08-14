@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { uploadToImageKit } from "@/lib/imagekit";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+import { canCustomizeDeliveryRadius } from "@/lib/subscription-tiers";
 
 export interface ActionState {
   success: boolean;
@@ -19,6 +20,7 @@ export interface ActionState {
     image?: string[];
     baseDeliveryFee?: string[]; // New validation track
     deliveryFeePerKm?: string[]; // New validation track
+    deliveryRadiusKm?: string[];
   };
 }
 
@@ -52,7 +54,7 @@ export async function updateBusinessSettings(
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { id: true, ownerId: true, image: true },
+      select: { id: true, ownerId: true, image: true, subscriptionTier: true },
     });
 
     if (!business) {
@@ -99,6 +101,27 @@ export async function updateBusinessSettings(
     const deliveryFeePerKm = deliveryFeePerKmRaw
       ? parseFloat(deliveryFeePerKmRaw.toString())
       : 0;
+
+    // Delivery radius: server-side tier guard. The submitted value is ONLY
+    // trusted if this business's own subscriptionTier (looked up above,
+    // not taken from the form) actually allows customization. A
+    // Starter/Growth owner submitting a modified value via devtools/raw
+    // POST gets silently ignored here, not just blocked by a disabled
+    // input — the disabled UI is a courtesy, not the real boundary.
+    const canCustomizeRadius = canCustomizeDeliveryRadius(
+      business.subscriptionTier,
+    );
+    const deliveryRadiusKmRaw = formData.get("deliveryRadiusKm");
+    let deliveryRadiusKm: number | null = null;
+
+    if (canCustomizeRadius) {
+      if (deliveryRadiusKmRaw && deliveryRadiusKmRaw.toString().trim() !== "") {
+        deliveryRadiusKm = parseFloat(deliveryRadiusKmRaw.toString());
+      } else {
+        // Blank = fall back to the tier default, not an error.
+        deliveryRadiusKm = null;
+      }
+    }
 
     const file = formData.get("imageFile") as File | null;
     let savedImagePath = business.image;
@@ -170,6 +193,18 @@ export async function updateBusinessSettings(
         "Delivery fee per KM must be a valid number greater than or equal to 0.",
       ];
     }
+
+    // Only validate the radius value itself when this tier is even allowed
+    // to set one — a Starter/Growth submission was already forced to null
+    // above, so there's nothing here to validate for them.
+    if (canCustomizeRadius && deliveryRadiusKm !== null) {
+      if (isNaN(deliveryRadiusKm) || deliveryRadiusKm <= 0) {
+        errors.deliveryRadiusKm = [
+          "Delivery radius must be a valid number greater than 0.",
+        ];
+      }
+    }
+
     console.log("VALIDATION_ERRORS_DEBUG:", errors);
     console.log("SUBMITTED_VALUES_DEBUG:", {
       name,
@@ -178,6 +213,8 @@ export async function updateBusinessSettings(
       sittingCapacity,
       baseDeliveryFee,
       deliveryFeePerKm,
+      deliveryRadiusKm,
+      canCustomizeRadius,
     });
 
     if (Object.keys(errors).length > 0) {
@@ -196,6 +233,7 @@ export async function updateBusinessSettings(
         image: savedImagePath,
         baseDeliveryFee, // Persisting new delivery field
         deliveryFeePerKm, // Persisting new delivery field
+        deliveryRadiusKm, // null = use tier default; only ever non-null for Pro
       },
     });
 

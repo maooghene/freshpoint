@@ -47,7 +47,7 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     (s) => s.userId === userRecord?.id,
   );
 
-  // 🎯 STRICT TYPE EXCLUSION: Ensure an absolute boolean fallback value falls down
+  // 🎯 STRICT TYPE EXCLUSION: Ensure an absolute boolean fallback value fallsdown
   const computedOwnerIsActive = ownerProfileRow
     ? ownerProfileRow.isActive
     : true;
@@ -64,6 +64,8 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     image: business.image ?? null,
     baseDeliveryFee: business.baseDeliveryFee ?? 0,
     deliveryFeePerKm: business.deliveryFeePerKm ?? 0,
+    deliveryRadiusKm: business.deliveryRadiusKm ?? null,
+    subscriptionTier: business.subscriptionTier,
     // Add parameters safely to the carrier shape objects
     initialOwnerActive: computedOwnerIsActive,
   };

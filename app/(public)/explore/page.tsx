@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { Prisma } from "@prisma/client";
+import { Prisma, SubscriptionTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   SparklesIcon,
@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import BusinessesGrid, { GridItem } from "./BusinessesGrid";
 import { getBusinessCategories } from "@/lib/actions/admin-categories"; // CHANGED: was static import from "@/lib/categories"
+import { compareTierRank, isFeaturedTier } from "@/lib/subscription-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -94,11 +95,23 @@ export default async function ExplorePage({ searchParams }: PageProps) {
       address: true,
       status: true,
       categories: true,
+      subscriptionTier: true,
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const normalizedBusinesses: GridItem[] = businesses.map((b) => {
+  // Featured placement: Growth/Pro businesses rank above Starter, then by
+  // original createdAt-desc order within each tier group. Done in
+  // application code since ranking by an enum's "importance" rather than
+  // its literal value isn't expressible in a single Prisma orderBy clause.
+  const sortedBusinesses = [...businesses].sort((a, b) =>
+    compareTierRank(
+      a.subscriptionTier as SubscriptionTier,
+      b.subscriptionTier as SubscriptionTier,
+    ),
+  );
+
+  const normalizedBusinesses: GridItem[] = sortedBusinesses.map((b) => {
     const validCategories = Array.isArray(b.categories)
       ? b.categories.filter((c) => typeof c === "string" && c.trim().length > 0)
       : [];
@@ -115,6 +128,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
       address: b.address,
       status: b.status,
       category: displayedCategory,
+      isFeatured: isFeaturedTier(b.subscriptionTier as SubscriptionTier),
     };
   });
 
@@ -132,7 +146,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">
             Explore Providers & Products
           </h1>
-          <p className="text-muted-foreground font-medium text-sm md:text-base leading-relaxed">
+          <p className="text-muted-foreground font-medium text-sm md:text-baseleading-relaxed">
             Browse verified marketplace workspaces near you. Book treatments and
             order products instantly.
           </p>
@@ -164,7 +178,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         </div>
 
         {normalizedBusinesses.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
+          <div className="text-center py-24 border border-dashed border-borderrounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
             <Store className="mx-auto w-10 h-10 text-muted-foreground/30 animate-pulse" />
             <h3 className="text-base font-bold text-foreground">
               {searchQuery || selectedCategory

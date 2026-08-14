@@ -1,6 +1,5 @@
 "use client";
-
-import { Loader2, MapPin, AlertCircle } from "lucide-react";
+import { Loader2, MapPin, AlertCircle, XCircle } from "lucide-react";
 
 interface DeliveryAddressFieldProps {
   address: string;
@@ -8,6 +7,7 @@ interface DeliveryAddressFieldProps {
   calculatingFee: boolean;
   estimatedDistance: number;
   fallbackMessage: string | null;
+  outsideDeliveryZone: boolean;
 }
 
 export function DeliveryAddressField({
@@ -16,6 +16,7 @@ export function DeliveryAddressField({
   calculatingFee,
   estimatedDistance,
   fallbackMessage,
+  outsideDeliveryZone,
 }: DeliveryAddressFieldProps) {
   return (
     <div className="space-y-2">
@@ -32,15 +33,24 @@ export function DeliveryAddressField({
           route distance metrics...
         </p>
       )}
-      {estimatedDistance > 0 && !calculatingFee && (
+      {estimatedDistance > 0 && !calculatingFee && !outsideDeliveryZone && (
         <p className="text-[11px] text-emerald-500 font-medium flex items-center gap-1">
           <MapPin className="w-3 h-3" /> Estimated Distance: {estimatedDistance}{" "}
           km from storefront workspace.
         </p>
       )}
       {fallbackMessage && !calculatingFee && (
-        <p className="text-[11px] text-amber-500 font-medium flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" /> {fallbackMessage}
+        <p
+          className={`text-[11px] font-medium flex items-center gap-1 ${
+            outsideDeliveryZone ? "text-destructive" : "text-amber-500"
+          }`}
+        >
+          {outsideDeliveryZone ? (
+            <XCircle className="w-3 h-3" />
+          ) : (
+            <AlertCircle className="w-3 h-3" />
+          )}
+          {fallbackMessage}
         </p>
       )}
     </div>

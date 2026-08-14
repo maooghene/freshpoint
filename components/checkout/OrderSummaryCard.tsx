@@ -1,8 +1,6 @@
 "use client";
-
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-
 interface OrderSummaryCardProps {
   currency: string;
   cartSubtotal: number;
@@ -11,9 +9,9 @@ interface OrderSummaryCardProps {
   absoluteFinalTotal: number;
   canPay: boolean;
   calculatingFee: boolean;
+  outsideDeliveryZone: boolean;
   payButton: ReactNode;
 }
-
 export function OrderSummaryCard({
   currency,
   cartSubtotal,
@@ -22,8 +20,15 @@ export function OrderSummaryCard({
   absoluteFinalTotal,
   canPay,
   calculatingFee,
+  outsideDeliveryZone,
   payButton,
 }: OrderSummaryCardProps) {
+  function getDisabledMessage(): string {
+    if (calculatingFee) return "Adjusting Surcharge Rates...";
+    if (outsideDeliveryZone) return "Outside Delivery Area — Pickup Only";
+    return "Provide Destination Address to Pay";
+  }
+
   return (
     <div className="border border-border rounded-2xl p-4 bg-card space-y-3.5 shadow-sm">
       <div className="space-y-2 text-xs font-medium text-muted-foreground pb-2 border-b border-dashed border-border">
@@ -44,7 +49,6 @@ export function OrderSummaryCard({
           </div>
         )}
       </div>
-
       <div className="flex justify-between items-center text-sm">
         <span className="font-bold text-muted-foreground">
           Settled Total Amount
@@ -54,15 +58,12 @@ export function OrderSummaryCard({
           {Number(absoluteFinalTotal).toLocaleString()}
         </span>
       </div>
-
       {!canPay ? (
         <Button
           disabled
           className="w-full py-5 rounded-xl text-xs font-bold opacity-50 bg-muted text-muted-foreground"
         >
-          {calculatingFee
-            ? "Adjusting Surcharge Rates..."
-            : "Provide Destination Address to Pay"}
+          {getDisabledMessage()}
         </Button>
       ) : (
         payButton

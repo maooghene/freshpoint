@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Label } from "@/components/ui/label";
-import { Globe, Coins } from "lucide-react";
+import { Globe2, Coins } from "lucide-react";
 
 interface RegionFieldsProps {
   business: {
@@ -12,27 +12,49 @@ interface RegionFieldsProps {
   isPending: boolean;
 }
 
+const TIMEZONE_OPTIONS = [
+  { value: "Africa/Lagos", label: "Africa/Lagos (WAT)" },
+  { value: "Africa/Accra", label: "Africa/Accra (GMT)" },
+  { value: "Africa/Cairo", label: "Africa/Cairo (EET)" },
+  { value: "Africa/Nairobi", label: "Africa/Nairobi (EAT)" },
+  { value: "Africa/Johannesburg", label: "Africa/Johannesburg (SAST)" },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: "NGN", label: "NGN — Nigerian Naira" },
+  { value: "GHS", label: "GHS — Ghanaian Cedi" },
+  { value: "KES", label: "KES — Kenyan Shilling" },
+  { value: "ZAR", label: "ZAR — South African Rand" },
+  { value: "USD", label: "USD — US Dollar" },
+];
+
 export function PolicyRegionFields({ business, isPending }: RegionFieldsProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 border-t border-border/60 pt-4">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
       <div className="space-y-2">
         <Label
           htmlFor="timezone"
           className="flex items-center gap-2 text-foreground/90 font-medium"
         >
-          <Globe className="h-4 w-4 text-muted-foreground/80" /> Your Timezone
+          <Globe2 className="h-4 w-4 text-muted-foreground/80" /> Storefront
+          timezone
         </Label>
+        <p className="text-xs text-muted-foreground">
+          Booking slots and reminders are calculated against this timezone.
+        </p>
         <select
           id="timezone"
           name="timezone"
           defaultValue={business.timezone}
           disabled={isPending}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          required
+          className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         >
-          <option value="Africa/Lagos">Nigeria (GMT+1)</option>
-          <option value="Africa/Accra">Ghana (GMT+0)</option>
-          <option value="Europe/London">UK (GMT+0)</option>
-          <option value="America/New_York">USA (EST)</option>
+          {TIMEZONE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -41,21 +63,29 @@ export function PolicyRegionFields({ business, isPending }: RegionFieldsProps) {
           htmlFor="currencyCode"
           className="flex items-center gap-2 text-foreground/90 font-medium"
         >
-          <Coins className="h-4 w-4 text-muted-foreground/80" /> Shop Currency
+          <Coins className="h-4 w-4 text-muted-foreground/80" /> Currency
         </Label>
+        <p className="text-xs text-muted-foreground">
+          Prices and invoices for this storefront are shown in this currency.
+        </p>
         <select
           id="currencyCode"
           name="currencyCode"
           defaultValue={business.currencyCode}
           disabled={isPending}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          required
+          className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         >
-          <option value="NGN">Naira (₦)</option>
-          <option value="GHS">Cedi (₵)</option>
-          <option value="USD">US Dollar ($)</option>
-          <option value="GBP">Pound (£)</option>
+          {CURRENCY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
       </div>
     </div>
   );
 }
+
+
+

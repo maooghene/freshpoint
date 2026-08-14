@@ -3,8 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { SparklesIcon } from "lucide-react";
-import { SubscriptionTierCard } from "./SubscriptionTierCard";
-import { TIER_COMMISSION_RATES } from "@/lib/subscription-tiers";
+import SubscriptionTierCard from "./SubscriptionTierCard";
+import {
+  TIER_COMMISSION_RATES,
+  TIER_DEFAULT_DELIVERY_RADIUS_KM,
+} from "@/lib/subscription-tiers";
 import type { SubscriptionTier } from "@prisma/client";
 import { CalendarClockIcon } from "lucide-react";
 
@@ -29,6 +32,7 @@ const TIER_COPY: Record<
       "Basic totals — orders & revenue",
       "Standard booking confirmation",
       "Normal listing placement",
+      `${TIER_DEFAULT_DELIVERY_RADIUS_KM.STARTER}km fixed delivery radius`,
     ],
   },
   GROWTH: {
@@ -39,6 +43,7 @@ const TIER_COPY: Record<
       "Full analytics dashboard",
       "Automated booking reminders",
       "Featured placement badge",
+      `${TIER_DEFAULT_DELIVERY_RADIUS_KM.GROWTH}km fixed delivery radius`,
     ],
   },
   PRO: {
@@ -48,7 +53,7 @@ const TIER_COPY: Record<
       "Everything in Growth",
       "Top featured placement",
       "Promotional broadcast messages",
-      "Custom delivery radius & fees",
+      "Customizable delivery radius — set your own reach",
       "Lowest commission rate",
     ],
   },
@@ -130,8 +135,8 @@ export default async function SubscriptionPage({ params }: PageProps) {
                         { day: "numeric", month: "long", year: "numeric" },
                       )}
                     </span>{" "}
-                    may have failed. If this doesn&apos;t resolve soon, your account
-                    will be moved to Starter.
+                    may have failed. If this doesn&apos;t resolve soon, your
+                    account will be moved to Starter.
                   </>
                 ) : (
                   <>
@@ -159,6 +164,7 @@ export default async function SubscriptionPage({ params }: PageProps) {
           <SubscriptionTierCard
             key={tier}
             businessId={business.id}
+            slug={business.slug}
             tier={tier}
             label={TIER_COPY[tier].label}
             price={TIER_COPY[tier].price}

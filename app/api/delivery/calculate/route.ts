@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
+import { getEffectiveDeliveryRadiusKm } from "@/lib/subscription-tiers";
 
 interface DeliveryCalculateRequestBody {
   businessId: string;
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
         longitude: true,
         baseDeliveryFee: true,
         deliveryFeePerKm: true,
+        deliveryRadiusKm: true,
+        subscriptionTier: true,
       },
     });
 
@@ -97,6 +100,7 @@ export async function POST(req: NextRequest) {
         distanceKm: 0,
         deliveryFee: Math.round(business.baseDeliveryFee || 0),
         isFallback: true,
+        outsideDeliveryZone: false,
         message:
           "Unable to determine delivery location. Base delivery fee applied.",
       });
@@ -114,6 +118,31 @@ export async function POST(req: NextRequest) {
 
     const roundedDistance = Number(distanceKm.toFixed(2));
 
+    const effectiveRadiusKm = getEffectiveDeliveryRadiusKm(
+      business.subscriptionTier,
+      business.deliveryRadiusKm,
+    );
+
+    // Outside delivery zone: return a clear, structured "no" instead of
+    // a fee that keeps growing forever. Not an error — a real answer.
+    if (roundedDistance > effectiveRadiusKm) {
+      console.warn("DELIVERY_OUTSIDE_RADIUS", {
+        businessId,
+        distanceKm: roundedDistance,
+        effectiveRadiusKm,
+      });
+
+      return NextResponse.json({
+        success: true,
+        distanceKm: roundedDistance,
+        deliveryFee: 0,
+        isFallback: false,
+        outsideDeliveryZone: true,
+        deliveryRadiusKm: effectiveRadiusKm,
+        message: `This address is outside our ${effectiveRadiusKm}km delivery area.`,
+      });
+    }
+
     const deliveryFee =
       Number(business.baseDeliveryFee) +
       roundedDistance * Number(business.deliveryFeePerKm);
@@ -123,6 +152,7 @@ export async function POST(req: NextRequest) {
       distanceKm: roundedDistance,
       deliveryFee: Math.round(deliveryFee),
       isFallback: false,
+      outsideDeliveryZone: false,
       latitude: customerCoordinates.latitude,
       longitude: customerCoordinates.longitude,
     });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+import { getStaffLimitForTier } from "@/lib/subscription-tiers";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -39,7 +40,13 @@ export async function POST(
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { id: true, ownerId: true, name: true, slug: true },
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        slug: true,
+        subscriptionTier: true,
+      },
     });
 
     if (!business) {
@@ -59,6 +66,26 @@ export async function POST(
 
     if (!authorized) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Tier-based staff account limit. Counts ALL StaffProfile rows
+    // (pending + active) so a business can't dodge the cap by leaving
+    // invites perpetually unaccepted.
+    const staffLimit = getStaffLimitForTier(business.subscriptionTier);
+    if (staffLimit !== null) {
+      const currentStaffCount = await prisma.staffProfile.count({
+        where: { businessId: business.id },
+      });
+
+      if (currentStaffCount >= staffLimit) {
+        return NextResponse.json(
+          {
+            error: `Your current plan allows up to ${staffLimit} staff account${staffLimit === 1 ? "" : "s"}. Upgrade your subscription to add more.`,
+            code: "STAFF_LIMIT_REACHED",
+          },
+          { status: 403 },
+        );
+      }
     }
 
     // Prevent duplicate pending/active invites for the same email at this business
@@ -105,7 +132,7 @@ export async function POST(
             </div>
             <p style="font-size: 11px; color: #94a3b8; line-height: 1.4; border-top: 1px dashed #e2e8f0; padding-top: 12px; margin-top: 20px;">
               If the button doesn't work, copy and paste this link: <br/>
-              <span style="font-family: monospace; color: #6d28d9; word-break: break-all;">${secureOnboardingLink}</span>
+              <span style="font-family: monospace; color: #6d28d9; word-break:break-all;">${secureOnboardingLink}</span>
             </p>
           </div>
         `,
