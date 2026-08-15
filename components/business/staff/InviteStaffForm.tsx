@@ -1,28 +1,52 @@
 "use client";
 
 import { useState } from "react";
-import { MailIcon, BriefcaseIcon, Loader2Icon, Sparkles } from "lucide-react";
+import {
+  MailIcon,
+  BriefcaseIcon,
+  Loader2Icon,
+  Sparkles,
+  MapPinIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { Location } from "./types";
 
 interface InviteStaffFormProps {
   addingStaff: boolean;
-  onInvite: (name: string, email: string, role: string) => Promise<void>;
+  onInvite: (
+    name: string,
+    email: string,
+    role: string,
+    locationId: string | null,
+  ) => Promise<void>;
   onCancel: () => void;
+  locations: Location[];
 }
 
 export default function InviteStaffForm({
   addingStaff,
   onInvite,
   onCancel,
+  locations,
 }: InviteStaffFormProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Specialist");
 
+  // Only meaningful once a business has 2+ locations. Below that, every
+  // invite is implicitly scoped to the single location (or business-wide,
+  // functionally identical when there's nowhere else to be scoped to) and
+  // there's nothing for the owner to choose.
+  const showLocationPicker = locations.length > 1;
+  const primaryLocationId =
+    locations.find((l) => l.isPrimary)?.id ?? locations[0]?.id ?? null;
+  const [locationId, setLocationId] = useState<string>(primaryLocationId ?? "");
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onInvite(name, email, role);
+    // "" (the "All locations" option) means business-wide access -> null.
+    onInvite(name, email, role, locationId === "" ? null : locationId);
   };
 
   return (
@@ -80,6 +104,29 @@ export default function InviteStaffForm({
             <option value="Specialist"> General Specialist</option>
           </select>
         </div>
+
+        {showLocationPicker && (
+          <div className="flex flex-col gap-1.5 md:col-span-3">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <MapPinIcon size={10} className="text-primary" /> Assigned
+              Location
+            </label>
+            <select
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="border border-border rounded-xl px-3 h-11 bg-background outline-none text-xs font-bold text-foreground w-full cursor-pointer focus:border-primary transition-all shadow-xs"
+              disabled={addingStaff}
+            >
+              <option value="">All locations (Owner/Manager access)</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                  {loc.isPrimary ? " (Primary)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end gap-2.5 border-t pt-4">

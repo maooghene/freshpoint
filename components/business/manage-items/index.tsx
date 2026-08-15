@@ -29,6 +29,12 @@ export default function BusinessManageItems({
     toggleStatus,
     handleDelete,
     handleEditSubmit,
+    locationOverrides,
+    loadingOverrides,
+    savingOverrides,
+    updateOverridePrice,
+    updateOverrideAvailability,
+    handleSaveOverrides,
   } = useManageItems(businessSlug);
 
   if (loading) return <Loading />;
@@ -61,6 +67,12 @@ export default function BusinessManageItems({
           onChange={setForm}
           onSubmit={handleEditSubmit}
           onClose={closeEdit}
+          locationOverrides={locationOverrides}
+          loadingOverrides={loadingOverrides}
+          savingOverrides={savingOverrides}
+          onOverridePriceChange={updateOverridePrice}
+          onOverrideAvailabilityChange={updateOverrideAvailability}
+          onSaveOverrides={handleSaveOverrides}
         />
       )}
     </div>

@@ -17,6 +17,7 @@ import {
   LayersIcon,
   ShoppingBagIcon,
   SparklesIcon,
+  MapPinIcon,
 } from "lucide-react";
 import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
@@ -109,6 +110,11 @@ export default function BusinessLayout({
       icon: PlusCircleIcon,
     },
     { name: "Staff", href: `/business/${businessSlug}/staff`, icon: UsersIcon },
+    {
+      name: "Locations",
+      href: `/business/${businessSlug}/locations`,
+      icon: MapPinIcon,
+    },
     {
       name: "Settings",
       href: `/business/${businessSlug}/settings`,

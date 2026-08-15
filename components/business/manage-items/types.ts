@@ -51,3 +51,15 @@ export interface EditForm {
 export interface UpdatedItemResponse {
   item: BaseItem & (ServiceItem | ProductItem);
 }
+
+// Per-location price/availability override for the currently-open item.
+// One row per Location the business has — even locations with no actual
+// override row in the DB show up here (price: null, isAvailable: true),
+// merged server-side by the location-overrides GET endpoint.
+export interface LocationOverrideRow {
+  locationId: string;
+  locationName: string;
+  isPrimary: boolean;
+  price: number | null;
+  isAvailable: boolean;
+}

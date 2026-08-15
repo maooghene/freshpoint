@@ -8,6 +8,12 @@ export interface StaffSchedule {
   isOff: boolean;
 }
 
+export interface Location {
+  id: string;
+  name: string;
+  isPrimary: boolean;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ export interface StaffMember {
   role: string;
   isActive: boolean;
   createdAt: string;
+  locationId: string | null;
   schedules: StaffSchedule[];
   user: {
     id: string;
@@ -29,4 +36,5 @@ export interface Business {
   id: string;
   name: string;
   staff: StaffMember[];
+  locations: Location[];
 }

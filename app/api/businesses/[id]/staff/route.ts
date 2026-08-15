@@ -18,7 +18,7 @@ export async function POST(
     }
 
     const { id: businessId } = await params;
-    const { name, email, role } = await req.json();
+    const { name, email, role, locationId } = await req.json();
 
     if (!name || !email) {
       return NextResponse.json(
@@ -88,6 +88,25 @@ export async function POST(
       }
     }
 
+    // locationId is trusted only after confirming it actually belongs to
+    // THIS business — never take it as-is from the client. null is a valid,
+    // intentional value (business-wide access), so it's only rejected when
+    // a non-null id doesn't resolve to one of this business's own locations.
+    let verifiedLocationId: string | null = null;
+    if (locationId) {
+      const location = await prisma.location.findUnique({
+        where: { id: locationId },
+        select: { businessId: true },
+      });
+      if (!location || location.businessId !== business.id) {
+        return NextResponse.json(
+          { error: "Invalid location for this business" },
+          { status: 400 },
+        );
+      }
+      verifiedLocationId = locationId;
+    }
+
     // Prevent duplicate pending/active invites for the same email at this business
     const existing = await prisma.staffProfile.findFirst({
       where: { businessId: business.id, email: cleanEmail },
@@ -123,7 +142,7 @@ export async function POST(
             <h2 style="color: #6d28d9; margin-bottom: 4px; font-weight: 900;">Workspace Invitation</h2>
             <p style="font-size: 14px; color: #475569; margin-top: 0;">Hello ${name},</p>
             <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-              You have been invited to join <strong>${business.name}</strong> on FreshPoint as a <strong>${role || "Specialist"}</strong>.
+              You have been invited to join <strong>${business.name}</strong>on FreshPoint as a <strong>${role || "Specialist"}</strong>.
             </p>
             <div style="margin: 24px 0; text-align: center;">
               <a href="${secureOnboardingLink}" style="background-color: #6d28d9; color: white; padding: 12px 24px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 12px; display: inline-block;">
@@ -156,6 +175,7 @@ export async function POST(
         email: cleanEmail,
         role: role || "Specialist",
         isActive: false,
+        locationId: verifiedLocationId,
       },
     });
 

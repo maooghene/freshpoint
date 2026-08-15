@@ -8,6 +8,7 @@ import {
   ProductItem,
   EditForm,
   UpdatedItemResponse,
+  LocationOverrideRow,
 } from "@/components/business/manage-items/types";
 
 const EMPTY_FORM: EditForm = {
@@ -34,6 +35,15 @@ export function useManageItems(businessSlug: string) {
   >(null);
   const [form, setForm] = useState<EditForm>(EMPTY_FORM);
 
+  // Location pricing state — only meaningful once a business has 2+
+  // locations, but always fetched/tracked regardless; the UI decides
+  // whether to render based on locationOverrides.length.
+  const [locationOverrides, setLocationOverrides] = useState<
+    LocationOverrideRow[]
+  >([]);
+  const [loadingOverrides, setLoadingOverrides] = useState<boolean>(false);
+  const [savingOverrides, setSavingOverrides] = useState<boolean>(false);
+
   const openEdit = (item: ServiceItem | ProductItem) => {
     setSelectedItem(item);
     setForm({
@@ -50,11 +60,82 @@ export function useManageItems(businessSlug: string) {
       costPrice: item.costPrice != null ? item.costPrice.toString() : "",
       weight: item.weight != null ? item.weight.toString() : "",
     });
+
+    // Fetch this item's location overrides asynchronously — doesn't block
+    // opening the modal, the location pricing section just shows its own
+    // loading state until this resolves.
+    void loadOverrides(item.id);
+  };
+
+  const loadOverrides = async (itemId: string) => {
+    if (!resolvedBusinessId) return;
+    setLoadingOverrides(true);
+    try {
+      const token = await getToken();
+      const { data } = await axios.get<{ overrides: LocationOverrideRow[] }>(
+        `/api/businesses/${resolvedBusinessId}/items/${itemId}/location-overrides`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setLocationOverrides(data.overrides);
+    } catch {
+      // Non-fatal — the base item is still editable even if overrides fail
+      // to load. Leave the list empty; the section will show nothing to
+      // edit rather than stale/wrong data.
+      setLocationOverrides([]);
+    } finally {
+      setLoadingOverrides(false);
+    }
+  };
+
+  const updateOverridePrice = (locationId: string, value: string) => {
+    setLocationOverrides((prev) =>
+      prev.map((row) =>
+        row.locationId === locationId
+          ? { ...row, price: value.trim() === "" ? null : Number(value) }
+          : row,
+      ),
+    );
+  };
+
+  const updateOverrideAvailability = (
+    locationId: string,
+    isAvailable: boolean,
+  ) => {
+    setLocationOverrides((prev) =>
+      prev.map((row) =>
+        row.locationId === locationId ? { ...row, isAvailable } : row,
+      ),
+    );
+  };
+
+  const handleSaveOverrides = async () => {
+    if (!selectedItem || !resolvedBusinessId) return;
+    setSavingOverrides(true);
+    try {
+      const token = await getToken();
+      await axios.put(
+        `/api/businesses/${resolvedBusinessId}/items/${selectedItem.id}/location-overrides`,
+        {
+          overrides: locationOverrides.map((row) => ({
+            locationId: row.locationId,
+            price: row.price,
+            isAvailable: row.isAvailable,
+          })),
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success("Location pricing updated!");
+    } catch {
+      toast.error("Failed to save location pricing");
+    } finally {
+      setSavingOverrides(false);
+    }
   };
 
   const closeEdit = () => {
     setSelectedItem(null);
     setForm(EMPTY_FORM);
+    setLocationOverrides([]);
   };
 
   const toggleStatus = async (id: string, type: "SERVICE" | "PRODUCT") => {
@@ -226,5 +307,11 @@ export function useManageItems(businessSlug: string) {
     toggleStatus,
     handleDelete,
     handleEditSubmit,
+    locationOverrides,
+    loadingOverrides,
+    savingOverrides,
+    updateOverridePrice,
+    updateOverrideAvailability,
+    handleSaveOverrides,
   };
 }

@@ -40,6 +40,10 @@ model Business {
   slug              String             @unique
   email             String
   phone             String
+  // NOTE: address/latitude/longitude/deliveryRadiusKm kept as fallback fields
+  // during the multi-location transition. New code should read from the
+  // business's primary Location instead. See migration script — every
+  // existing business gets an auto-created Location from these values.
   address           String
   sittingCapacity   Int                @default(1)
   categories        String[]           @default([])
@@ -56,7 +60,7 @@ model Business {
   paystackSubscriptionCode String?
   paystackEmailToken       String? 
   isActive          Boolean            @default(false)
-  isPayoutFrozen    Boolean            @default(false) // Emergency switch to freeze cash out during disputes
+  isPayoutFrozen    Boolean            @default(false) // Emergency switch tofreeze cash out during disputes
   latitude          Float              @default(6.5244)
   longitude         Float              @default(3.3792)
   ownerId           String
@@ -86,8 +90,76 @@ model Business {
   pushSubscriptions PushSubscription[]
   announcements Announcement[]
   reminderMilestonesHours Int[]        @default([48, 2])
+  locations         Location[]
 
   @@index([ownerId])
+}
+
+// NEW MODEL — Pro-tier multi-location support.
+// Every Business gets at least one Location (auto-migrated for existing
+// businesses — see migration script). Starter/Growth are hard-capped at one
+// Location via server-side enforcement (canAddLocation helper), not just UI.
+model Location {
+  id               String   @id @default(cuid())
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name             String   // e.g. "Abuja Branch", "Main Location"
+  address          String
+  latitude         Float
+  longitude        Float
+  deliveryRadiusKm Float?
+  // The auto-migrated original location for pre-existing businesses.
+  // Exactly one Location per Business should have isPrimary = true.
+  isPrimary        Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  staff            StaffProfile[]
+  bookings         Booking[]
+  orders           Order[]
+  itemOverrides    LocationItemOverride[]
+  schedules        LocationSchedule[]
+
+  @@index([businessId])
+  @@index([businessId, isPrimary])
+}
+
+// NEW MODEL — per-location open/close hours. Business.schedules
+// (BusinessSchedule) is kept unchanged for backward compatibility;
+// LocationSchedule is the new source of truth going forward.
+model LocationSchedule {
+  id         String    @id @default(cuid())
+  locationId String
+  day        DayOfWeek
+  openTime   String
+  closeTime  String
+  isClosed   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  location   Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, day])
+}
+
+// NEW MODEL — per-location price/availability override on top of the
+// business's shared base Item catalog. Absence of a row here means "use the
+// Item's base price/availability as-is" — this is an override table, not a
+// duplicate catalog.
+model LocationItemOverride {
+  id          String   @id @default(cuid())
+  locationId  String
+  itemId      String
+  price       Float?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  item        Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, itemId])
+  @@index([locationId])
+  @@index([itemId])
 }
 
 model StaffProfile {
@@ -98,15 +170,22 @@ model StaffProfile {
   isActive   Boolean         @default(false)
   userId     String?         @unique
   businessId String
+  // Nullable: owner/manager roles are business-wide (no single location).
+  // Required in practice for regular staff — enforced in application logic
+  // at staff-invite time, not as a hard DB constraint, since "manager" is a
+  // role value on this same model rather than a separate type.
+  locationId String?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   bookings   Booking[]
   business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location   Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
   user       User?           @relation(fields: [userId], references: [id])
   schedules  StaffSchedule[]
 
   @@unique([businessId, email])
   @@index([businessId])
+  @@index([locationId])
 }
 
 model StaffSchedule {
@@ -185,10 +264,11 @@ model Item {
   updatedAt   DateTime      @updatedAt
   bookings    BookingItem[]
   cartItems   CartItem[]
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category    ItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  business    Business      @relation(fields: [businessId], references: [id],onDelete: Cascade)
+  category    ItemCategory? @relation(fields: [categoryId], references: [id],onDelete: SetNull)
   orderItems  OrderItem[]
   ratings     Rating[]
+  locationOverrides LocationItemOverride[]
 
   @@index([businessId])
   @@index([businessId, type, isActive])
@@ -206,7 +286,7 @@ model ItemVariant {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete:Cascade)
 
   @@index([itemId])
 }
@@ -252,11 +332,16 @@ model Booking {
   updatedAt         DateTime      @updatedAt
   addressId         String?
   businessId        String
+  // Which branch this booking is anchored to. Nullable during transition —
+  // resolved to the business's primary Location when absent. New bookings
+  // should always set this going forward.
+  branchLocationId  String?
   userId            String
   staffId           String?
    googleEventId  String?
   address           Address?      @relation(fields: [addressId], references: [id])
-  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business          Business      @relation(fields: [businessId], references:[id], onDelete: Cascade)
+  branchLocation    Location?     @relation(fields: [branchLocationId], references: [id], onDelete: SetNull)
   staff             StaffProfile? @relation(fields: [staffId], references: [id])
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   items             BookingItem[]
@@ -266,6 +351,7 @@ model Booking {
   @@index([businessId, staffId, startTime, endTime])
   @@index([userId])
   @@index([addressId])
+  @@index([branchLocationId])
 }
 
 model BookingItem {
@@ -317,6 +403,9 @@ model Order {
   code            String      @unique
   userId          String
   businessId      String
+  // Which branch fulfills this order. Nullable during transition — resolved
+  // to the business's primary Location when absent.
+  branchLocationId String?
   totalAmount     Float
   status          OrderStatus @default(PENDING)
   isDelivery      Boolean     @default(false)
@@ -336,11 +425,13 @@ model Order {
   updatedAt       DateTime    @updatedAt
   address         Address?    @relation(fields: [addressId], references: [id])
   business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchLocation  Location?   @relation(fields: [branchLocationId], references: [id], onDelete: SetNull)
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items           OrderItem[]
 
   @@index([businessId])
   @@index([userId])
+  @@index([branchLocationId])
 }
 
 model OrderItem {
@@ -369,8 +460,8 @@ model Rating {
   updatedAt  DateTime @updatedAt
   booking    Booking? @relation(fields: [bookingId], references: [id])
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  item       Item?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       Item?    @relation(fields: [itemId], references: [id], onDelete:Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete:Cascade)
 
   @@index([businessId])
   @@index([itemId])
@@ -388,7 +479,7 @@ model Address {
   userId    String
   latitude  Float?
   longitude Float?
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete:Cascade)
   bookings  Booking[]
   orders    Order[]
 
@@ -415,8 +506,8 @@ model CartItem {
   quantity   Int      @default(1)
   priceAtAdd Float?
   createdAt  DateTime @default(now())
-  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete:Cascade)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete:Cascade)
 
   @@index([cartId])
   @@index([itemId])
@@ -488,7 +579,7 @@ model Announcement {
 model AnnouncementDismissal {
   id             String       @id @default(cuid())
   announcementId String
-  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references:[id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id])
   dismissedAt    DateTime     @default(now())

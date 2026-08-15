@@ -1,8 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { X } from "lucide-react";
-import { EditForm, ServiceItem, ProductItem, ProductVariant } from "./types";
+import { X, MapPin, Loader2 } from "lucide-react";
+import {
+  EditForm,
+  ServiceItem,
+  ProductItem,
+  ProductVariant,
+  LocationOverrideRow,
+} from "./types";
 import { ProductVariantsManager } from "@/components/business/add-items/ProductVariantsManager";
 
 export function EditItemModal({
@@ -11,12 +17,27 @@ export function EditItemModal({
   onChange,
   onSubmit,
   onClose,
+  locationOverrides,
+  loadingOverrides,
+  savingOverrides,
+  onOverridePriceChange,
+  onOverrideAvailabilityChange,
+  onSaveOverrides,
 }: {
   item: ServiceItem | ProductItem;
   form: EditForm;
   onChange: (updated: EditForm) => void;
   onSubmit: () => void;
   onClose: () => void;
+  locationOverrides: LocationOverrideRow[];
+  loadingOverrides: boolean;
+  savingOverrides: boolean;
+  onOverridePriceChange: (locationId: string, value: string) => void;
+  onOverrideAvailabilityChange: (
+    locationId: string,
+    isAvailable: boolean,
+  ) => void;
+  onSaveOverrides: () => void;
 }) {
   const isProduct = item.type === "PRODUCT";
 
@@ -62,6 +83,10 @@ export function EditItemModal({
 
   const inputClass =
     "w-full px-4 py-2.5 rounded-xl border border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-background text-foreground disabled:opacity-60";
+
+  // Only meaningful once a business has 2+ locations — a single-location
+  // business has nothing to override against.
+  const showLocationPricing = locationOverrides.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
@@ -210,6 +235,87 @@ export function EditItemModal({
               Save Changes
             </button>
           </div>
+
+          {/* LOCATION PRICING — separate save action from the base item
+              form above, since it writes to a different endpoint. Only
+              rendered once loading resolves AND the business actually has
+              more than one location to override against. */}
+          {loadingOverrides ? (
+            <div className="pt-4 border-t border-border flex items-center justify-center gap-2 text-xs text-muted-foreground select-none">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading location pricing...
+            </div>
+          ) : (
+            showLocationPricing && (
+              <div className="pt-4 border-t border-border space-y-3 select-none">
+                <div className="flex items-center gap-2 text-foreground font-medium">
+                  <MapPin className="h-4 w-4 text-emerald-600" />
+                  <h4 className="text-sm font-semibold tracking-tight">
+                    Location Pricing
+                  </h4>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">
+                  Leave price blank to use the standard ₦{item.price} price for
+                  that branch.
+                </p>
+
+                <div className="space-y-2">
+                  {locationOverrides.map((row) => (
+                    <div
+                      key={row.locationId}
+                      className="rounded-xl border border-border bg-muted/30 p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">
+                          {row.locationName}
+                          {row.isPrimary && (
+                            <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                              Primary
+                            </span>
+                          )}
+                        </span>
+                        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.isAvailable}
+                            onChange={(e) =>
+                              onOverrideAvailabilityChange(
+                                row.locationId,
+                                e.target.checked,
+                              )
+                            }
+                            className="cursor-pointer"
+                          />
+                          Available here
+                        </label>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.price ?? ""}
+                        onChange={(e) =>
+                          onOverridePriceChange(row.locationId, e.target.value)
+                        }
+                        placeholder={`Default: ₦${item.price}`}
+                        disabled={savingOverrides}
+                        className="w-full h-9 px-3 rounded-lg border border-input bg-background text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onSaveOverrides}
+                  disabled={savingOverrides}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {savingOverrides ? "Saving..." : "Save Location Pricing"}
+                </button>
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>

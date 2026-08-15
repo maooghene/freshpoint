@@ -32,6 +32,7 @@ export default function StaffDashboard({
     name: string,
     email: string,
     role: string,
+    locationId: string | null,
   ): Promise<void> => {
     setAddingStaff(true);
     try {
@@ -42,6 +43,7 @@ export default function StaffDashboard({
           name,
           email: email.toLowerCase().trim(),
           role,
+          locationId,
           businessId: businessId,
         }),
       });
@@ -129,8 +131,8 @@ export default function StaffDashboard({
   };
 
   return (
-    /* Safe spacing to accommodate the unified 16-unit top floating header on mobile & medium viewports */
-    <div className="w-full max-w-7xl px-4 sm:px-6 md:px-8 pt-20 lg:pt-0 pb-10 space-y-6 animate-in fade-in duration-200 block">
+    /* Safe spacing to accommodate the unified 16-unit top floating header onmobile & medium viewports */
+    <div className="w-full max-w-7xl px-4 sm:px-6 md:px-8 pt-20 lg:pt-0 pb-10space-y-6 animate-in fade-in duration-200 block">
       <DashboardHeaderCard
         staffList={staff}
         showAddForm={showAddForm}
@@ -142,6 +144,7 @@ export default function StaffDashboard({
           addingStaff={addingStaff}
           onInvite={handleInviteStaff}
           onCancel={() => setShowAddForm(false)}
+          locations={business.locations}
         />
       )}
 

@@ -11,7 +11,7 @@ import {
   CheckoutRequestBody,
   CheckoutPayloadItem,
 } from "./utils";
-import { verifyPaystackPayment } from "./services";
+import { getPaystackTransaction } from "./services";
 import { notifyBusinessNewOrder } from "@/lib/notify-business";
 
 /**
@@ -32,6 +32,47 @@ class InsufficientStockError extends Error {
     );
     this.name = "InsufficientStockError";
   }
+}
+
+/**
+ * Thrown inside the transaction when what Paystack actually confirms it
+ * charged doesn't match what this order should legitimately cost, computed
+ * server-side from real Item.price rows (never from the client payload).
+ *
+ * This is the fix for a pre-existing gap: this route used to trust
+ * item.price and totalAmount straight from the request body, and the
+ * checkout page separately passes a client-computed amount to Paystack at
+ * payment-initiation time. Both numbers were entirely client-controlled —
+ * someone with devtools open could submit (and actually get charged) any
+ * price. This class closes that gap the same way InsufficientStockError
+ * already does: reject inside the atomic transaction, then refund +
+ * record as REFUNDED rather than silently fulfilling at an unverified price.
+ */
+class PriceMismatchError extends Error {
+  constructor(
+    public expectedTotal: number,
+    public verifiedChargedAmount: number,
+  ) {
+    super(
+      `Price mismatch: expected ₦${expectedTotal.toFixed(2)}, Paystack confirmed a charge of ₦${verifiedChargedAmount.toFixed(2)}`,
+    );
+    this.name = "PriceMismatchError";
+  }
+}
+
+// Small tolerance for floating point / kobo-to-naira rounding — not a
+// meaningful amount of money, just avoids false positives from rounding.
+const PRICE_TOLERANCE_NAIRA = 1;
+
+/**
+ * Resolves the price this Item should actually be charged at. Currently
+ * just the base Item.price — this is the intended hook point for
+ * location-based catalog overrides (LocationItemOverride) once that
+ * feature is built. Centralizing it here means the override only needs to
+ * be wired in ONE place, not every call site that reads a price.
+ */
+function getEffectiveItemPrice(item: { price: number }): number {
+  return item.price;
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +105,6 @@ export async function POST(request: NextRequest) {
       reference,
       businessId,
       items,
-      totalAmount,
       isDelivery,
       deliveryAddress,
       deliveryLatitude,
@@ -73,9 +113,12 @@ export async function POST(request: NextRequest) {
       deliveryFee,
       customerPhone, // Added for emergency contact tracking
     } = body;
+    // NOTE: `totalAmount` and each item's `price` are intentionally NOT
+    // destructured from the client body for use in calculations below —
+    // both are re-derived server-side now. See PriceMismatchError above.
 
     console.log(
-      `📊 [FreshPoint API] Incoming Checkout: Ref: ${reference} | Business: ${businessId} | Amount: ₦${totalAmount}`,
+      `📊 [FreshPoint API] Incoming Checkout: Ref: ${reference} | Business: ${businessId}`,
     );
 
     if (
@@ -118,22 +161,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Fire Outbound Remote Payment Gate Verification Checks
-    const isPaymentValid = await verifyPaystackPayment(reference);
-    if (!isPaymentValid) {
+    // 1. Fire Outbound Remote Payment Gate Verification Checks — now pulling
+    // the FULL transaction payload (including the amount Paystack actually
+    // confirms it charged), not just a yes/no.
+    const verifiedTransaction = await getPaystackTransaction(reference);
+    if (!verifiedTransaction) {
       return NextResponse.json(
         { error: "Payment verification failed or was declined by Paystack" },
         { status: 400 },
       );
     }
+    // Paystack amounts are in kobo.
+    const verifiedChargedAmountNaira = verifiedTransaction.amount / 100;
 
     console.log(
       "✅ [FreshPoint API] Paystack verification cleared cleanly. Resolving User record...",
     );
 
     // 2. Identify and validate the user context profile record
-    // NOTE: expanded select to include firstName/lastName — needed for the
-    // business notification's customer-name display.
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true, firstName: true, lastName: true },
@@ -163,12 +208,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const commissionRate =
-      business.commissionRate ??
-      getCommissionRateForTier(business.subscriptionTier);
-    const fees = calculateFees(Number(totalAmount), commissionRate);
-
-    // Normalize incoming multi-tenant physical shipping structures
+    // Normalize incoming multi-tenant physical shipping structures.
+    // deliveryFee is STILL client-trusted here — that's a separate,
+    // known gap (flagged, not fixed in this pass) from the item-price one
+    // this change closes. It's carried through unchanged from before.
     const activeIsDelivery = Boolean(isDelivery);
     const activeAddress =
       activeIsDelivery && deliveryAddress
@@ -238,15 +281,23 @@ export async function POST(request: NextRequest) {
     );
 
     try {
-      // 5. ATOMIC CORE: check stock and decrement it, in the SAME
-      // SERIALIZABLE transaction as order creation. If two concurrent
-      // requests race for the same stock, Postgres detects the conflict
-      // and one retries cleanly — same pattern as your booking fix.
+      // 5. ATOMIC CORE: check stock, resolve REAL prices from the DB, and
+      // decrement stock — all in the SAME SERIALIZABLE transaction as order
+      // creation. Prices are read here (not before the transaction) so a
+      // retry re-reads fresh prices too, and so the price used to build
+      // OrderItem rows is guaranteed consistent with the stock check.
       const order = await runSerializableWithRetry(async (tx) => {
+        const resolvedItems: {
+          itemId: string;
+          quantity: number;
+          price: number;
+        }[] = [];
+        let serverComputedSubtotal = 0;
+
         for (const [itemId, requestedQty] of quantityByItem) {
           const item = await tx.item.findUnique({
             where: { id: itemId },
-            select: { stock: true, type: true, name: true },
+            select: { price: true, stock: true, type: true, name: true },
           });
 
           if (!item) {
@@ -259,23 +310,51 @@ export async function POST(request: NextRequest) {
           }
 
           // Services (bookings) aren't stock-tracked — only PRODUCT items are.
-          if (item.type === "SERVICE") continue;
+          if (item.type !== "SERVICE") {
+            const available = item.stock ?? 0;
+            if (requestedQty > available) {
+              throw new InsufficientStockError(
+                itemId,
+                item.name,
+                available,
+                requestedQty,
+              );
+            }
 
-          const available = item.stock ?? 0;
-          if (requestedQty > available) {
-            throw new InsufficientStockError(
-              itemId,
-              item.name,
-              available,
-              requestedQty,
-            );
+            await tx.item.update({
+              where: { id: itemId },
+              data: { stock: { decrement: requestedQty } },
+            });
           }
 
-          await tx.item.update({
-            where: { id: itemId },
-            data: { stock: { decrement: requestedQty } },
+          const effectivePrice = getEffectiveItemPrice(item);
+          resolvedItems.push({
+            itemId,
+            quantity: requestedQty,
+            price: effectivePrice,
           });
+          serverComputedSubtotal += effectivePrice * requestedQty;
         }
+
+        // deliveryFee is client-trusted (see comment above) — carried
+        // through as-is until that's addressed separately.
+        const expectedTotal = serverComputedSubtotal + activeFee;
+
+        if (
+          Math.abs(expectedTotal - verifiedChargedAmountNaira) >
+          PRICE_TOLERANCE_NAIRA
+        ) {
+          throw new PriceMismatchError(
+            expectedTotal,
+            verifiedChargedAmountNaira,
+          );
+        }
+
+        const fees = calculateFees(
+          expectedTotal,
+          business.commissionRate ??
+            getCommissionRateForTier(business.subscriptionTier),
+        );
 
         return tx.order.create({
           data: {
@@ -283,7 +362,7 @@ export async function POST(request: NextRequest) {
             code: friendlyCode,
             userId: user.id,
             businessId: businessId,
-            totalAmount: Number(totalAmount),
+            totalAmount: expectedTotal,
             freshpointFee: fees.freshpointFee,
             providerPayout: fees.providerPayout,
             freshpointNet: fees.freshpointNet,
@@ -292,12 +371,12 @@ export async function POST(request: NextRequest) {
             deliveryAddress: activeAddress,
             deliveryNotes: activeNotes,
             deliveryFee: activeFee,
-            customerPhone: activePhone, // Saved directly to database
+            customerPhone: activePhone,
             items: {
-              create: items.map((item: CheckoutPayloadItem) => ({
-                itemId: item.itemId,
-                quantity: Number(item.quantity),
-                price: Number(item.price),
+              create: resolvedItems.map((ri) => ({
+                itemId: ri.itemId,
+                quantity: ri.quantity,
+                price: ri.price,
               })),
             },
           },
@@ -318,7 +397,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         customerName:
           `${user.firstName || "A customer"} ${user.lastName || ""}`.trim(),
-        totalAmount: Number(totalAmount),
+        totalAmount: Number(order.totalAmount),
         isDelivery: activeIsDelivery,
       }).catch((err) => console.error("Order notify failed:", err));
 
@@ -350,10 +429,10 @@ export async function POST(request: NextRequest) {
             code: friendlyCode,
             userId: user.id,
             businessId: businessId,
-            totalAmount: Number(totalAmount),
-            freshpointFee: fees.freshpointFee,
-            providerPayout: fees.providerPayout,
-            freshpointNet: fees.freshpointNet,
+            totalAmount: verifiedChargedAmountNaira,
+            freshpointFee: 0,
+            providerPayout: 0,
+            freshpointNet: 0,
             status: OrderStatus.REFUNDED,
             refundStatus: refundResult.success ? "pending" : "failed",
             isDelivery: activeIsDelivery,
@@ -362,14 +441,15 @@ export async function POST(request: NextRequest) {
             deliveryFee: activeFee,
             deliveryLatitude: activeLatitude,
             deliveryLongitude: activeLongitude,
-            customerPhone: activePhone, // Recorded for administrative tracking
+            customerPhone: activePhone,
             paystackRefundId: refundResult.refundId,
-
             items: {
-              create: items.map((item: CheckoutPayloadItem) => ({
+              create: (items as CheckoutPayloadItem[]).map((item) => ({
                 itemId: item.itemId,
                 quantity: Number(item.quantity),
-                price: Number(item.price),
+                // Best-effort record only — the order never fulfilled, so
+                // this is for support/audit visibility, not billing.
+                price: Number(item.price) || 0,
               })),
             },
           },
@@ -384,6 +464,69 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             error: `"${err.itemName}" just sold out. Your payment is being refunded and should reach your account within 3–10 business days.`,
+            orderId: refundedOrder.id,
+            orderCode: refundedOrder.code,
+            status: refundedOrder.status,
+          },
+          { status: 409 },
+        );
+      }
+
+      if (err instanceof PriceMismatchError) {
+        // What Paystack actually confirms it charged doesn't match what
+        // this order should legitimately cost, computed from real DB
+        // prices. Could be a manipulated client payload, or a stale cart
+        // (item price changed between add-to-cart and checkout). Either
+        // way: don't fulfill at an unverified price — refund and flag.
+        console.error(
+          `🚨 [FreshPoint API] PRICE MISMATCH for ${reference}: expected ₦${err.expectedTotal.toFixed(2)}, Paystack confirmed ₦${err.verifiedChargedAmount.toFixed(2)}. Refunding.`,
+        );
+
+        const refundResult = await refundPaystackPayment(
+          reference,
+          `Price verification mismatch: expected ₦${err.expectedTotal.toFixed(2)}, charged ₦${err.verifiedChargedAmount.toFixed(2)}.`,
+        );
+
+        const refundedOrder = await prisma.order.create({
+          data: {
+            id: reference,
+            code: friendlyCode,
+            userId: user.id,
+            businessId: businessId,
+            totalAmount: verifiedChargedAmountNaira,
+            freshpointFee: 0,
+            providerPayout: 0,
+            freshpointNet: 0,
+            status: OrderStatus.REFUNDED,
+            refundStatus: refundResult.success ? "pending" : "failed",
+            isDelivery: activeIsDelivery,
+            deliveryAddress: activeAddress,
+            deliveryNotes: activeNotes,
+            deliveryFee: activeFee,
+            deliveryLatitude: activeLatitude,
+            deliveryLongitude: activeLongitude,
+            customerPhone: activePhone,
+            paystackRefundId: refundResult.refundId,
+            items: {
+              create: (items as CheckoutPayloadItem[]).map((item) => ({
+                itemId: item.itemId,
+                quantity: Number(item.quantity),
+                price: Number(item.price) || 0,
+              })),
+            },
+          },
+        });
+
+        console.log(
+          `💸 [FreshPoint API] Order ${refundedOrder.id} recorded as REFUNDED (price mismatch). Refund success: ${refundResult.success}`,
+        );
+        console.log("------------------------------------------------");
+
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "We couldn't verify the amount charged for this order. Your payment is being refunded and should reach your account within 3–10 business days.",
             orderId: refundedOrder.id,
             orderCode: refundedOrder.code,
             status: refundedOrder.status,

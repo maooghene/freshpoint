@@ -1,3 +1,4 @@
+
 // components/icons/FreshpointLogo.tsx
 "use client";
 

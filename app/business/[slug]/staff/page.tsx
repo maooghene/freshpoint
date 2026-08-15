@@ -5,24 +5,18 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import StaffDashboard from "@/components/business/staff/StaffDashboard";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
-
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
-
 export default async function StaffPageRoute({ params }: PageProps) {
   const { slug } = await params;
   const { userId: clerkId } = await auth();
-
   if (!clerkId) notFound();
-
   const systemUser = await prisma.user.findUnique({
     where: { clerkId },
     select: { id: true },
   });
-
   if (!systemUser) notFound();
-
   // Resolve the business profile along with its full nested staff structure
   const business = await prisma.business.findUnique({
     where: { slug },
@@ -42,11 +36,16 @@ export default async function StaffPageRoute({ params }: PageProps) {
         },
         orderBy: { createdAt: "desc" },
       },
+      // Needed so the invite form can offer a location picker once a
+      // business has more than one branch. Small dataset per business, so
+      // pulling full Location rows here (rather than a narrow select) is
+      // fine.
+      locations: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      },
     },
   });
-
   if (!business) notFound();
-
   // Verify absolute ownership guard rails to prevent cross-tenant leaks
   // (allows real owner, real rostered staff, or a verified admin impersonation session)
   const authorized = await authorizeBusinessAccess({
@@ -55,12 +54,9 @@ export default async function StaffPageRoute({ params }: PageProps) {
     systemUserId: systemUser.id,
     allowStaff: false,
   });
-
   if (!authorized) notFound();
-
   // Safe JSON serialization to cleanly pass Date timestamps to Client Component trees
   const serializedBusiness = JSON.parse(JSON.stringify(business));
-
   return (
     <div className="space-y-6 w-full max-w-7xl mx-auto">
       {/* SEAMLESS HEADER LAYOUT */}
@@ -76,7 +72,6 @@ export default async function StaffPageRoute({ params }: PageProps) {
           permissions.
         </p>
       </div>
-
       {/* Renders your refactored dashboard component smoothly passing business parameters */}
       <StaffDashboard
         business={serializedBusiness}
