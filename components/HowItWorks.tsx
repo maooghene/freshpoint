@@ -4,10 +4,11 @@ import { useUser, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 import {
   ArrowRightIcon,
-  Calendar1,
   MousePointerClickIcon,
   SearchIcon,
   ZapIcon,
+  Truck,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -17,153 +18,147 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="relative py-32 px-6 outline-hidden z-10 max-w-7xl mx-auto"
+      className="relative py-12 md:py-16 px-6 outline-hidden z-10 max-w-7xl mx-auto border-t border-border/40"
     >
-      {/* HEADER */}
-      <div className="text-center mb-20">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10 backdrop-blur-sm mb-6">
-          <ZapIcon className="size-4 text-primary" />
-          <span className="text-sm font-medium text-primary">
-            Simple Process
+      {/* HEADER SECTION */}
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10 backdrop-blur-sm mb-4">
+          <ZapIcon className="size-3.5 text-primary" />
+          <span className="text-xs font-bold uppercase tracking-wider text-primary">
+            {"Simple Process"}
           </span>
         </div>
 
-        <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
+        <h2 className="text-2xl md:text-4xl font-black mb-3 tracking-tight leading-[1.15]">
           <span className="bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-            Three steps to
+            {"Four steps to"}
           </span>
           <br />
           <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            your perfect self-care day
+            {"your perfect self-care day"}
           </span>
         </h2>
 
-        <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-          Freshpoint makes it effortless to find wellness spaces, book premium
-          treatments, and order products — all in one centralized app.
+        <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
+          {
+            "FreshPointmakes it effortless to find local wellness spaces, book premium treatments, buy products, and select your preferred delivery or pick-up methods — all in one centralized app."
+          }
         </p>
       </div>
 
-      {/* STEPS */}
+      {/* STEPS MATRIX GRID (SCALES DENSELY TO 2X2 OR 4X1) */}
       <div className="relative">
-        {/* CONNECTION LINE */}
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent transform -translate-y-1/2 hidden lg:block"></div>
-
-        <div className="grid lg:grid-cols-3 gap-12 lg:gap-8">
-          {/* STEP 1 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* STEP 1: DISCOVER */}
           <div className="relative group">
-            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-3xl p-8 border border-border/50 hover:border-primary/30 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10">
-              <div className="absolute -top-4 left-8 w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold shadow-lg">
+            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-5 border border-border/50 hover:border-primary/20 transition-all duration-300 h-full flex flex-row sm:flex-col items-center sm:items-start sm:text-left gap-4 sm:gap-0">
+              <div className="absolute -top-2 left-4 w-5 h-5 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-[10px] font-black shadow-md z-20">
                 1
               </div>
-
-              <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 mb-6">
-                <SearchIcon className="w-full h-12 text-primary" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center shrink-0 sm:mb-4 p-2.5">
+                <SearchIcon className="w-full h-full text-primary" />
               </div>
-
-              <h3 className="text-2xl font-bold mb-4 text-center">
-                Discover Spaces
-              </h3>
-              <p className="text-muted-foreground text-center leading-relaxed mb-6">
-                Explore local salons, premium spas, and specialized wellness
-                centers. Browse services, retail products, and verified reviews.
-              </p>
-
-              <div className="flex flex-wrap gap-2 justify-center">
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Top Providers
-                </span>
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Real Reviews
-                </span>
+              <div className="flex-1 min-w-0 sm:space-y-1">
+                <h3 className="text-base font-bold text-foreground tracking-tight">
+                  {"Discover Spaces"}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-normal font-medium">
+                  {
+                    "Explore local verified salons, premium spas, and specialized health venues matching your community coordinates."
+                  }
+                </p>
               </div>
             </div>
           </div>
 
-          {/* STEP 2 */}
+          {/* STEP 2: SELECT & CUSTOMIZE */}
           <div className="relative group">
-            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-3xl p-8 border border-border/50 hover:border-primary/30 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10">
-              <div className="absolute -top-4 left-8 w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold shadow-lg">
+            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-5 border border-border/50 hover:border-primary/20 transition-all duration-300 h-full flex flex-row sm:flex-col items-center sm:items-start sm:text-left gap-4 sm:gap-0">
+              <div className="absolute -top-2 left-4 w-5 h-5 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-[10px] font-black shadow-md z-20">
                 2
               </div>
-
-              <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 mb-6">
-                <MousePointerClickIcon className="w-full h-12 text-primary" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center shrink-0 sm:mb-4 p-2.5">
+                <MousePointerClickIcon className="w-full h-full text-primary" />
               </div>
-
-              <h3 className="text-2xl font-bold mb-4 text-center">
-                Select & Customize
-              </h3>
-              <p className="text-muted-foreground text-center leading-relaxed mb-6">
-                Pick your desired treatments, select your preferred staff
-                specialist, or add essential wellness products to your
-                multi-tenant cart.
-              </p>
-
-              <div className="flex flex-wrap gap-2 justify-center">
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Custom Sessions
-                </span>
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Product Sales
-                </span>
+              <div className="flex-1 min-w-0 sm:space-y-1">
+                <h3 className="text-base font-bold text-foreground tracking-tight">
+                  {"Select & Customize"}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-normal font-medium">
+                  {
+                    "Choose a premium treatment session or add top-tier cosmetic retail items straight into your cross-tenant checkout cart."
+                  }
+                </p>
               </div>
             </div>
           </div>
 
-          {/* STEP 3 */}
+          {/* STEP 3: FULFILLMENT INTERCEPT */}
           <div className="relative group">
-            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-3xl p-8 border border-border/50 hover:border-primary/30 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10">
-              <div className="absolute -top-4 left-8 w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold shadow-lg">
+            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-5 border border-border/50 hover:border-primary/20 transition-all duration-300 h-full flex flex-row sm:flex-col items-center sm:items-start sm:text-left gap-4 sm:gap-0">
+              <div className="absolute -top-2 left-4 w-5 h-5 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-[10px] font-black shadow-md z-20">
                 3
               </div>
-
-              <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 mb-6">
-                <Calendar1 className="w-full h-12 text-primary" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center shrink-0 sm:mb-4 p-2.5">
+                <Truck className="w-full h-full text-primary" />
               </div>
+              <div className="flex-1 min-w-0 sm:space-y-1">
+                <h3 className="text-base font-bold text-foreground tracking-tight">
+                  {"Choose Pickup or Delivery"}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-normal font-medium">
+                  {
+                    "Select self-pickup from the provider's store or request dynamic distance-based doorstep delivery complete with courier contact details."
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
 
-              <h3 className="text-2xl font-bold mb-4 text-center">
-                Book & Enjoy
-              </h3>
-              <p className="text-muted-foreground text-center leading-relaxed mb-6">
-                Lock in your time slot with seamless instant confirmation.
-                Arrive relaxed at your chosen venue without long waiting
-                periods.
-              </p>
-
-              <div className="flex flex-wrap gap-2 justify-center">
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Instant Access
-                </span>
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                  Zero Delays
-                </span>
+          {/* STEP 4: BOOK & CONFIRM */}
+          <div className="relative group">
+            <div className="relative bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-5 border border-border/50 hover:border-primary/20 transition-all duration-300 h-full flex flex-row sm:flex-col items-center sm:items-start sm:text-left gap-4 sm:gap-0">
+              <div className="absolute -top-2 left-4 w-5 h-5 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-[10px] font-black shadow-md z-20">
+                4
+              </div>
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center shrink-0 sm:mb-4 p-2.5">
+                <CheckCircle2 className="w-full h-full text-primary" />
+              </div>
+              <div className="flex-1 min-w-0 sm:space-y-1">
+                <h3 className="text-base font-bold text-foreground tracking-tight">
+                  {"Secure & Enjoy"}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-normal font-medium">
+                  {
+                    "Lock in your confirmation verified cleanly via secure Paystack processing channels. Arrive relaxed or wait for tracking invoices."
+                  }
+                </p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* BOTTOM CTA */}
-      <div className="text-center mt-16">
+      {/* BOTTOM CTA BUTTON */}
+      <div className="text-center mt-10">
         {!user ? (
           <SignInButton mode="modal">
             <Button
               size="lg"
-              className="rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300"
+              className="rounded-xl font-bold text-sm h-11 shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
-              <ArrowRightIcon className="mr-2 size-5" />
-              Get started with Freshpoint
+              <ArrowRightIcon className="mr-1.5 size-4" />
+              {"Get started with Freshpoint"}
             </Button>
           </SignInButton>
         ) : (
           <Link href="/explore">
             <Button
               size="lg"
-              className="rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300"
+              className="rounded-xl font-bold text-sm h-11 shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
-              <ArrowRightIcon className="mr-2 size-5" />
-              Get started with Freshpoint
+              <ArrowRightIcon className="mr-1.5 size-4" />
+              {"Get started with Freshpoint"}
             </Button>
           </Link>
         )}

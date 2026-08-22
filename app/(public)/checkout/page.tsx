@@ -1,60 +1,100 @@
+// app/(public)/checkout/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import PaystackBtn from "@/components/PaystackButton";
 import { Button } from "@/components/ui/button";
-import {
-  Calendar,
-  Clock,
-  Sparkles,
-  CreditCard,
-  ArrowLeft,
-  Loader2,
-} from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 
-// 1. Declare explicit type extension for the window global Paystack script runner
-declare global {
-  interface Window {
-    PaystackPop?: unknown;
-  }
-}
+import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
+import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
+import { PaymentSection } from "@/components/checkout/PaymentSection";
+import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
+import { isValidNigerianPhone } from "@/components/checkout/CheckoutContactField";
 
-interface SelectedService {
+interface ItemDetails {
   id: string;
   name: string;
   price: number;
-  duration: number;
-  image: string | null;
+  duration: number | null;
+  business: {
+    id: string;
+    name: string;
+  };
 }
 
-interface LocalBookingState {
-  businessId: string | null;
-  businessName: string | null;
-  selectedService: SelectedService | null;
-  bookingTime: string | null;
+// Shown when payment succeeded but the booking itself couldn't be confirmed.
+interface BookingFailureState {
+  message: string;
+  refunded: boolean | null; // null = we don't know (e.g. network error before a response came back)
 }
 
-export default function CheckoutPage() {
-  const [loading, setLoading] = useState(false);
+// Display-only: "14:30" -> "2:30 PM"
+function formatTimeDisplay(time24: string): string {
+  const [hourStr, minute] = time24.split(":");
+  const hour = Number(hourStr);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${ampm}`;
+}
+
+function CheckoutContent() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { userId } = useAuth();
   const { user } = useUser();
 
-  // FIXED: Explicitly type slice shape to safely isolate from cyclic unknown fallbacks
-  const booking = useSelector(
-    (state: { booking: LocalBookingState }) => state.booking,
-  );
+  const itemId = searchParams?.get("itemId");
+  const businessId = searchParams?.get("businessId");
+  const date = searchParams?.get("date");
+  const rawTime = searchParams?.get("time");
 
-  const service = booking.selectedService;
-  const dateTime = booking.bookingTime;
-  const businessName = booking.businessName || "Wellness Space";
+  const time24 = rawTime ? decodeURIComponent(rawTime) : null;
+  const displayTime = time24 ? formatTimeDisplay(time24) : null;
 
-  // Format Date & Time cleanly using regional Nigeria localized layout configurations
-  const formattedDate = dateTime
-    ? new Date(dateTime).toLocaleDateString("en-NG", {
+  const [item, setItem] = useState<ItemDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [bookingFailure, setBookingFailure] =
+    useState<BookingFailureState | null>(null);
+
+  useEffect(() => {
+    if (!itemId) return;
+
+    const fetchItem = async () => {
+      try {
+        const res = await fetch(`/api/items/${itemId}`);
+        if (!res.ok) throw new Error("Item not found");
+        const data = await res.json();
+        setItem(data);
+      } catch (err) {
+        console.error("Failed to fetch item:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItem();
+  }, [itemId]);
+
+  // Background hook to pull last used contact choice
+  useEffect(() => {
+    if (!userId) return;
+
+    fetch("/api/users/profile-phone")
+      .then((res) => (res.ok ? res.json() : { phone: null }))
+      .then((data) => {
+        if (data.phone) {
+          setCustomerPhone(data.phone);
+        }
+      })
+      .catch((err) => console.error("Profile phone look-up failed:", err));
+  }, [userId]);
+
+  const formattedDate = date
+    ? new Date(date).toLocaleDateString("en-NG", {
         weekday: "long",
         year: "numeric",
         month: "long",
@@ -62,73 +102,72 @@ export default function CheckoutPage() {
       })
     : null;
 
-  const formattedTime = dateTime
-    ? new Date(dateTime).toLocaleTimeString("en-NG", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
-
-  const totalAmount = service?.price || 0;
-
   const handlePaymentSuccess = async (reference: string) => {
     if (!userId) {
       alert("Please log in to complete your transaction.");
       return;
     }
 
-    try {
-      setLoading(true);
+    setBookingFailure(null);
 
+    try {
+      setPaying(true);
       const response = await fetch("/api/bookings/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reference,
-          businessId: booking.businessId,
-          itemId: service?.id,
-          startTime: dateTime,
+          businessId,
+          itemId,
+          date,
+          time: time24,
+          customerPhone: customerPhone.trim(), // Appended to payload
         }),
       });
 
       const result = await response.json();
 
       if (result.success || response.ok) {
-        // FIXED: Redirects cleanly onto Freshpoint's multi-tenant success shell routing
         router.push(`/bookings/success?reference=${reference}`);
-      } else {
-        alert(
-          "Payment was successful, but your slot validation timed out. Please contact care support.",
-        );
+        return;
       }
+
+      // Booking was rejected server-side. `refunded` comes from the API —
+      // true/false when the server attempted a refund, undefined for
+      // failure paths (e.g. missing metadata) that never reached the
+      // refund step because no charge-side action was needed.
+      setBookingFailure({
+        message: result.error || "This booking could not be confirmed.",
+        refunded: typeof result.refunded === "boolean" ? result.refunded : null,
+      });
     } catch (err) {
-      console.error("CONFIRMATION REWRITING EXCEPTION:", err);
-      alert("Transaction secured, but server confirmation dropped.");
+      console.error("CONFIRMATION ERROR:", err);
+      // Network/parse failure — we genuinely don't know server-side outcome,
+      // so don't claim a refund status we can't verify.
+      setBookingFailure({
+        message:
+          "Your payment went through, but we couldn't confirm the booking due to a connection issue.",
+        refunded: null,
+      });
     } finally {
-      setLoading(false);
+      setPaying(false);
     }
   };
 
-  const handlePaymentClose = () => {
-    setLoading(false);
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary size-7" />
+      </div>
+    );
+  }
 
-  // Load Paystack dynamic script elements safely
-  useEffect(() => {
-    if (window.PaystackPop) return;
-
-    const script = document.createElement("script");
-    script.src = "https://paystack.co";
-    script.async = true;
-    document.body.appendChild(script);
-  }, []);
-
-  if (!service || !dateTime) {
+  if (!item || !date || !time24) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center px-6 bg-background text-foreground">
         <div className="text-center space-y-4 max-w-sm">
           <p className="text-destructive font-medium text-lg">
-            No active session context data found.
+            Missing booking details. Please start again.
           </p>
           <Button
             onClick={() => router.back()}
@@ -136,12 +175,14 @@ export default function CheckoutPage() {
             className="rounded-xl font-semibold w-full"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Return to Selections
+            Go Back
           </Button>
         </div>
       </div>
     );
   }
+
+  const isContactValid = isValidNigerianPhone(customerPhone);
 
   return (
     <div className="max-w-2xl mx-auto p-6 pt-24 min-h-screen bg-background text-foreground w-full">
@@ -150,121 +191,97 @@ export default function CheckoutPage() {
         <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
       </div>
 
-      {/* Booking Summary Card */}
-      <div className="border border-border rounded-2xl p-6 mb-6 bg-card shadow-xs">
-        <h2 className="text-lg font-bold mb-6 flex items-center gap-2 tracking-tight">
-          <Sparkles className="w-5 h-5 text-primary" />
-          Treatment Summary
-        </h2>
+      <TreatmentSummary
+        item={item}
+        formattedDate={formattedDate}
+        decodedTime={displayTime}
+      />
+      <TotalAmountCard price={Number(item.price)} />
 
-        <div className="space-y-4">
-          <div className="flex justify-between items-start gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Provider
-            </span>
-            <span className="font-bold text-foreground text-right tracking-tight">
-              {businessName}
-            </span>
+      {/* Embedded WhatsApp/Emergency Input Box Field */}
+      <div className="my-6">
+        <CheckoutContactField
+          value={customerPhone}
+          onChange={setCustomerPhone}
+          variant="booking"
+        />
+      </div>
+
+      {bookingFailure && (
+        <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-destructive">
+              {bookingFailure.message}
+            </p>
+            {bookingFailure.refunded === true && (
+              <p className="text-xs text-muted-foreground">
+                Your payment has been automatically refunded. It may take a few
+                business days to reflect, depending on your bank.
+              </p>
+            )}
+            {bookingFailure.refunded === false && (
+              <p className="text-xs font-medium text-destructive">
+                We were unable to process an automatic refund. Please contact
+                support with your payment reference so we can resolve this
+                manually.
+              </p>
+            )}
+            {bookingFailure.refunded === null && (
+              <p className="text-xs text-muted-foreground">
+                If you were charged, please contact support with your payment
+                reference so we can confirm the status of your refund.
+              </p>
+            )}
           </div>
-
-          <div className="flex justify-between items-start gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Service
-            </span>
-            <span className="font-bold text-foreground text-right tracking-tight">
-              {service.name}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Price Rate
-            </span>
-            <span className="font-black text-primary text-lg">
-              ₦{service.price.toLocaleString()}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <span className="text-muted-foreground text-sm font-medium">
-              Duration
-            </span>
-            <span className="font-semibold text-sm text-foreground bg-muted px-2.5 py-1 rounded-md">
-              {service.duration} mins
-            </span>
-          </div>
-
-          {formattedDate && (
-            <div className="flex justify-between items-center pt-4 border-t border-border">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
-                <Calendar className="w-4 h-4 text-primary/70" />
-                Date
-              </div>
-              <span className="font-semibold text-sm text-foreground">
-                {formattedDate}
-              </span>
-            </div>
-          )}
-
-          {formattedTime && (
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
-                <Clock className="w-4 h-4 text-primary/70" />
-                Time Slot
-              </div>
-              <span className="font-semibold text-sm text-foreground">
-                {formattedTime}
-              </span>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Total Aggregation block */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-8 shadow-xs">
-        <div className="flex justify-between items-center">
-          <span className="font-bold text-sm text-muted-foreground uppercase tracking-wider">
-            Total Amount
-          </span>
-          <span className="font-black text-2xl text-foreground tracking-tight">
-            ₦{totalAmount.toLocaleString()}
-          </span>
-        </div>
-      </div>
-
-      {/* Paystack Handler Button Gate */}
-      <div className="relative">
-        {loading ? (
-          <Button
-            disabled
-            className="w-full py-6 rounded-xl font-bold text-base flex items-center justify-center gap-2"
-          >
-            <Loader2 className="animate-spin h-5 w-5" />
-            Securing Reservation...
-          </Button>
-        ) : (
-          <PaystackBtn
-            amount={totalAmount}
-            email={
-              user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
-            }
-            name={user?.fullName || businessName}
-            metadata={{
-              itemId: service.id,
-              dateTime: dateTime,
-              businessId: booking.businessId,
-              userId: userId,
-            }}
-            onSuccess={handlePaymentSuccess}
-            onClose={handlePaymentClose}
-          />
-        )}
-      </div>
+      {isContactValid ? (
+        <PaymentSection
+          paying={paying}
+          price={Number(item.price)}
+          email={
+            user?.emailAddresses?.[0]?.emailAddress || "customer@example.com"
+          }
+          name={user?.fullName || item.business.name}
+          metadata={{
+            itemId: item.id,
+            date: date,
+            time: time24,
+            businessId: businessId,
+            userId: userId ?? null,
+          }}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setPaying(false)}
+        />
+      ) : (
+        <Button
+          disabled
+          className="w-full py-6 rounded-xl font-bold bg-muted text-muted-foreground opacity-60 flex items-center justify-center gap-2 cursor-not-allowed select-none"
+        >
+          Provide WhatsApp Contact to Pay
+        </Button>
+      )}
 
       <p className="text-center text-[11px] text-muted-foreground mt-6 font-medium">
         Secured encrypted by Paystack • Your appointment will be confirmed
-        instantly within your dynamic dashboard logs.
+        instantly.
       </p>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen pt-24 flex items-center justify-center">
+          <Loader2 className="animate-spin text-primary size-7" />
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }

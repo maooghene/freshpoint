@@ -1,13 +1,15 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Providers from "@/components/Providers"; // This already handles Redux + Theme internally
+import "@/app/globals.css";
+import Providers from "@/components/Providers";
+import ToastProvider from "@/components/ToastProvider";
+import { ImpersonationStickyBanner } from "@/components/admin/ImpersonationStickyBanner";
 
 export const metadata: Metadata = {
-  title: "Freshpoint | Wellness Platform",
+  title: "FreshPoint | Wellness Platform",
   description:
-    "Multi-tenant workspace ecosystem for modern wellness businesses",
+    "Multi-tenant workspace Admin Staff for modern wellness businesses",
 };
 
 export default function RootLayout({
@@ -16,19 +18,45 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      localization={{
+        signIn: {
+          start: {
+            title: "Sign in to FreshPoint",
+            subtitle: "to continue to your wellness workspace",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your FreshPoint account",
+            subtitle: "get started with our marketplace platform",
+          },
+        },
+        // 🚀 FIXED: Replaced userAccountManager with the correct type-safe key path
+        organizationList: {
+          title: "Choose an account to continue to FreshPoint",
+        },
+      }}
+    >
       <html
         lang="en"
         suppressHydrationWarning
-        className="scroll-smooth antialiased"
+        className="scroll-smooth antialiased h-full"
       >
-        <body className="min-h-screen font-sans bg-background text-foreground flex flex-col">
-          {/* Centralized application provider layer */}
+        <body className="font-sans bg-background text-foreground flex flex-col min-h-screen h-full">
           <Providers>
-            <div className="flex-1 flex flex-col">
-              <Navbar />
-              <main className="flex-1">{children}</main>
+            {/* 🌟 FIXED: Created a locked parent node layout stretching from header to baseline layout elements */}
+            <div className="flex flex-col min-h-screen w-full relative">
+              {/* 🌟 IMPERSONATION INJECTION: Drops at the top layer, pushing the frame down cleanly if active */}
+              <ImpersonationStickyBanner />
+
+              {/* 🌟 FIXED: main flex-grow pushes any element beneath it (like the footer) down, even during loading states */}
+              <main className="flex-grow flex flex-col w-full relative">
+                {children}
+              </main>
             </div>
+
+            <ToastProvider />
           </Providers>
         </body>
       </html>

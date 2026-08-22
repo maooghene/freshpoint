@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
         owner: true,
       },
       orderBy: {
-        createdAt: "desc", // Newest applications first
+        ratings: {
+          _count: "desc",
+        },
       },
     });
 

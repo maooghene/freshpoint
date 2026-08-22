@@ -1,5 +1,5 @@
-import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import prisma from "@/lib/prisma";
 import imagekit from "@/config/imageKit";
 import { UserRole } from "@prisma/client";
@@ -9,8 +9,11 @@ function generateSlug(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
+    .replace(/[^a-z0-9\s-]/g, "") // strip special chars first, keep spaces/hyphens
+    .trim()
+    .replace(/\s+/g, "-") // collapse whitespace to single hyphens
+    .replace(/-+/g, "-") // collapse any repeated hyphens
+    .replace(/^-+|-+$/g, ""); // trim leading/trailing hyphens
 }
 
 // ✅ POST: Process onboarding application forms and create a new business tenant space
@@ -18,7 +21,7 @@ export async function POST(request: NextRequest) {
   console.log("POST /api/businesses/create initialized");
 
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
 
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -97,13 +100,10 @@ export async function POST(request: NextRequest) {
       folder: "/businesses",
     });
 
+    // CORRECTED: Altered width to numeric integer representation to prevent bad request 400 error codes
     const optimizedImageUrl = imagekit.url({
       path: uploadResponse.filePath,
-      transformation: [
-        { quality: "auto" },
-        { format: "webp" },
-        { width: "512" },
-      ],
+      transformation: [{ quality: "auto" }, { format: "webp" }, { width: 512 }],
     });
 
     // Save multi-tenant workspace node directly to Prisma (Prisma v7 compliant)
@@ -120,6 +120,15 @@ export async function POST(request: NextRequest) {
         sittingCapacity: parseInt(sittingCapacity, 10),
         isActive: false,
         status: "pending",
+        staff: {
+          create: {
+            name: `${dbUser.firstName || "Store Manager"} (Owner)`,
+            email: email.toLowerCase(),
+            role: "Owner / Specialist",
+            isActive: true,
+            userId: dbUser.id,
+          },
+        },
       },
     });
 
@@ -148,7 +157,7 @@ export async function POST(request: NextRequest) {
 // ✅ GET: Verify status context or resolve previously compiled workspace registration apps
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = getAuth(request);
+    const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
 
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

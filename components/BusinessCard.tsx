@@ -1,11 +1,11 @@
 "use client";
 
 import { StarIcon, MapPinIcon, Sparkles, CheckCircle2Icon } from "lucide-react";
-import Image from "next/image";
 import {
   getBusinessAverageRating,
   getBusinessReviewCount,
 } from "@/lib/reviewUtils";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 interface BusinessCardProps {
   business: {
@@ -19,26 +19,19 @@ interface BusinessCardProps {
 }
 
 const BusinessCard = ({ business }: BusinessCardProps) => {
-  // Structural helper routines mapped cleanly against your unified reviews data indices
   const avgRating = getBusinessAverageRating(business.id);
   const reviewCount = getBusinessReviewCount(business.id);
 
   return (
     <div className="group block w-full max-w-[320px] mx-auto cursor-pointer">
-      {/* THUMBNAIL CARD FRAME */}
       <div className="relative bg-muted/40 aspect-video rounded-[2.5rem] overflow-hidden border border-border transition-all duration-500 group-hover:border-primary/40 group-hover:shadow-xl group-hover:shadow-primary/5">
-        {business.image ? (
-          <Image
-            fill
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
-            src={business.image}
-            alt={business.name}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-primary/5">
-            <Sparkles className="text-primary/20 size-12 animate-pulse" />
-          </div>
-        )}
+        <ImageWithFallback
+          src={business.image}
+          alt={business.name}
+          icon={Sparkles}
+          label="Wellness Space"
+          className="object-cover transition-transform duration-700 group-hover:scale-105"
+        />
 
         {business.isActive && (
           <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-md px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1 shadow-xs">
@@ -50,7 +43,6 @@ const BusinessCard = ({ business }: BusinessCardProps) => {
         )}
       </div>
 
-      {/* DETAILS DESCRIPTIVE SECTION */}
       <div className="mt-5 space-y-3 px-2">
         <div className="flex justify-between items-start gap-4">
           <div className="space-y-1 min-w-0">
@@ -63,7 +55,6 @@ const BusinessCard = ({ business }: BusinessCardProps) => {
             </h3>
           </div>
 
-          {/* DYNAMIC RATING REVIEWS BADGE */}
           <div className="flex items-center gap-1 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-400/20 shrink-0">
             <StarIcon size={12} className="text-amber-500 fill-amber-500" />
             <span className="text-xs font-black text-amber-600 dark:text-amber-400">

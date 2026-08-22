@@ -2,16 +2,14 @@
 
 import { PaystackButton } from "react-paystack";
 
-// Explicitly type the expected parameters passed down into the transaction context
 interface PaystackMetadata {
   itemId?: string;
   dateTime?: string;
   businessId?: string | null;
   userId?: string | null;
-  [key: string]: unknown; // Gracefully handles future custom parameters without breaking type contracts
+  [key: string]: unknown;
 }
 
-// Structurally type the official response contract returned by the Paystack SDK gate
 interface PaystackSuccessResponse {
   reference: string;
   trans: string;
@@ -41,7 +39,7 @@ export default function PaystackBtn({
   const componentProps = {
     publicKey,
     email,
-    amount: amount * 100, // Paystack captures raw amounts inside local Nigerian Kobo subdivisions
+    amount: amount * 100,
     metadata: {
       ...metadata,
       custom_fields: [
@@ -54,10 +52,21 @@ export default function PaystackBtn({
     },
     text: "Pay Now",
     onSuccess: (response: PaystackSuccessResponse) => {
+      console.log("PAYSTACK SDK onSuccess FIRED:", response);
       onSuccess(response.reference);
     },
-    onClose,
+    onClose: () => {
+      console.log("PAYSTACK SDK onClose FIRED");
+      onClose?.();
+    },
   };
+
+  console.log("PAYSTACK BUTTON PROPS:", {
+    publicKey,
+    email,
+    amount: componentProps.amount,
+    metadata: componentProps.metadata,
+  });
 
   return (
     <PaystackButton

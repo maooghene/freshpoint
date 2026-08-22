@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/purge-stale-data",
+      "schedule": "0 0 * * 0"
+    },
+    {
+      "path": "/api/cron/booking-reminders",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

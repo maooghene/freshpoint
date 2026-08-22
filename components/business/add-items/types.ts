@@ -23,3 +23,11 @@ export const CATEGORIES = [
   "Wellness Products",
   "Others",
 ];
+
+export interface VariantState {
+  id?: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  price?: number | null;
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Core default Prisma v7 instance import
-import { Prisma } from "@prisma/client"; // Safe schema types namespace
+import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { resolveAbsoluteImageUrl } from "@/lib/resolve-image-url";
 
 export const dynamic = "force-dynamic";
 
@@ -9,13 +10,11 @@ export async function GET(request: NextRequest) {
   try {
     const search = request.nextUrl.searchParams.get("search")?.trim();
 
-    // 1️⃣ Construct a dynamic query tree using Prisma's official input type schemas
     const whereClause: Prisma.BusinessWhereInput = {
-      isActive: true, // Only show public, verified providers
+      isActive: true,
       status: "approved",
     };
 
-    // 2️⃣ Apply deep case-insensitive searching across strings and string-arrays safely
     if (search) {
       whereClause.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -23,14 +22,12 @@ export async function GET(request: NextRequest) {
         { description: { contains: search, mode: "insensitive" } },
         {
           categories: {
-            // Checks if any array items contain or exactly match your search parameter
             hasSome: [search],
           },
         },
       ];
     }
 
-    // 3️⃣ Execute database query with optimized parallel aggregate counts tracking
     const businesses = await prisma.business.findMany({
       where: whereClause,
       include: {
@@ -43,37 +40,26 @@ export async function GET(request: NextRequest) {
         },
         _count: {
           select: {
-            items: true, // FIXED: Replaced services with your single-table items array
+            items: true,
             ratings: true,
           },
         },
       },
-      orderBy: [
-        {
-          // FIXED: Uses Prisma's official structural _count operator signature for sorting
-          _count: {
-            ratings: "desc",
-          },
-        },
-        {
-          createdAt: "desc", // Fallback to sort by newly verified profiles
-        },
-      ],
+      orderBy: { createdAt: "desc" },
     });
 
-    // 4️⃣ Map response fields directly to match your client-side BusinessesGrid props
     const formattedBusinesses = businesses.map((business) => ({
       id: business.id,
       name: business.name,
       slug: business.slug,
       address: business.address,
-      image: business.image || null,
+      image: resolveAbsoluteImageUrl(business.image), // ✅ fixed: was raw `business.image || null`
       description: business.description || null,
       categories: business.categories || [],
-      sittingCapacity: business.sittingCapacity, // FIXED: Replaced totalChairs with sittingCapacity
+      sittingCapacity: business.sittingCapacity,
       isActive: business.isActive,
       owner: business.owner,
-      totalServices: business._count.items, // FIXED: Relies on item counts array parameters
+      totalServices: business._count.items,
       totalReviews: business._count.ratings,
       rating: business._count.ratings > 0 ? "4.8" : "New",
     }));

@@ -1,112 +1,142 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
+import * as React from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { useUser, SignInButton } from "@clerk/nextjs";
+import { CtaTabs } from "./CtaTabs";
+import { CtaDashboardPreview } from "./CtaDashboardPreview";
 
-function CTA() {
-  const { user } = useUser();
+type PreviewTabMode = "BOOKINGS" | "PRODUCTS" | "DELIVERIES";
+
+export default function CTA(): React.JSX.Element {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<PreviewTabMode>("BOOKINGS");
+
+  // 🎯 MASTER-LEVEL TWCSS AUTOMATED CAROUSEL ROTATOR
+  useEffect(() => {
+    // Array order maps exactly to Calendar (BOOKINGS) -> E-Commerce (PRODUCTS) -> Deliveries (DELIVERIES)
+    const tabsOrder: PreviewTabMode[] = ["BOOKINGS", "PRODUCTS", "DELIVERIES"];
+
+    const intervalId = setInterval(() => {
+      setActiveTab((currentTab) => {
+        const currentIndex = tabsOrder.indexOf(currentTab);
+        const nextIndex = (currentIndex + 1) % tabsOrder.length;
+        return tabsOrder[nextIndex];
+      });
+    }, 3500); // Rotates smoothly every 3.5 seconds
+
+    // Clear the thread lifecycle instantly on unmount to safeguard memory footprints
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleOnboardingRedirect = async (): Promise<void> => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    try {
+      /*
+        🎯 THE ABSOLUTE ROUTING REDIRECTION FIX:
+        We push the authenticated user who explicitly clicked "Set Up Your Space" 
+        straight to our unified "/register-business" endpoint.
+      */
+      router.push("/register-business");
+    } catch (_err: unknown) {
+      router.push("/register-business");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Guard compilation states against raw hydration shifts
+  if (!isLoaded) {
+    return (
+      <section className="relative py-12 px-6 bg-gradient-to-br from-muted/5 via-background to-muted/10 border-t border-border/40">
+        <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[300px]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            {"Loading Workspace Modules..."}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
       id="for-owners"
-      className="relative py-20 px-6 overflow-hidden bg-gradient-to-br from-muted/10 via-background to-muted/5"
+      className="relative py-12 px-6 overflow-hidden bg-gradient-to-br from-muted/5 via-background to-muted/10 border-t border-border/40"
     >
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.03),transparent_70%)]"></div>
-
       <div className="relative z-10 max-w-6xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div className="space-y-6">
-            <div className="space-y-4">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-primary">
-                  Built for Wellness Professionals
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          {/* Content Block */}
+          <div className="space-y-5 text-center lg:text-left">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/10 mx-auto lg:mx-0">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                  {"Built for Retailers &amp; Service Providers"}
                 </span>
               </div>
-
-              {/* Heading */}
-              <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight">
-                <span className="bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Grow your business,
-                </span>
-                <br />
-                <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                  manage clients effortlessly
-                </span>
+              <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1]">
+                {"Scale your workspace, sell or book effortlessly"}
               </h2>
-
-              {/* Description */}
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Join salons, spas, and wellness spaces using Freshpoint to
-                automate appointments, sell products, and scale operations.
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
+                {
+                  "Whether you run a luxury salon needing live calendar schedules, an automated beauty storefront shipping products, or want to offer your clients distance-based doorstep delivery options—FreshPointacts as your financial command engine. Let clients choose between in-store pickup or delivery, and we automatically calculate and collect logistics fees for you."
+                }
               </p>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               {!user ? (
-                <SignInButton mode="modal">
+                /* 
+                  🎯 THE SIGN-IN FALLBACK FIX:
+                  Changed fallbackRedirectUrl from "/register-business" to "/" (Home).
+                  This allows casual visitors to sign up or sign in cleanly without getting 
+                  trapped inside the vendor registration flow.
+                */
+                <SignInButton mode="modal" fallbackRedirectUrl="/">
                   <Button
                     size="lg"
-                    className="font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                    className="w-full sm:w-auto font-bold bg-primary rounded-xl cursor-pointer"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    List Your Business
+                    {"List Your Business"}
                   </Button>
                 </SignInButton>
               ) : (
-                <Link href="/register-business">
-                  <Button
-                    size="lg"
-                    className="font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                  >
+                /* If they are already signed in, clicking this explicitly initiates onboarding */
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    void handleOnboardingRedirect();
+                  }}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto font-bold bg-primary rounded-xl flex items-center justify-center cursor-pointer"
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Set Up Your Space
-                  </Button>
-                </Link>
+                  )}
+                  {isLoading ? "Verifying Account..." : "Set Up Your Space"}
+                </Button>
               )}
             </div>
           </div>
 
-          {/* Right Content */}
-          <div className="relative flex justify-center lg:justify-end">
-            <div className="relative">
-              {/* Floating Badge */}
-              <div className="absolute -top-4 left-4 bg-gradient-to-r from-green-500/90 to-emerald-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg z-10">
-                <div className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                  Real-time booking active
-                </div>
-              </div>
-
-              {/* Image */}
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl blur-xl scale-110"></div>
-
-                <Image
-                  src="/wellness-dashboard.jpg"
-                  alt="Freshpoint Wellness Booking System Dashboard"
-                  width={500}
-                  height={400}
-                  className="w-full max-w-[500px] h-auto rounded-2xl border-4 border-muted/20 shadow-2xl bg-background"
-                  priority
-                />
-              </div>
-
-              {/* Decorative element */}
-              <div className="absolute -bottom-2 -right-2 w-16 h-16 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full blur-lg"></div>
-            </div>
+          {/* Graphical Tabs Preview Box Side */}
+          <div className="relative flex flex-col justify-center items-center lg:items-end w-full max-w-[460px] mx-auto lg:max-w-none gap-3">
+            <CtaTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+            <CtaDashboardPreview activeTab={activeTab} />
           </div>
         </div>
       </div>
     </section>
   );
 }
-
-export default CTA;

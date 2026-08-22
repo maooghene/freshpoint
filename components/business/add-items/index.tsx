@@ -1,298 +1,212 @@
-// src/components/business/add-item/index.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
 import axios from "axios";
-import { SparklesIcon, PackageIcon, ClockIcon } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/nextjs";
-import { ItemType, ItemFormState, CATEGORIES } from "./types";
-import ImageUpload from "./ImageUpload";
+import { AddItemHeader } from "./AddItemHeader";
+import { ItemTypeToggle } from "./ItemTypeToggle"; // 🚀 RESTORED
+import { ItemCoreFieldsGrid } from "./ItemCoreFieldsGrid";
+import { compressImage } from "@/lib/compress-image";
+import { uploadToImageKit } from "@/lib/upload-to-imagekit";
 
-interface FreshpointAddItemDashboardProps {
+
+export type ItemType = "SERVICE" | "PRODUCT";
+
+export interface ItemFormState {
+  name: string;
+  description: string;
+  price: string;
+  duration: string;
+  categoryId: string;
+  stock: string;
+  hasVariants: boolean;
+}
+
+export interface VariantState {
+  id?: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  price?: number | null;
+}
+
+interface AddItemDashboardProps {
   businessSlug: string;
 }
 
+const emptyFormFor = (type: ItemType): ItemFormState => ({
+  name: "",
+  description: "",
+  price: "",
+  duration: "30",
+  categoryId: "",
+  stock: "1",
+  hasVariants: false,
+});
+
 export default function FreshpointAddItemDashboard({
   businessSlug,
-}: FreshpointAddItemDashboardProps) {
+}: AddItemDashboardProps) {
   const [type, setType] = useState<ItemType>("SERVICE");
-  const [serviceInfo, setServiceInfo] = useState<ItemFormState>({
-    name: "",
-    description: "",
-    price: "",
-    duration: "30",
-    category: "",
-    stock: "0",
-  });
-
+  const [prevType, setPrevType] = useState<ItemType>("SERVICE");
+  const [serviceInfo, setServiceInfo] = useState<ItemFormState>(
+    emptyFormFor("SERVICE"),
+  );
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [variants, setVariants] = useState<VariantState[]>([]);
+
   const { getToken } = useAuth();
 
-  const onChangeHandler = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) => {
-    setServiceInfo({ ...serviceInfo, [e.target.name]: e.target.value });
-  };
+  // Reset form allocations when user manually swaps type tracks
+  if (type !== prevType) {
+    setPrevType(type);
+    setServiceInfo(emptyFormFor(type));
+    setImage(null);
+    setImagePreview(null);
+    setVariants([]);
+  }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
+ const onChangeHandler = (
+   e: React.ChangeEvent<
+     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+   >,
+ ): void => {
+   const target = e.target as HTMLInputElement; // Safely asserts for fieldType and checked checks
+   const { name, value, type: fieldType } = target;
 
-  const onSubmitHandler = async (e: React.FormEvent) => {
-    e.preventDefault();
+   const isCheckbox = fieldType === "checkbox";
+   const nextValue = isCheckbox ? target.checked : value;
 
-    if (type === "PRODUCT" && !image) {
-      toast.error("Please upload an image for the product");
-      return;
-    }
+   setServiceInfo((prev) => ({ ...prev, [name]: nextValue }));
+ };
 
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("type", type);
-      formData.append("name", serviceInfo.name);
-      formData.append("description", serviceInfo.description);
-      formData.append("price", serviceInfo.price);
-      formData.append("category", serviceInfo.category);
-      formData.append("businessSlug", businessSlug); // Secure Multi-tenancy Isolation Key
 
-      if (type === "SERVICE") formData.append("duration", serviceInfo.duration);
-      if (type === "PRODUCT") formData.append("stock", serviceInfo.stock);
-      if (image) formData.append("image", image);
+const handleImageChange = async (
+  e: React.ChangeEvent<HTMLInputElement>,
+): Promise<void> => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-      const token = await getToken();
+  const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
 
-      await axios.post("/api/business/items", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  try {
+    const compressed = await compressImage(file);
+    const compressedSizeMB = (compressed.size / 1024 / 1024).toFixed(2);
 
-      setServiceInfo({
-        name: "",
-        description: "",
-        price: "",
-        duration: "30",
-        category: "",
-        stock: "0",
-      });
-      setImage(null);
-      setImagePreview(null);
+    console.log(
+      `📉 Image compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB`,
+    );
 
-      toast.success(
-        `${type === "SERVICE" ? "Service" : "Product"} added successfully!`,
+    if (compressed.size > 4.5 * 1024 * 1024) {
+      toast.warning(
+        "Image is still large after compression. Upload may be slow.",
       );
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to create item");
-    } finally {
-      setLoading(false);
     }
-  };
+
+    setImage(compressed);
+    setImagePreview(URL.createObjectURL(compressed));
+  } catch (err) {
+    console.error("Image compression failed, using original file:", err);
+    setImage(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+};
+
+ const onSubmitHandler = async (e: React.FormEvent) => {
+   e.preventDefault();
+
+   if (type === "PRODUCT" && !image) {
+     toast.error("Please upload an image for the product");
+     return;
+   }
+
+   setLoading(true);
+   try {
+     let imageUrl: string | null = null;
+
+     if (image) {
+       imageUrl = await uploadToImageKit(image);
+     }
+
+     const formData = new FormData();
+     formData.append("type", type);
+     formData.append("name", serviceInfo.name.trim());
+     formData.append("description", serviceInfo.description.trim());
+     formData.append("price", serviceInfo.price);
+     formData.append("categoryId", serviceInfo.categoryId);
+     formData.append("businessSlug", businessSlug);
+
+     if (type === "SERVICE") formData.append("duration", serviceInfo.duration);
+
+     if (type === "PRODUCT") {
+       const directStock =
+         variants.length > 0
+           ? variants.reduce((sum, v) => sum + v.stock, 0)
+           : parseInt(serviceInfo.stock || "0", 10);
+
+       formData.append("stock", directStock.toString());
+       formData.append("variants", JSON.stringify(variants));
+     }
+
+     if (imageUrl) formData.append("imageUrl", imageUrl);
+
+     const token = await getToken();
+
+     await axios.post(`/api/businesses/${businessSlug}/items`, formData, {
+       headers: {
+         "Content-Type": "multipart/form-data",
+         Authorization: `Bearer ${token}`,
+       },
+       withCredentials: true,
+     });
+
+     setServiceInfo(emptyFormFor(type));
+     setImage(null);
+     setImagePreview(null);
+     setVariants([]);
+     setType("SERVICE");
+
+     const displayLabel = type === "SERVICE" ? "Service" : "Product";
+     toast.success(`${displayLabel} added successfully!`);
+   } catch (error: unknown) {
+     console.error("FreshPointSubmit Error Logger:", error);
+     if (axios.isAxiosError(error) && error.response?.data?.message) {
+       toast.error(error.response.data.message);
+     } else if (error instanceof Error) {
+       toast.error(error.message);
+     } else {
+       toast.error("Failed to create item.");
+     }
+   } finally {
+     setLoading(false);
+   }
+ };
 
   return (
     <form
       onSubmit={onSubmitHandler}
       className="mb-28 max-w-2xl space-y-6 mx-auto"
     >
-      <div className="flex flex-col gap-1 mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Add New{" "}
-          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            {type === "SERVICE" ? "Service" : "Product"}
-          </span>
-        </h1>
-        <p className="text-muted-foreground text-sm font-medium">
-          {type === "SERVICE"
-            ? "Define an offering for booking."
-            : "List a physical item for retail sale."}
-        </p>
-      </div>
+      <AddItemHeader type={type} />
 
-      {/* Type Toggle Switches */}
-      <div className="flex p-1 bg-secondary/50 rounded-2xl mb-6 w-fit border border-primary/5">
-        <button
-          type="button"
-          onClick={() => setType("SERVICE")}
-          className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-            type === "SERVICE"
-              ? "bg-background shadow-md text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <SparklesIcon size={16} /> Service
-        </button>
-        <button
-          type="button"
-          onClick={() => setType("PRODUCT")}
-          className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-            type === "PRODUCT"
-              ? "bg-background shadow-md text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <PackageIcon size={16} /> Product
-        </button>
-      </div>
+      {/* 🚀 RESTORED: Merchant explicitly chooses their track manually here first */}
+      <ItemTypeToggle type={type} setType={setType} loading={loading} />
 
-      <div className="grid gap-6 bg-background/40 backdrop-blur-md border border-primary/10 p-8 rounded-[2rem] shadow-xl">
-        {/* Render Isolated Image Upload Sub-Component */}
-        <ImageUpload
-          type={type}
-          imagePreview={imagePreview}
-          onImageChange={handleImageChange}
-          onClearImage={() => {
-            setImage(null);
-            setImagePreview(null);
-          }}
-        />
-
-        {/* Name Input */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Name
-          </label>
-          <Input
-            name="name"
-            onChange={onChangeHandler}
-            value={serviceInfo.name}
-            placeholder={
-              type === "SERVICE"
-                ? "e.g. Deep Tissue Massage"
-                : "e.g. Organic Essential Oils"
-            }
-            className="bg-background/50 border-primary/10 h-12 rounded-xl"
-            required
-          />
-        </div>
-
-        {/* Description Input */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Description
-          </label>
-          <Textarea
-            name="description"
-            onChange={onChangeHandler}
-            value={serviceInfo.description}
-            placeholder="Details about the item..."
-            rows={3}
-            className="bg-background/50 border-primary/10 rounded-xl resize-none"
-            required
-          />
-        </div>
-
-        {/* Price & Context Fields Grid */}
-        <div
-          className={`grid ${type === "SERVICE" ? "grid-cols-2" : "grid-cols-1"} gap-6`}
-        >
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Price (₦)
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">
-                ₦
-              </span>
-              <Input
-                type="number"
-                name="price"
-                onChange={onChangeHandler}
-                value={serviceInfo.price}
-                className="pl-10 bg-background/50 border-primary/10 h-12 rounded-xl"
-                required
-              />
-            </div>
-          </div>
-
-          {type === "SERVICE" && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Duration (Mins)
-              </label>
-              <div className="relative">
-                <ClockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-primary size-4" />
-                <Input
-                  type="number"
-                  name="duration"
-                  onChange={onChangeHandler}
-                  value={serviceInfo.duration}
-                  className="pl-10 bg-background/50 border-primary/10 h-12 rounded-xl"
-                  required
-                />
-              </div>
-            </div>
-          )}
-
-          {type === "PRODUCT" && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Stock
-              </label>
-              <Input
-                type="number"
-                name="stock"
-                onChange={onChangeHandler}
-                value={serviceInfo.stock}
-                placeholder="Quantity available"
-                className="bg-background/50 border-primary/10 h-12 rounded-xl"
-                required
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Category Selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Category
-          </label>
-          <select
-            name="category"
-            onChange={onChangeHandler}
-            value={serviceInfo.category}
-            className="flex h-12 w-full rounded-xl border border-primary/10 bg-background/50 px-4 py-2 text-sm text-foreground focus:outline-none appearance-none"
-            required
-          >
-            <option value="">Select category</option>
-            {CATEGORIES.map((cat) => (
-              <option
-                key={cat}
-                value={cat}
-                className="bg-background text-foreground"
-              >
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <Button
-        type="submit"
-        disabled={loading}
-        className="w-full sm:w-auto px-12 h-14 mt-10 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] transition-all"
-      >
-        {type === "SERVICE" ? (
-          <SparklesIcon className="mr-2 size-5" />
-        ) : (
-          <PackageIcon className="mr-2 size-5" />
-        )}
-        Publish {type === "SERVICE" ? "Service" : "Product"}
-      </Button>
+      <ItemCoreFieldsGrid
+        type={type}
+        loading={loading}
+        serviceInfo={serviceInfo}
+        imagePreview={imagePreview}
+        onChangeHandler={onChangeHandler}
+        handleImageChange={handleImageChange}
+        setImage={setImage}
+        setImagePreview={setImagePreview}
+        variants={variants}
+        setVariants={setVariants}
+      />
     </form>
   );
 }

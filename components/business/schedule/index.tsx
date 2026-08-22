@@ -1,10 +1,7 @@
-// src/components/business/schedule/index.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
 import { toast } from "react-toastify";
-import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { ScheduleItem, DAYS } from "./types";
@@ -17,7 +14,6 @@ interface BusinessScheduleProps {
 export default function BusinessSchedule({
   businessSlug,
 }: BusinessScheduleProps) {
-  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -30,26 +26,45 @@ export default function BusinessSchedule({
     })),
   );
 
-  useEffect(() => {
-    if (!businessSlug) return;
-    const fetchSchedule = async () => {
+  // 1️⃣ Fix: Abstracting request logic out into a unified handler to prevent rendering lag crashes
+  const fetchScheduleData = useCallback(
+    async (slug: string, isMounted: boolean) => {
       try {
-        const token = await getToken();
-        const { data } = await axios.get(
-          `/api/business/schedule?slug=${businessSlug}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        if (Array.isArray(data) && data.length > 0) setSchedule(data);
+        // 2️⃣ Fix: Aligned URL path with your true plural backend folder structure: '/api/businesses/schedule'
+        const res = await fetch(`/api/businesses/schedule?slug=${slug}`);
+
+        if (!res.ok) {
+          throw new Error("Failed to load operational hours");
+        }
+
+        const data = await res.json();
+
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setSchedule(data);
+        }
       } catch (err) {
         console.error("Schedule fetch error:", err);
       } finally {
-        setFetching(false);
+        if (isMounted) setFetching(false);
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!businessSlug) return;
+    let isMounted = true;
+
+    // Defer the execution to safely break out of any synchronous state cascade loops
+    const timer = setTimeout(() => {
+      fetchScheduleData(businessSlug, isMounted);
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
     };
-    fetchSchedule();
-  }, [getToken, businessSlug]);
+  }, [businessSlug, fetchScheduleData]);
 
   const updateItem = useCallback(
     (index: number, field: keyof ScheduleItem, value: string | boolean) => {
@@ -65,16 +80,27 @@ export default function BusinessSchedule({
   const saveSchedule = async () => {
     try {
       setLoading(true);
-      const token = await getToken();
-      await axios.post(
-        "/api/business/schedule",
-        { schedule, businessSlug },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+
+      // 3️⃣ Fix: Swapped out legacy Axios header tokens for browser native request configurations matching your backend structure
+      const res = await fetch("/api/businesses/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schedule,
+          businessSlug,
+        }),
+      });
+
+      if (!res.ok) {
+        const errPayload = await res.json();
+        throw new Error(
+          errPayload.error || "Failed to update schedule metrics",
+        );
+      }
+
       toast.success("Schedule updated successfully");
     } catch (err) {
+      console.error("Save schedule error:", err);
       toast.error("Failed to save schedule");
     } finally {
       setLoading(false);
@@ -90,7 +116,7 @@ export default function BusinessSchedule({
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 p-4">
+    <div className="max-w-4xl mx-auto space-y-8 p-4 animate-in fade-in duration-200">
       <div className="flex flex-col gap-1 border-b pb-4">
         <h1 className="text-2xl font-bold tracking-tight">Business Hours</h1>
         <p className="text-muted-foreground text-sm">
@@ -116,7 +142,7 @@ export default function BusinessSchedule({
         <Button
           onClick={saveSchedule}
           disabled={loading}
-          className="px-8 py-6 font-bold shadow-lg"
+          className="px-8 py-6 font-bold shadow-lg cursor-pointer"
         >
           {loading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

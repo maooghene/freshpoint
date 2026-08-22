@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
+import prisma from "@/lib/prisma";
 
 interface RouteParams {
-  params: Promise<{ id: string }>; // Handles async parameters unwrapping matching Next.js 16 requirements
+  params: Promise<{ id: string }>;
 }
 
-// ✅ GET: Fetch complete workspace profile info, services, and retail products via its unique id string
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    console.log("📌 Freshpoint Inventory API called with item ID:", id);
+    console.log("📌 FreshPointInventory API called with item ID:", id);
 
     if (!id) {
       return NextResponse.json(
@@ -19,21 +18,37 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Queries your single-table Item schema model directly
     const item = await prisma.item.findUnique({
-      where: {
-        id: id.trim(),
-      },
+      where: { id: id.trim() },
       include: {
         business: {
-          // FIXED: Migrated from salon relation layer
           select: {
             id: true,
             name: true,
             slug: true,
             image: true,
             address: true,
+            staff: {
+              where: { isActive: true },
+              select: {
+                id: true,
+                name: true,
+                isActive: true,
+                schedules: {
+                  // ← critical — must include schedules
+                  select: {
+                    day: true,
+                    isOff: true,
+                  },
+                },
+              },
+            },
           },
+        },
+        // 🚀 FIXED: Variants weren't being fetched at all, so the product
+        // page had no way to offer a size/color picker or per-variant price.
+        variants: {
+          orderBy: { createdAt: "asc" },
         },
         ratings: true,
       },
