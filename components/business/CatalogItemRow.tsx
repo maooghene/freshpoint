@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -53,9 +54,11 @@ export function CatalogItemRow({
       <div className="p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
         <div className="flex items-center gap-4 min-w-0 flex-1">
           {item.image ? (
-            <img
+            <Image
               src={item.image}
               alt={item.name}
+              width={56}
+              height={56}
               className="w-14 h-14 rounded-xl object-cover border border-border bg-muted/40 shrink-0"
             />
           ) : (

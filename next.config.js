@@ -1,15 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 🚀 HIGH-SPEED PIPELINE: Ignore linting checks during the production build pass
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
-  // 🚀 HIGH-SPEED PIPELINE: Skip strict typescript type warnings during bundling
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // ── 1️⃣ GLOBAL STORAGE REMOTE PATTERNS WHITELIST ──
   images: {
     remotePatterns: [

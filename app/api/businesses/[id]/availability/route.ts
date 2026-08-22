@@ -4,7 +4,7 @@ import { getAvailableSlots } from "@/utils/slotEngine";
 
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } | Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> },
 ) {
   const paramsObj = await context.params;
   const params = paramsObj as { id: string };
