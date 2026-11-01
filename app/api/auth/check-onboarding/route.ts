@@ -109,9 +109,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     return NextResponse.json({ destination: "/" });
-
-
-    return NextResponse.json({ destination: "/" });
   } catch (error: unknown) {
     console.error("ONBOARDING_CHECK_ERROR:", error);
     return NextResponse.json({ destination: "/" }, { status: 500 });
