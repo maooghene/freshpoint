@@ -136,7 +136,7 @@ export default function SelectWorkspacePage() {
               href={
                 roles.businessSlug
                   ? `/business/${roles.businessSlug}`
-                  : "/business/dashboard"
+                  : "/register-business"
               }
               className="mt-6 w-full text-center inline-flex justify-center items-center px-4 py-2.5 rounded-xl text-xs font-bold bg-orange-600 text-white transition-colors hover:bg-orange-700 cursor-pointer"
             >
