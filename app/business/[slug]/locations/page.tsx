@@ -2,6 +2,7 @@ import * as React from "react";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { LocationsManager } from "./LocationsManager";
 import { MapPin } from "lucide-react";
 
@@ -33,8 +34,25 @@ export default async function LocationsPage({ params }: PageProps) {
     notFound();
   }
 
-  if (business.owner.clerkId !== userId) {
-    redirect("/dashboard");
+  const systemUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  // Same guard as the dashboard and staff pages: owner, or a verified admin
+  // impersonation session for this exact business. (Previously this was a raw
+  // clerkId comparison that redirected to /dashboard, which doesn't exist.)
+  const authorized = systemUser
+    ? await authorizeBusinessAccess({
+        businessId: business.id,
+        ownerId: business.ownerId,
+        systemUserId: systemUser.id,
+        allowStaff: false,
+      })
+    : false;
+
+  if (!authorized) {
+    redirect("/select-workspace");
   }
 
   const serializedBusinessForForm = {
