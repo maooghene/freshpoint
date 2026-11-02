@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import authAdmin from "@/lib/authAdmin";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@prisma/client";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,13 @@ export async function POST(request: NextRequest) {
     const elevatedUser = await prisma.user.update({
       where: { id: targetUserId },
       data: { role: UserRole.ADMIN },
+    });
+
+    await logAdminAction({
+      action: "Promoted user to ADMIN",
+      targetType: "User",
+      targetId: elevatedUser.id,
+      targetLabel: elevatedUser.email,
     });
 
     return NextResponse.json({

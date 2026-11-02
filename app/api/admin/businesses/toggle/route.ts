@@ -1,7 +1,8 @@
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import authAdmin from "@/lib/authAdmin"; // FIXED: Uses edge-safe backend location
-import prisma from "@/lib/prisma"; // FIXED: Core default Prisma v7 import instance
+import prisma from "@/lib/prisma";
+import { logAdminAction } from "@/lib/actions/admin-audit"; // FIXED: Core default Prisma v7 import instance
 
 // ✅ POST: Administrative toggle interface to safely activate or suspend business workspaces
 export async function POST(request: NextRequest) {
@@ -45,6 +46,15 @@ export async function POST(request: NextRequest) {
       data: {
         isActive: updatedStatus,
       },
+    });
+
+    await logAdminAction({
+      action: updatedStatus
+        ? "Activated business workspace"
+        : "Deactivated business workspace",
+      targetType: "Vendor",
+      targetId: businessId,
+      targetLabel: business.name,
     });
 
     return NextResponse.json(

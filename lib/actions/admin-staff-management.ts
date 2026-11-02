@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 import { PlatformAdminRole, UserRole } from "@prisma/client";
 import { clerkClient } from "@clerk/nextjs/server";
 
@@ -72,6 +73,14 @@ export async function provisionPlatformAdminAction(
       publicMetadata: { role: UserRole.STAFF },
     });
 
+    await logAdminAction({
+      action: `Provisioned platform ${targetRole}`,
+      targetType: "User",
+      targetId: userRecord.id,
+      targetLabel: lowerEmail,
+      metadata: { adminRole: targetRole },
+    });
+
     revalidatePath("/admin/staff");
     return {
       success: true,
@@ -99,9 +108,24 @@ export async function togglePlatformStaffStatusAction(
   }
 
   try {
-    await prisma.platformAdminProfile.update({
+    const profile = await prisma.platformAdminProfile.update({
       where: { id: profileId },
       data: { isActive },
+      select: {
+        userId: true,
+        adminRole: true,
+        user: { select: { email: true } },
+      },
+    });
+
+    await logAdminAction({
+      action: isActive
+        ? "Reactivated platform operator"
+        : "Suspended platform operator",
+      targetType: "User",
+      targetId: profile.userId,
+      targetLabel: profile.user.email,
+      metadata: { adminRole: profile.adminRole },
     });
 
     revalidatePath("/admin/staff");

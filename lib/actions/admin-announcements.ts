@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 
 export interface AnnouncementActionState {
   success: boolean;
@@ -54,7 +55,7 @@ export async function createAnnouncementAction(
     return { success: false, message: "Validation failed.", errors };
   }
 
-  await prisma.announcement.create({
+  const created = await prisma.announcement.create({
     data: {
       title,
       message,
@@ -65,6 +66,14 @@ export async function createAnnouncementAction(
       endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
       createdById: session.userId!,
     },
+  });
+
+  await logAdminAction({
+    action: "Published announcement",
+    targetType: "Announcement",
+    targetId: created.id,
+    targetLabel: title,
+    metadata: { severity, targetType, targetRole, targetBusinessId },
   });
 
   revalidatePath("/admin/announcements");
@@ -79,13 +88,20 @@ export async function toggleAnnouncementActiveAction(id: string) {
 
   const current = await prisma.announcement.findUnique({
     where: { id },
-    select: { isActive: true },
+    select: { isActive: true, title: true },
   });
   if (!current) throw new Error("Announcement not found.");
 
   await prisma.announcement.update({
     where: { id },
     data: { isActive: !current.isActive },
+  });
+
+  await logAdminAction({
+    action: current.isActive ? "Deactivated announcement" : "Reactivated announcement",
+    targetType: "Announcement",
+    targetId: id,
+    targetLabel: current.title,
   });
 
   revalidatePath("/admin/announcements");
@@ -97,7 +113,19 @@ export async function deleteAnnouncementAction(id: string) {
     throw new Error("Unauthorized.");
   }
 
+  const existing = await prisma.announcement.findUnique({
+    where: { id },
+    select: { title: true },
+  });
+
   await prisma.announcement.delete({ where: { id } });
+
+  await logAdminAction({
+    action: "Deleted announcement",
+    targetType: "Announcement",
+    targetId: id,
+    targetLabel: existing?.title,
+  });
   revalidatePath("/admin/announcements");
 }
 

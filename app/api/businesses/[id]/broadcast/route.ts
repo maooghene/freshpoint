@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { hasPromotionalBroadcasts } from "@/lib/subscription-tiers";
 
+const MAX_BROADCASTS_PER_DAY = 5;
+
 interface RouteContext { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -32,6 +34,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   if (title.length > 100 || message.length > 1000) {
     return NextResponse.json({ error: "Title must be at most 100 characters and message at most 1000" }, { status: 400 });
+  }
+
+  // Broadcasts are shown to every visitor of the business, so cap how many a
+  // single business can publish per day to prevent spam.
+  const recentCount = await prisma.announcement.count({
+    where: {
+      targetType: "BUSINESS",
+      targetBusinessId: businessId,
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+  });
+  if (recentCount >= MAX_BROADCASTS_PER_DAY) {
+    return NextResponse.json(
+      { error: `You can publish at most ${MAX_BROADCASTS_PER_DAY} broadcasts per day`, code: "BROADCAST_RATE_LIMITED" },
+      { status: 429 },
+    );
   }
 
   const announcement = await prisma.announcement.create({

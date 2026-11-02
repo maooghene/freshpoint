@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 
 export interface MasterConfigValues {
   bookingCommissionPct: number;
@@ -83,6 +84,14 @@ export async function updateSystemSettingsAction(
       where: { id: "singleton" },
       update: { ...values },
       create: { id: "singleton", ...values },
+    });
+
+    await logAdminAction({
+      action: "Updated platform settings",
+      targetType: "Settings",
+      targetId: "singleton",
+      targetLabel: "Platform settings",
+      metadata: { ...values },
     });
 
     revalidatePath("/admin/settings");

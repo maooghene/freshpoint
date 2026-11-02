@@ -2,6 +2,7 @@ import authAdmin from "@/lib/authAdmin";
 import { auth } from "@clerk/nextjs/server";
 import  prisma  from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 
 // ✅ GET: Fetch both active and awaiting application tenant business row records
 export async function GET() {
@@ -71,6 +72,14 @@ export async function POST(request: NextRequest) {
         status: status,
         isActive: status === "approved", // Automatically locks operational access toggle states
       },
+    });
+
+    await logAdminAction({
+      action: `Set business status to ${status}`,
+      targetType: "Vendor",
+      targetId: businessId,
+      targetLabel: updatedBusiness.name,
+      metadata: { status },
     });
 
     return NextResponse.json(
