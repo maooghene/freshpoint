@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         })
       : false;
 
-    if (!authorized) {
+    if (!business || !authorized) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
