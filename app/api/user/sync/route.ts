@@ -1,42 +1,53 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 import instance
-import { UserRole } from "@prisma/client"; // Clean enum matching your schema
+import { NextResponse } from "next/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import prisma from "@/lib/prisma";
+import { UserRole } from "@prisma/client";
 
-export async function POST(request: NextRequest) {
-  console.log("[SYNC_USER] Synchronizing profile hooks...");
-
+/**
+ * Synchronizes the SIGNED-IN user's profile into the database.
+ *
+ * Identity comes from the Clerk session, never from the request body. This
+ * route used to accept a clerkId and email from the body on a public route,
+ * which let anyone overwrite any user's profile.
+ */
+export async function POST() {
   try {
-    const body = await request.json();
-    const { clerkId, email, firstName, lastName, image } = body;
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    if (!clerkId || !email) {
+    const clerkUser = await currentUser();
+    const email =
+      clerkUser?.emailAddresses.find(
+        (address) => address.id === clerkUser.primaryEmailAddressId,
+      )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
+
+    if (!clerkUser || !email) {
       return NextResponse.json(
-        { error: "Missing required fields: clerkId, email" },
+        { error: "No email address found on this account" },
         { status: 400 },
       );
     }
 
-    // ✅ UPSERT: Safe cross-platform account compilation
     const user = await prisma.user.upsert({
       where: { clerkId },
       update: {
         email,
-        firstName: firstName ?? undefined,
-        lastName: lastName ?? undefined,
-        image: image ?? undefined,
-        // Role is securely preserved to prevent privilege injection
+        firstName: clerkUser.firstName ?? undefined,
+        lastName: clerkUser.lastName ?? undefined,
+        image: clerkUser.imageUrl ?? undefined,
+        // Role is deliberately never changed here, to prevent privilege injection.
       },
       create: {
         clerkId,
         email,
-        firstName: firstName ?? "",
-        lastName: lastName ?? "",
-        image: image ?? "",
-        role: UserRole.CUSTOMER, // Type-safe initialization mapping
+        firstName: clerkUser.firstName ?? "",
+        lastName: clerkUser.lastName ?? "",
+        image: clerkUser.imageUrl ?? "",
+        role: UserRole.CUSTOMER,
       },
     });
-
-    console.log("USER SYNCHRONIZED ROLE:", user.role);
 
     return NextResponse.json({
       success: true,
@@ -49,8 +60,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("[SYNC_USER_ERROR]", error);
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

@@ -2,6 +2,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { verifyAdminSession } from "@/lib/admin";
 import { ComplaintStatus } from "@prisma/client";
 import { computeTimelineData } from "@/lib/dashboard-helpers";
 
@@ -64,6 +65,13 @@ function computeMonthlyCounts(dates: Date[]): TrendPoint[] {
 }
 
 export async function getPlatformAnalyticsMetrics(): Promise<DashboardMetrics> {
+  // Server actions are public endpoints, so the admin check lives here and not
+  // only on the page that happens to call this.
+  const { isAdmin, isPlatformStaff } = await verifyAdminSession();
+  if (!isAdmin && !isPlatformStaff) {
+    throw new Error("Unauthorized access to administrative data pools.");
+  }
+
   const [
     totalBusinesses,
     pendingBusinesses,
