@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -329,7 +330,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let event: PaystackWebhookEvent;
   try {
-    event = JSON.parse(rawBody);
+    const envelope = z
+      .object({
+        event: z.string().min(1).max(100),
+        data: z.record(z.string(), z.unknown()),
+      })
+      .parse(JSON.parse(rawBody));
+    event = envelope as unknown as PaystackWebhookEvent;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON payload" },

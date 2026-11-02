@@ -1,4 +1,5 @@
 // app/api/businesses/[id]/items/route.ts
+import { validateImageFile } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -102,6 +103,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const formData = await request.formData();
     const parsedData = await parseItemFormData(formData);
+    const imageError = validateImageFile(parsedData.imageFile);
+    if (imageError) {
+      return NextResponse.json({ error: imageError }, { status: 400 });
+    }
 
     if (!parsedData.name || isNaN(parsedData.price)) {
       return NextResponse.json(
@@ -215,6 +220,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     const formData = await request.formData();
     const parsedData = await parseItemFormData(formData);
+    const imageError = validateImageFile(parsedData.imageFile);
+    if (imageError) {
+      return NextResponse.json({ error: imageError }, { status: 400 });
+    }
 
     if (!parsedData.id) {
       return NextResponse.json(

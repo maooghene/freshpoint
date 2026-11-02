@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
+import { orderStatusSchema, bookingStatusSchema, dayOfWeekSchema } from "@/lib/schemas";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -14,7 +17,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body: BookingUpdatePayload = await request.json();
+    const parsedBody = await parseJsonBody(
+      request,
+      z.object({ BookingId: idSchema, status: bookingStatusSchema }),
+    );
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: BookingUpdatePayload = parsedBody.data;
     if (!body.BookingId || !body.status) {
       return NextResponse.json(
         { error: "Missing parameters: BookingId or status designation" },

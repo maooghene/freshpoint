@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +21,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body: DeliveryCalculateRequestBody = await req.json();
+    const deliveryParse = await parseJsonBody(
+      req,
+      z.object({
+        businessId: idSchema,
+        destinationAddress: z
+          .string()
+          .trim()
+          .max(300)
+          .nullish()
+          .transform((v) => v ?? undefined),
+        destinationLatitude: z
+          .number()
+          .min(-90)
+          .max(90)
+          .nullish()
+          .transform((v) => v ?? undefined),
+        destinationLongitude: z
+          .number()
+          .min(-180)
+          .max(180)
+          .nullish()
+          .transform((v) => v ?? undefined),
+      }),
+    );
+    if (!deliveryParse.ok) return deliveryParse.response;
+    const body: DeliveryCalculateRequestBody = deliveryParse.data;
 
     const businessId = body.businessId?.trim();
     const destinationAddress = body.destinationAddress?.trim();

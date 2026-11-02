@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
+import { orderStatusSchema, bookingStatusSchema, dayOfWeekSchema } from "@/lib/schemas";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Added missing top-level import and updated to async auth
 import { NextRequest, NextResponse } from "next/server";
 import authOwner from "@/lib/authOwner";
@@ -76,7 +79,12 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const body: OrderUpdatePayload = await request.json();
+    const parsedBody = await parseJsonBody(
+      request,
+      z.object({ orderId: idSchema, status: orderStatusSchema }),
+    );
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: OrderUpdatePayload = parsedBody.data;
     const { orderId, status } = body;
 
     if (!orderId || !status) {

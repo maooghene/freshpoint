@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import authAdmin from "@/lib/authAdmin"; // FIXED: Uses edge-safe backend location
@@ -23,7 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Parse request body and validate businessId
-    const { businessId } = await request.json(); // FIXED: Swapped 'salonId' tracking keys to 'businessId'
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ businessId: idSchema }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { businessId } = parsed.data;
 
     if (!businessId) {
       return NextResponse.json("Business ID is required", { status: 400 });

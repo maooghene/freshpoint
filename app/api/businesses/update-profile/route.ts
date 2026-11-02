@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseValue, text, phoneSchema, emailSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import prisma from "@/lib/prisma";
@@ -24,7 +26,25 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { name, phone, address, description, email, sittingCapacity } = body;
+    const parsedBody = parseValue(
+      body,
+      z.object({
+        name: text(120).optional(),
+        phone: phoneSchema.optional(),
+        address: text(300).optional(),
+        description: z.string().max(2000).nullish(),
+        email: emailSchema.optional(),
+        sittingCapacity: z
+          .union([
+            z.number().int().min(0).max(100000),
+            z.string().trim().regex(/^\d{1,6}$/),
+          ])
+          .nullish(),
+      }),
+    );
+    if (!parsedBody.ok) return parsedBody.response;
+    const { name, phone, address, description, email, sittingCapacity } =
+      parsedBody.data;
 
     // Build the database mutation update payload dynamically based on incoming variables
     const updateData: Record<string, unknown> = {};
@@ -38,7 +58,7 @@ export async function PATCH(request: NextRequest) {
       updateData.description = description === "" ? null : description;
 
     if (sittingCapacity !== undefined && sittingCapacity !== null) {
-      const parsedCapacity = parseInt(sittingCapacity, 10);
+      const parsedCapacity = Number(sittingCapacity);
       if (!isNaN(parsedCapacity)) {
         updateData.sittingCapacity = parsedCapacity;
       }

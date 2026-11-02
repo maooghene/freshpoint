@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import authAdmin from "@/lib/authAdmin";
@@ -14,7 +16,12 @@ export async function POST(request: NextRequest) {
     const isSuperAdmin = await authAdmin(requesterClerkId);
     if (!isSuperAdmin) return NextResponse.json("Forbidden", { status: 403 });
 
-    const { targetUserId } = await request.json(); // Expects the internal model User.id
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ targetUserId: idSchema }), // internal model User.id
+    );
+    if (!parsed.ok) return parsed.response;
+    const { targetUserId } = parsed.data;
 
     const elevatedUser = await prisma.user.update({
       where: { id: targetUserId },

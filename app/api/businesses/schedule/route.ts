@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { parseJsonBody } from "@/lib/validation";
+import { dayOfWeekSchema } from "@/lib/schemas";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
@@ -50,9 +53,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = (await req.json()) as {
-      schedule: ScheduleItemPayload[];
-    };
+    const scheduleParse = await parseJsonBody(
+      req,
+      z.object({
+        schedule: z
+          .array(
+            z.object({
+              day: dayOfWeekSchema,
+              openTime: z.string().trim().max(8).regex(/^(\d{1,2}:\d{2})?$/),
+              closeTime: z.string().trim().max(8).regex(/^(\d{1,2}:\d{2})?$/),
+              isClosed: z.boolean(),
+            }),
+          )
+          .max(7),
+      }),
+    );
+    if (!scheduleParse.ok) return scheduleParse.response;
+    const body: { schedule: ScheduleItemPayload[] } = scheduleParse.data;
 
     const business = await prisma.business.findFirst({
       where: { owner: { clerkId } },

@@ -1,4 +1,6 @@
 // app/api/bookings/confirm/route.ts
+import { z } from "zod";
+import { parseJsonBody, text, idSchema, phoneSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -40,7 +42,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const parsed = await parseJsonBody(
+      request,
+      z.object({
+        reference: text(100),
+        businessId: idSchema.optional(),
+        itemId: idSchema.optional(),
+        date: text(40).optional(),
+        time: text(40).optional(),
+        staffId: idSchema.optional(),
+        customerPhone: phoneSchema.optional(),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
     const {
       reference,
       businessId: bodyBusinessId,
@@ -49,7 +63,7 @@ export async function POST(request: NextRequest) {
       time: bodyTime,
       staffId: bodyStaffId,
       customerPhone, // Extracted from client fetch body
-    } = body;
+    } = parsed.data;
 
     if (!reference) {
       return NextResponse.json(

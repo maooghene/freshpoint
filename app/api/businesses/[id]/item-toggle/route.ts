@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // 💡 Standardized pluralized named connection instance
 import { auth } from "@clerk/nextjs/server";
@@ -31,8 +33,12 @@ export async function POST(
     }
 
     // 3. Extract and parse the body payload parameters
-    const body = (await request.json()) as ToggleItemPayload;
-    const { itemId } = body;
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ itemId: idSchema }) satisfies z.ZodType<ToggleItemPayload>,
+    );
+    if (!parsed.ok) return parsed.response;
+    const { itemId } = parsed.data;
 
     if (!itemId) {
       return NextResponse.json(
