@@ -112,108 +112,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Single fetch — includes schedules for hours-check AND the fields we
-    // need for commission calculation (commissionRate, subscriptionTier).
-    const business = await prisma.business.findUnique({
-      where: { id: resolvedBusinessId },
-      include: { schedules: true },
-    });
-    if (!business) {
-      return NextResponse.json(
-        { error: "Business not found" },
-        { status: 404 },
-      );
-    }
-
-    const item = await prisma.item.findUnique({
-      where: { id: resolvedItemId },
-      select: { price: true, duration: true, businessId: true },
-    });
-    if (!item) {
-      return NextResponse.json(
-        { error: "Item not found for booking" },
-        { status: 400 },
-      );
-    }
-    if (item.businessId !== resolvedBusinessId) {
-      return NextResponse.json(
-        { error: "Service does not belong to the selected business" },
-        { status: 400 },
-      );
-    }
-
-    const startTime = zonedWallTimeToUtc(
-      resolvedDate,
-      resolvedTime,
-      business.timezone,
-    );
-    if (isNaN(startTime.getTime())) {
-      return NextResponse.json(
-        {
-          error: "Invalid date or time parameter received",
-          value: { resolvedDate, resolvedTime },
-        },
-        { status: 400 },
-      );
-    }
-
-    const durationMinutes = item.duration || 30;
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
-
-    const hoursCheck = isWithinBusinessHours(
-      resolvedDate,
-      startTime,
-      endTime,
-      business.schedules,
-      business.timezone,
-    );
-    if (!hoursCheck.isOpen) {
-      return NextResponse.json({ error: hoursCheck.reason }, { status: 409 });
-    }
-
-    const windowCheck = isWithinBookingWindow(
-      startTime,
-      business.minNoticeHours,
-      business.maxAheadDays,
-    );
-    if (!windowCheck.isValid) {
-      return NextResponse.json({ error: windowCheck.reason }, { status: 409 });
-    }
-
-    if (resolvedStaffId && resolvedStaffId !== "any") {
-      const scheduleStatus = await isStaffOffDuty(
-        resolvedStaffId,
-        resolvedDate,
-      );
-      if (scheduleStatus.isOff) {
-        // Payment is already captured at this point. A customer picking a
-        // specific off-duty staff member is a real rejection, not a data
-        // error — refund immediately rather than leaving a captured charge
-        // with no booking behind it.
-        const refund = await refundPaystackPayment(
-          reference,
-          `Auto-refund: staff off duty (${scheduleStatus.dayName})`,
-        );
-        if (!refund.success) {
-          console.error(
-            "❌ CRITICAL: Refund failed after STAFF_OFF_DUTY rejection. Reference:",
-            reference,
-          );
-        }
-        return NextResponse.json(
-          {
-            error: "Staff member is off duty on the selected day.",
-            code: "STAFF_OFF_DUTY",
-            day: scheduleStatus.dayName,
-            refunded: refund.success,
-          },
-          { status: 422 },
-        );
-      }
-    }
-
+    // The payment must belong to the signed-in user. Checked before anything
+    // that can refund, so nobody can trigger a refund of someone else's payment.
     if (resolvedUserId !== clerkId) {
-      return NextResponse.json({ error: "Payment does not belong to this user" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Payment does not belong to this user" },
+        { status: 403 },
+      );
     }
 
     const user = await prisma.user.findUnique({
@@ -231,12 +136,18 @@ export async function POST(request: NextRequest) {
 
     const activePhone = customerPhone ? String(customerPhone).trim() : null;
 
+    // Idempotency: if this payment already produced a booking, return it.
+    // This must run before any refund path, otherwise refreshing the confirm
+    // page could refund a booking that was already confirmed.
     const existingBooking = await prisma.booking.findUnique({
       where: { paymentReference: reference },
     });
     if (existingBooking) {
       if (existingBooking.userId !== user.id) {
-        return NextResponse.json({ error: "Payment reference belongs to another user" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Payment reference belongs to another user" },
+          { status: 403 },
+        );
       }
       return NextResponse.json({
         success: true,
@@ -244,11 +155,135 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // From here on the payment is captured and no booking exists. Any
+    // rejection must refund, or the customer is charged for nothing.
+    const rejectWithRefund = async (
+      reason: string,
+      clientError: string,
+      status: number,
+      extra: Record<string, unknown> = {},
+    ) => {
+      const refund = await refundPaystackPayment(
+        reference,
+        `Auto-refund: ${reason}`,
+      );
+      if (!refund.success) {
+        console.error(
+          "❌ CRITICAL: Refund failed after booking rejection. Reference:",
+          reference,
+          "Reason:",
+          reason,
+        );
+      }
+      return NextResponse.json(
+        { error: clientError, refunded: refund.success, ...extra },
+        { status },
+      );
+    };
+
+    // Single fetch — includes schedules for hours-check AND the fields we
+    // need for commission calculation (commissionRate, subscriptionTier).
+    const business = await prisma.business.findUnique({
+      where: { id: resolvedBusinessId },
+      include: { schedules: true },
+    });
+    if (!business) {
+      return rejectWithRefund(
+        `business ${resolvedBusinessId} not found`,
+        "Business not found",
+        404,
+      );
+    }
+
+    const item = await prisma.item.findUnique({
+      where: { id: resolvedItemId },
+      select: { price: true, duration: true, businessId: true },
+    });
+    if (!item) {
+      return rejectWithRefund(
+        `item ${resolvedItemId} not found`,
+        "Item not found for booking",
+        400,
+      );
+    }
+    if (item.businessId !== resolvedBusinessId) {
+      return rejectWithRefund(
+        `item ${resolvedItemId} does not belong to business ${resolvedBusinessId}`,
+        "Service does not belong to the selected business",
+        400,
+      );
+    }
+
+    const startTime = zonedWallTimeToUtc(
+      resolvedDate,
+      resolvedTime,
+      business.timezone,
+    );
+    if (isNaN(startTime.getTime())) {
+      return rejectWithRefund(
+        `invalid date or time (${resolvedDate} ${resolvedTime})`,
+        "Invalid date or time parameter received",
+        400,
+        { value: { resolvedDate, resolvedTime } },
+      );
+    }
+
+    const durationMinutes = item.duration || 30;
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
+    const hoursCheck = isWithinBusinessHours(
+      resolvedDate,
+      startTime,
+      endTime,
+      business.schedules,
+      business.timezone,
+    );
+    if (!hoursCheck.isOpen) {
+      return rejectWithRefund(
+        hoursCheck.reason || "outside business hours",
+        hoursCheck.reason || "The business is closed at the selected time.",
+        409,
+      );
+    }
+
+    const windowCheck = isWithinBookingWindow(
+      startTime,
+      business.minNoticeHours,
+      business.maxAheadDays,
+    );
+    if (!windowCheck.isValid) {
+      return rejectWithRefund(
+        windowCheck.reason || "outside booking window",
+        windowCheck.reason || "The selected time is outside the booking window.",
+        409,
+      );
+    }
+
+    if (resolvedStaffId && resolvedStaffId !== "any") {
+      const scheduleStatus = await isStaffOffDuty(
+        resolvedStaffId,
+        resolvedDate,
+      );
+      if (scheduleStatus.isOff) {
+        // Payment is already captured at this point. A customer picking a
+        // specific off-duty staff member is a real rejection, not a data
+        // error — refund immediately rather than leaving a captured charge
+        // with no booking behind it.
+        return rejectWithRefund(
+          `staff off duty (${scheduleStatus.dayName})`,
+          "Staff member is off duty on the selected day.",
+          422,
+          { code: "STAFF_OFF_DUTY", day: scheduleStatus.dayName },
+        );
+      }
+    }
+
     const servicePrice = payment.amount / 100;
     if (Math.abs(servicePrice - item.price) > 0.01) {
-      return NextResponse.json(
-        { error: "Payment amount does not match the service price" },
-        { status: 400 },
+      return rejectWithRefund(
+        `amount mismatch: charged ${servicePrice}, service price ${item.price}`,
+        "Payment amount does not match the service price",
+        400,
       );
     }
     const commissionRate =

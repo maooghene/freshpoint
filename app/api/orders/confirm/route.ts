@@ -61,6 +61,24 @@ class PriceMismatchError extends Error {
   }
 }
 
+/**
+ * Thrown when an order cannot be fulfilled for a reason other than stock or
+ * price (unknown item, item from another business). The payment was already
+ * captured, so the caller refunds it and records the order as REFUNDED.
+ */
+class OrderRejectedError extends Error {
+  constructor(
+    public reason: string,
+    public customerMessage: string,
+  ) {
+    super(reason);
+    this.name = "OrderRejectedError";
+  }
+}
+
+const REFUND_NOTICE =
+  "Your payment is being refunded and should reach your account within 3–10 business days.";
+
 // Small tolerance for floating point / kobo-to-naira rounding — not a
 // meaningful amount of money, just avoids false positives from rounding.
 const PRICE_TOLERANCE_NAIRA = 1;
@@ -244,33 +262,6 @@ export async function POST(request: NextRequest) {
     const activePhone = customerPhone ? String(customerPhone).trim() : null;
 
     let activeFee = 0;
-    if (activeIsDelivery) {
-      if (!activeAddress) {
-        return NextResponse.json({ error: "Delivery address is required" }, { status: 400 });
-      }
-      const resolved = await geocodeAddress(activeAddress);
-      if (!resolved) {
-        return NextResponse.json({ error: "Unable to resolve delivery address" }, { status: 400 });
-      }
-      activeLatitude = resolved.latitude;
-      activeLongitude = resolved.longitude;
-
-      const distanceKm = calculateHaversineDistance(
-        { latitude: business.latitude, longitude: business.longitude },
-        { latitude: activeLatitude, longitude: activeLongitude },
-      );
-      const radiusKm = getEffectiveDeliveryRadiusKm(
-        business.subscriptionTier,
-        business.deliveryRadiusKm,
-      );
-      if (distanceKm > radiusKm) {
-        return NextResponse.json({ error: "Delivery address is outside the delivery area" }, { status: 400 });
-      }
-      activeFee = Math.round(
-        Number(business.baseDeliveryFee) +
-          Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
-      );
-    }
 
     // 3. Execute unique code-collision fallback resolution loops
     let friendlyCode = "";
@@ -305,6 +296,113 @@ export async function POST(request: NextRequest) {
       `🎫 [FreshPoint API] Generated tracking identifier: ${friendlyCode}`,
     );
 
+    // Everything from here on runs AFTER Paystack captured the customer's
+    // payment. Any order we cannot fulfil must be refunded and recorded, never
+    // just rejected, or the customer is charged for nothing.
+    const refundAndRecordOrder = async (
+      merchantNote: string,
+      customerMessage: string,
+    ) => {
+      const refundResult = await refundPaystackPayment(reference, merchantNote);
+
+      const refundedOrder = await prisma.order
+        .create({
+          data: {
+            id: reference,
+            code: friendlyCode,
+            userId: user.id,
+            businessId: businessId,
+            totalAmount: verifiedChargedAmountNaira,
+            freshpointFee: 0,
+            providerPayout: 0,
+            freshpointNet: 0,
+            status: OrderStatus.REFUNDED,
+            refundStatus: refundResult.success ? "pending" : "failed",
+            isDelivery: activeIsDelivery,
+            deliveryAddress: activeAddress,
+            deliveryNotes: activeNotes,
+            deliveryFee: activeFee,
+            deliveryLatitude: activeLatitude,
+            deliveryLongitude: activeLongitude,
+            customerPhone: activePhone,
+            paystackRefundId: refundResult.refundId,
+            items: {
+              create: (items as CheckoutPayloadItem[]).map((item) => ({
+                itemId: item.itemId,
+                quantity: Number(item.quantity),
+                // Best-effort record for support and audit only — the order
+                // never fulfilled, so this is not used for billing.
+                price: Number(item.price) || 0,
+              })),
+            },
+          },
+        })
+        .catch((recordError: unknown) => {
+          // The refund has already been requested. Failing to save the audit
+          // record (e.g. an item id that does not exist) must not turn this
+          // into a 500 for a customer who is being refunded.
+          console.error(
+            `🚨 [FreshPoint API] Refund requested for ${reference} but the REFUNDED order record could not be saved:`,
+            recordError,
+          );
+          return null;
+        });
+
+      console.log(
+        `💸 [FreshPoint API] Order ${reference} refunded. Refund success: ${refundResult.success}. Record saved: ${Boolean(refundedOrder)}`,
+      );
+      console.log("------------------------------------------------");
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: customerMessage,
+          orderId: refundedOrder?.id ?? null,
+          orderCode: refundedOrder?.code ?? null,
+          status: refundedOrder?.status ?? OrderStatus.REFUNDED,
+        },
+        { status: 409 },
+      );
+    };
+
+    if (activeIsDelivery) {
+      if (!activeAddress) {
+        return refundAndRecordOrder(
+          "Delivery order was submitted without a delivery address.",
+          `Your order was missing a delivery address, so it could not be placed. ${REFUND_NOTICE}`,
+        );
+      }
+
+      const resolved = await geocodeAddress(activeAddress).catch(() => null);
+      if (!resolved) {
+        return refundAndRecordOrder(
+          `Could not resolve delivery address "${activeAddress}".`,
+          `We couldn't locate your delivery address, so your order could not be placed. ${REFUND_NOTICE}`,
+        );
+      }
+      activeLatitude = resolved.latitude;
+      activeLongitude = resolved.longitude;
+
+      const distanceKm = calculateHaversineDistance(
+        { latitude: business.latitude, longitude: business.longitude },
+        { latitude: resolved.latitude, longitude: resolved.longitude },
+      );
+      const radiusKm = getEffectiveDeliveryRadiusKm(
+        business.subscriptionTier,
+        business.deliveryRadiusKm,
+      );
+      if (distanceKm > radiusKm) {
+        return refundAndRecordOrder(
+          `Delivery address is ${distanceKm.toFixed(1)}km away, outside the ${radiusKm}km delivery area.`,
+          `That address is outside this business's delivery area, so your order could not be placed. ${REFUND_NOTICE}`,
+        );
+      }
+      activeFee = Math.round(
+        Number(business.baseDeliveryFee) +
+          Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
+      );
+    }
+
     // 4. Aggregate requested quantity per item (payload could theoretically
     // list the same itemId more than once — we need the TOTAL requested
     // against that item's stock, not just each line in isolation).
@@ -312,11 +410,9 @@ export async function POST(request: NextRequest) {
     for (const line of items as CheckoutPayloadItem[]) {
       const qty = Number(line.quantity);
       if (!Number.isSafeInteger(qty) || qty <= 0) {
-        throw new InsufficientStockError(
-          line.itemId,
-          "Invalid quantity",
-          0,
-          qty,
+        return refundAndRecordOrder(
+          "Order contained an invalid item quantity.",
+          `Your order contained an invalid item quantity, so it could not be placed. ${REFUND_NOTICE}`,
         );
       }
       quantityByItem.set(
@@ -350,19 +446,15 @@ export async function POST(request: NextRequest) {
           });
 
           if (!item) {
-            throw new InsufficientStockError(
-              itemId,
-              "Unknown item",
-              0,
-              requestedQty,
+            throw new OrderRejectedError(
+              `Item ${itemId} does not exist.`,
+              `An item in your order is no longer available, so it could not be placed. ${REFUND_NOTICE}`,
             );
           }
           if (item.businessId !== businessId) {
-            throw new InsufficientStockError(
-              itemId,
-              "Item belongs to a different business",
-              0,
-              requestedQty,
+            throw new OrderRejectedError(
+              `Item ${itemId} belongs to a different business than ${businessId}.`,
+              `An item in your order does not belong to this business, so it could not be placed. ${REFUND_NOTICE}`,
             );
           }
 
@@ -467,126 +559,35 @@ export async function POST(request: NextRequest) {
     } catch (err: unknown) {
       if (err instanceof InsufficientStockError) {
         // The customer already paid via Paystack before this route ever ran,
-        // so we can't "cancel" the charge — we have to refund it, and record
-        // the order as REFUNDED rather than silently losing the payment.
+        // so we can't "cancel" the charge — we refund it and record the order
+        // as REFUNDED rather than silently losing the payment.
         console.warn(
           `⚠️ [FreshPoint API] Stock unavailable for "${err.itemName}" (wanted ${err.requested}, had ${err.available}). Initiating refund for ${reference}...`,
         );
-
-        const refundResult = await refundPaystackPayment(
-          reference,
+        return refundAndRecordOrder(
           `Item "${err.itemName}" sold out before order could be fulfilled (requested ${err.requested}, had ${err.available}).`,
-        );
-
-        const refundedOrder = await prisma.order.create({
-          data: {
-            id: reference,
-            code: friendlyCode,
-            userId: user.id,
-            businessId: businessId,
-            totalAmount: verifiedChargedAmountNaira,
-            freshpointFee: 0,
-            providerPayout: 0,
-            freshpointNet: 0,
-            status: OrderStatus.REFUNDED,
-            refundStatus: refundResult.success ? "pending" : "failed",
-            isDelivery: activeIsDelivery,
-            deliveryAddress: activeAddress,
-            deliveryNotes: activeNotes,
-            deliveryFee: activeFee,
-            deliveryLatitude: activeLatitude,
-            deliveryLongitude: activeLongitude,
-            customerPhone: activePhone,
-            paystackRefundId: refundResult.refundId,
-            items: {
-              create: (items as CheckoutPayloadItem[]).map((item) => ({
-                itemId: item.itemId,
-                quantity: Number(item.quantity),
-                // Best-effort record only — the order never fulfilled, so
-                // this is for support/audit visibility, not billing.
-                price: Number(item.price) || 0,
-              })),
-            },
-          },
-        });
-
-        console.log(
-          `💸 [FreshPoint API] Order ${refundedOrder.id} recorded as REFUNDED. Refund success: ${refundResult.success}`,
-        );
-        console.log("------------------------------------------------");
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: `"${err.itemName}" just sold out. Your payment is being refunded and should reach your account within 3–10 business days.`,
-            orderId: refundedOrder.id,
-            orderCode: refundedOrder.code,
-            status: refundedOrder.status,
-          },
-          { status: 409 },
+          `"${err.itemName}" just sold out. ${REFUND_NOTICE}`,
         );
       }
 
+      if (err instanceof OrderRejectedError) {
+        console.warn(
+          `⚠️ [FreshPoint API] Order ${reference} rejected: ${err.reason} Initiating refund...`,
+        );
+        return refundAndRecordOrder(err.reason, err.customerMessage);
+      }
+
       if (err instanceof PriceMismatchError) {
-        // What Paystack actually confirms it charged doesn't match what
-        // this order should legitimately cost, computed from real DB
-        // prices. Could be a manipulated client payload, or a stale cart
-        // (item price changed between add-to-cart and checkout). Either
-        // way: don't fulfill at an unverified price — refund and flag.
+        // What Paystack actually confirms it charged doesn't match what this
+        // order should legitimately cost, computed from real DB prices. Could
+        // be a manipulated client payload, or a stale cart. Either way: don't
+        // fulfil at an unverified price — refund and flag.
         console.error(
           `🚨 [FreshPoint API] PRICE MISMATCH for ${reference}: expected ₦${err.expectedTotal.toFixed(2)}, Paystack confirmed ₦${err.verifiedChargedAmount.toFixed(2)}. Refunding.`,
         );
-
-        const refundResult = await refundPaystackPayment(
-          reference,
+        return refundAndRecordOrder(
           `Price verification mismatch: expected ₦${err.expectedTotal.toFixed(2)}, charged ₦${err.verifiedChargedAmount.toFixed(2)}.`,
-        );
-
-        const refundedOrder = await prisma.order.create({
-          data: {
-            id: reference,
-            code: friendlyCode,
-            userId: user.id,
-            businessId: businessId,
-            totalAmount: verifiedChargedAmountNaira,
-            freshpointFee: 0,
-            providerPayout: 0,
-            freshpointNet: 0,
-            status: OrderStatus.REFUNDED,
-            refundStatus: refundResult.success ? "pending" : "failed",
-            isDelivery: activeIsDelivery,
-            deliveryAddress: activeAddress,
-            deliveryNotes: activeNotes,
-            deliveryFee: activeFee,
-            deliveryLatitude: activeLatitude,
-            deliveryLongitude: activeLongitude,
-            customerPhone: activePhone,
-            paystackRefundId: refundResult.refundId,
-            items: {
-              create: (items as CheckoutPayloadItem[]).map((item) => ({
-                itemId: item.itemId,
-                quantity: Number(item.quantity),
-                price: Number(item.price) || 0,
-              })),
-            },
-          },
-        });
-
-        console.log(
-          `💸 [FreshPoint API] Order ${refundedOrder.id} recorded as REFUNDED (price mismatch). Refund success: ${refundResult.success}`,
-        );
-        console.log("------------------------------------------------");
-
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "We couldn't verify the amount charged for this order. Your payment is being refunded and should reach your account within 3–10 business days.",
-            orderId: refundedOrder.id,
-            orderCode: refundedOrder.code,
-            status: refundedOrder.status,
-          },
-          { status: 409 },
+          `We couldn't verify the amount charged for this order. ${REFUND_NOTICE}`,
         );
       }
 
