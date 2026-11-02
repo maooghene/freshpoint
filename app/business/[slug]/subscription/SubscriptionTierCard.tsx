@@ -14,6 +14,8 @@ interface SubscriptionTierCardProps {
   commissionRate: number;
   features: string[];
   isCurrent: boolean;
+  staffOptions?: { id: string; name: string }[];
+  locationOptions?: { id: string; name: string; isPrimary: boolean }[];
 }
 
 export default function SubscriptionTierCard({
@@ -25,21 +27,60 @@ export default function SubscriptionTierCard({
   commissionRate,
   features,
   isCurrent,
+  staffOptions = [],
+  locationOptions = [],
 }: SubscriptionTierCardProps) {
   const [isPending, setIsPending] = useState(false);
+  const [showDowngradeChoices, setShowDowngradeChoices] = useState(false);
+  const [keptStaffIds, setKeptStaffIds] = useState<string[]>(staffOptions.slice(0, 1).map(({ id }) => id));
+  const [keptLocationIds, setKeptLocationIds] = useState<string[]>(locationOptions.filter(({ isPrimary }) => isPrimary).slice(0, 1).map(({ id }) => id));
 
-  const handleClick = async () => {
+  const handleClick = () => {
+    if (tier === "STARTER") {
+      setShowDowngradeChoices(true);
+      return;
+    }
+    void runPlanChange();
+  };
+
+  const runPlanChange = async () => {
+    if (isCurrent || isPending) return;
+    setIsPending(true);
+    try {
+      const res = await fetch("/api/subscriptions/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId, tier, slug }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Could not start subscription checkout.");
+        setIsPending(false);
+        return;
+      }
+      const data: { authorizationUrl: string } = await res.json();
+      window.location.href = data.authorizationUrl;
+      return;
+    } catch (err) {
+      console.error("SUBSCRIPTION_ACTION_ERROR:", err);
+      alert("Something went wrong. Please try again.");
+      setIsPending(false);
+    }
+  };
+
+  const requestDowngrade = async (timing: "now" | "period_end") => {
     if (isCurrent || isPending) return;
     setIsPending(true);
 
     try {
       if (tier === "STARTER") {
-        const result = await downgradeToStarter(businessId, slug);
+        const result = await downgradeToStarter(businessId, slug, timing, {
+          staffIds: keptStaffIds,
+          locationIds: keptLocationIds,
+        });
         if (!result.success) {
           alert(result.error || "Downgrade failed. Please try again.");
         }
-        // downgradeToStarter revalidates the path server-side, so the
-        // current-tier UI updates automatically without a manual redirect.
       } else {
         const res = await fetch("/api/subscriptions/initiate", {
           method: "POST",
@@ -113,6 +154,55 @@ export default function SubscriptionTierCard({
         ))}
       </ul>
 
+      {showDowngradeChoices && tier === "STARTER" ? (
+        <div className="space-y-3">
+          {staffOptions.length > 1 && (
+            <fieldset className="rounded-xl border border-border p-3">
+              <legend className="px-1 text-xs font-bold">Keep 1 staff account</legend>
+              {staffOptions.map((staff) => (
+                <label key={staff.id} className="flex items-center gap-2 py-1 text-xs">
+                  <input type="radio" name="downgradeStaff" checked={keptStaffIds[0] === staff.id} onChange={() => setKeptStaffIds([staff.id])} />
+                  {staff.name}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {locationOptions.length > 1 && (
+            <fieldset className="rounded-xl border border-border p-3">
+              <legend className="px-1 text-xs font-bold">Keep 1 location</legend>
+              {locationOptions.map((location) => (
+                <label key={location.id} className="flex items-center gap-2 py-1 text-xs">
+                  <input type="radio" name="downgradeLocation" checked={keptLocationIds[0] === location.id} onChange={() => setKeptLocationIds([location.id])} />
+                  {location.name}{location.isPrimary ? " (Primary)" : ""}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          <button
+            type="button"
+            onClick={() => void requestDowngrade("now")}
+            disabled={isPending}
+            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-primary text-primary-foreground"
+          >
+            Downgrade now
+          </button>
+          <button
+            type="button"
+            onClick={() => void requestDowngrade("period_end")}
+            disabled={isPending}
+            className="w-full py-3 px-4 rounded-xl font-bold text-sm border border-border"
+          >
+            Keep paid plan until expiry
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDowngradeChoices(false)}
+            className="w-full text-xs text-muted-foreground py-1"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
       <button
         type="button"
         onClick={handleClick}
@@ -132,6 +222,7 @@ export default function SubscriptionTierCard({
               ? "Downgrade"
               : "Upgrade"}
       </button>
+      )}
     </div>
   );
 }

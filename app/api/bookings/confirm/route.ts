@@ -1,5 +1,6 @@
 // app/api/bookings/confirm/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
@@ -34,6 +35,11 @@ class BookingRejected extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       reference,
@@ -69,6 +75,10 @@ export async function POST(request: NextRequest) {
         { error: "Payment verification failed" },
         { status: 400 },
       );
+    }
+
+    if (payment.status !== "success") {
+      return NextResponse.json({ error: "Payment was not successful" }, { status: 400 });
     }
 
     const metadata = payment.metadata;
@@ -117,11 +127,17 @@ export async function POST(request: NextRequest) {
 
     const item = await prisma.item.findUnique({
       where: { id: resolvedItemId },
-      select: { price: true, duration: true },
+      select: { price: true, duration: true, businessId: true },
     });
     if (!item) {
       return NextResponse.json(
         { error: "Item not found for booking" },
+        { status: 400 },
+      );
+    }
+    if (item.businessId !== resolvedBusinessId) {
+      return NextResponse.json(
+        { error: "Service does not belong to the selected business" },
         { status: 400 },
       );
     }
@@ -196,6 +212,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (resolvedUserId !== clerkId) {
+      return NextResponse.json({ error: "Payment does not belong to this user" }, { status: 403 });
+    }
+
     const user = await prisma.user.findUnique({
       where: { clerkId: resolvedUserId },
     });
@@ -215,6 +235,9 @@ export async function POST(request: NextRequest) {
       where: { paymentReference: reference },
     });
     if (existingBooking) {
+      if (existingBooking.userId !== user.id) {
+        return NextResponse.json({ error: "Payment reference belongs to another user" }, { status: 403 });
+      }
       return NextResponse.json({
         success: true,
         bookingId: existingBooking.id,
@@ -222,6 +245,12 @@ export async function POST(request: NextRequest) {
     }
 
     const servicePrice = payment.amount / 100;
+    if (Math.abs(servicePrice - item.price) > 0.01) {
+      return NextResponse.json(
+        { error: "Payment amount does not match the service price" },
+        { status: 400 },
+      );
+    }
     const commissionRate =
       business.commissionRate ??
       getCommissionRateForTier(business.subscriptionTier);

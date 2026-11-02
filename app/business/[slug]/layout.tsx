@@ -18,6 +18,7 @@ import {
   ShoppingBagIcon,
   SparklesIcon,
   MapPinIcon,
+  MegaphoneIcon,
 } from "lucide-react";
 import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
@@ -119,6 +120,11 @@ export default function BusinessLayout({
       name: "Settings",
       href: `/business/${businessSlug}/settings`,
       icon: SettingsIcon,
+    },
+    {
+      name: "Broadcast",
+      href: `/business/${businessSlug}/broadcast`,
+      icon: MegaphoneIcon,
     },
     {
       name: "Subscription",

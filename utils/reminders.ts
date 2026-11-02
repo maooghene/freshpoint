@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { syncBookingToGoogleCalendar } from "./googleCalendar";
+import { hasBookingReminders } from "@/lib/subscription-tiers";
 
 export async function queueBookingReminders(bookingId: string) {
   const booking = await prisma.booking.findUnique({
@@ -8,6 +9,10 @@ export async function queueBookingReminders(bookingId: string) {
   });
 
   if (!booking || booking.status !== "CONFIRMED") return;
+  if (!hasBookingReminders(booking.business.subscriptionTier)) {
+    await prisma.bookingReminderLog.deleteMany({ where: { bookingId: booking.id, sentAt: null } });
+    return;
+  }
 
   // Trigger Google Calendar sync instantly (detached, never crashes the booking flow)
   syncBookingToGoogleCalendar({ bookingId: booking.id }).catch((err) =>

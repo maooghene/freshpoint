@@ -1,11 +1,11 @@
+import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   verifyPaystackWebhookSignature,
   tierFromPlanCode,
 } from "@/lib/paystack";
-import { getCommissionRateForTier } from "@/lib/subscription-tiers";
-import type { SubscriptionTier } from "@prisma/client";
+import { applyTier } from "@/lib/subscription-service";
 
 interface PaystackRefundEventData {
   id: number;
@@ -13,6 +13,7 @@ interface PaystackRefundEventData {
 }
 
 interface PaystackChargeEventData {
+  id?: number;
   reference: string;
   amount: number;
   plan?: { plan_code: string } | string | null;
@@ -71,6 +72,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const charge = event.data as Partial<PaystackChargeEventData>;
+  const subscription = event.data as Partial<PaystackSubscriptionEventData>;
+  const eventIdentity =
+    typeof event.data?.id === "number"
+      ? `${event.data.id}:${event.event}`
+      : charge.reference || subscription.subscription_code ||
+        createHash("sha256").update(rawBody).digest("hex");
+
+  try {
+    await prisma.paystackWebhookEvent.create({
+      data: { provider: "paystack", eventKey: `${event.event}:${eventIdentity}` },
+    });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
+    }
+    throw error;
+  }
+
   // ── Refund lifecycle (existing, unchanged) ──────────────────────────
   const mappedRefundStatus = REFUND_STATUS_BY_EVENT[event.event];
   if (mappedRefundStatus) {
@@ -115,11 +135,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (data.metadata?.type === "subscription_tier_change") {
       const { businessId, tier } = data.metadata;
       if (businessId && (tier === "GROWTH" || tier === "PRO")) {
+        await applyTier(businessId, tier);
         await prisma.business.update({
           where: { id: businessId },
           data: {
-            subscriptionTier: tier as SubscriptionTier,
-            commissionRate: getCommissionRateForTier(tier as SubscriptionTier),
             subscriptionExpiresAt: new Date(Date.now() + THIRTY_DAYS_MS),
             paystackCustomerCode: data.customer?.customer_code ?? null,
           },
@@ -188,17 +207,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (subscriptionCode) {
       const updated = await prisma.business.updateMany({
         where: { paystackSubscriptionCode: subscriptionCode },
-        data: {
-          subscriptionTier: "STARTER",
-            
-          paystackSubscriptionCode: null,
-          paystackEmailToken: null,
-        },
+        data: { paystackSubscriptionCode: null, paystackEmailToken: null },
       });
 
       if (updated.count > 0) {
         console.log(
-          `📉 [FreshPoint Webhook] Subscription ${subscriptionCode} disabled — business downgraded to STARTER.`,
+          `ℹ️ [FreshPoint Webhook] Subscription ${subscriptionCode} disabled; tier expiry remains authoritative.`,
         );
       }
     }

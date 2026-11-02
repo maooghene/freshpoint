@@ -70,7 +70,11 @@ export default async function SubscriptionPage({ params }: PageProps) {
 
   const business = await prisma.business.findUnique({
     where: { slug },
-    include: { owner: true },
+    include: {
+      owner: true,
+      staff: { select: { id: true, name: true, email: true, isActive: true }, orderBy: { createdAt: "asc" } },
+      locations: { select: { id: true, name: true, isPrimary: true, isActive: true }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+    },
   });
 
   if (!business) {
@@ -189,6 +193,8 @@ export default async function SubscriptionPage({ params }: PageProps) {
             commissionRate={TIER_COMMISSION_RATES[tier]}
             features={TIER_COPY[tier].features}
             isCurrent={business.subscriptionTier === tier}
+            staffOptions={business.staff.map(({ id, name }) => ({ id, name }))}
+            locationOptions={business.locations.map(({ id, name, isPrimary }) => ({ id, name, isPrimary }))}
           />
         ))}
       </div>

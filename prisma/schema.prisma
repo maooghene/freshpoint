@@ -52,6 +52,8 @@ model Business {
   status            String             @default("pending")
   subscriptionTier   SubscriptionTier @default(STARTER)
   subscriptionExpiresAt DateTime?
+  downgradeStaffIds     String[]  @default([])
+  downgradeLocationIds  String[]  @default([])
   commissionRate     Float @default(0.10) // overridden per tier
   baseDeliveryFee   Float              @default(0)
   deliveryFeePerKm  Float              @default(0)
@@ -93,6 +95,16 @@ model Business {
   locations         Location[]
 
   @@index([ownerId])
+}
+
+model PaystackWebhookEvent {
+  id         String   @id @default(cuid())
+  provider   String
+  eventKey   String
+  processedAt DateTime @default(now())
+
+  @@unique([provider, eventKey])
+  @@index([processedAt])
 }
 
 // NEW MODEL — Pro-tier multi-location support.

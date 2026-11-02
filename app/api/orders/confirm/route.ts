@@ -3,7 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
-import { getCommissionRateForTier } from "@/lib/subscription-tiers";
+import { getCommissionRateForTier, getEffectiveDeliveryRadiusKm } from "@/lib/subscription-tiers";
+import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { refundPaystackPayment } from "@/lib/paystack";
 import {
@@ -110,8 +111,7 @@ export async function POST(request: NextRequest) {
       deliveryLatitude,
       deliveryLongitude,
       deliveryNotes,
-      deliveryFee,
-      customerPhone, // Added for emergency contact tracking
+      customerPhone,  // Added for emergency contact tracking
     } = body;
     // NOTE: `totalAmount` and each item's `price` are intentionally NOT
     // destructured from the client body for use in calculations below —
@@ -142,10 +142,20 @@ export async function POST(request: NextRequest) {
     // re-touching stock. Prevents double-decrement on retries/refreshes.
     const existingOrder = await prisma.order.findUnique({
       where: { id: reference },
-      select: { id: true, code: true, status: true },
+      select: { id: true, code: true, status: true, userId: true },
     });
 
     if (existingOrder) {
+      const referenceOwner = await prisma.user.findUnique({
+        where: { clerkId },
+        select: { id: true },
+      });
+      if (!referenceOwner || existingOrder.userId !== referenceOwner.id) {
+        return NextResponse.json(
+          { error: "Payment reference belongs to another user" },
+          { status: 403 },
+        );
+      }
       console.log(
         `♻️ [FreshPoint API] Reference ${reference} already confirmed. Returning existing order without reprocessing.`,
       );
@@ -198,7 +208,15 @@ export async function POST(request: NextRequest) {
     // precedence, otherwise fall back to the rate for their subscription tier.
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { commissionRate: true, subscriptionTier: true },
+      select: {
+        commissionRate: true,
+        subscriptionTier: true,
+        latitude: true,
+        longitude: true,
+        baseDeliveryFee: true,
+        deliveryFeePerKm: true,
+        deliveryRadiusKm: true,
+      },
     });
 
     if (!business) {
@@ -208,28 +226,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize incoming multi-tenant physical shipping structures.
-    // deliveryFee is STILL client-trusted here — that's a separate,
-    // known gap (flagged, not fixed in this pass) from the item-price one
-    // this change closes. It's carried through unchanged from before.
     const activeIsDelivery = Boolean(isDelivery);
     const activeAddress =
       activeIsDelivery && deliveryAddress
         ? String(deliveryAddress).trim()
         : null;
-    const activeLatitude =
+    let activeLatitude =
       activeIsDelivery && typeof deliveryLatitude === "number"
         ? deliveryLatitude
         : null;
-    const activeLongitude =
+    let activeLongitude =
       activeIsDelivery && typeof deliveryLongitude === "number"
         ? deliveryLongitude
         : null;
     const activeNotes =
       activeIsDelivery && deliveryNotes ? String(deliveryNotes).trim() : null;
-    const activeFee =
-      activeIsDelivery && deliveryFee ? Number(deliveryFee) : 0.0;
     const activePhone = customerPhone ? String(customerPhone).trim() : null;
+
+    let activeFee = 0;
+    if (activeIsDelivery) {
+      if (!activeAddress) {
+        return NextResponse.json({ error: "Delivery address is required" }, { status: 400 });
+      }
+      const resolved = await geocodeAddress(activeAddress);
+      if (!resolved) {
+        return NextResponse.json({ error: "Unable to resolve delivery address" }, { status: 400 });
+      }
+      activeLatitude = resolved.latitude;
+      activeLongitude = resolved.longitude;
+
+      const distanceKm = calculateHaversineDistance(
+        { latitude: business.latitude, longitude: business.longitude },
+        { latitude: activeLatitude, longitude: activeLongitude },
+      );
+      const radiusKm = getEffectiveDeliveryRadiusKm(
+        business.subscriptionTier,
+        business.deliveryRadiusKm,
+      );
+      if (distanceKm > radiusKm) {
+        return NextResponse.json({ error: "Delivery address is outside the delivery area" }, { status: 400 });
+      }
+      activeFee = Math.round(
+        Number(business.baseDeliveryFee) +
+          Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
+      );
+    }
 
     // 3. Execute unique code-collision fallback resolution loops
     let friendlyCode = "";
@@ -270,6 +311,14 @@ export async function POST(request: NextRequest) {
     const quantityByItem = new Map<string, number>();
     for (const line of items as CheckoutPayloadItem[]) {
       const qty = Number(line.quantity);
+      if (!Number.isSafeInteger(qty) || qty <= 0) {
+        throw new InsufficientStockError(
+          line.itemId,
+          "Invalid quantity",
+          0,
+          qty,
+        );
+      }
       quantityByItem.set(
         line.itemId,
         (quantityByItem.get(line.itemId) || 0) + qty,
@@ -297,13 +346,21 @@ export async function POST(request: NextRequest) {
         for (const [itemId, requestedQty] of quantityByItem) {
           const item = await tx.item.findUnique({
             where: { id: itemId },
-            select: { price: true, stock: true, type: true, name: true },
+            select: { price: true, stock: true, type: true, name: true, businessId: true },
           });
 
           if (!item) {
             throw new InsufficientStockError(
               itemId,
               "Unknown item",
+              0,
+              requestedQty,
+            );
+          }
+          if (item.businessId !== businessId) {
+            throw new InsufficientStockError(
+              itemId,
+              "Item belongs to a different business",
               0,
               requestedQty,
             );
@@ -336,8 +393,6 @@ export async function POST(request: NextRequest) {
           serverComputedSubtotal += effectivePrice * requestedQty;
         }
 
-        // deliveryFee is client-trusted (see comment above) — carried
-        // through as-is until that's addressed separately.
         const expectedTotal = serverComputedSubtotal + activeFee;
 
         if (

@@ -5,6 +5,7 @@ import {
   initializeSubscriptionTransaction,
   PaidSubscriptionTier,
 } from "@/lib/paystack";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,21 +27,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const systemUser = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { id: true, email: true },
+    });
+
+    if (!systemUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       select: {
+        ownerId: true,
         email: true,
-        owner: { select: { clerkId: true, email: true } },
       },
     });
 
-    if (!business || business.owner.clerkId !== clerkId) {
+    const authorized = business
+      ? await authorizeBusinessAccess({
+          businessId,
+          ownerId: business.ownerId,
+          systemUserId: systemUser.id,
+          allowStaff: false,
+        })
+      : false;
+
+    if (!authorized) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const url = new URL(req.url);
     const callbackUrl = `${url.origin}/business/${slug}/subscription`;
-    const billingEmail = business.owner.email || business.email;
+    const billingEmail = systemUser.email || business.email;
 
     const result = await initializeSubscriptionTransaction({
       email: billingEmail,

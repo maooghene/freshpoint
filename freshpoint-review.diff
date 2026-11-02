@@ -1,0 +1,2073 @@
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..6313b56
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1 @@
++* text=auto eol=lf
+diff --git a/PRE_COMMIT_UPDATES.txt b/PRE_COMMIT_UPDATES.txt
+new file mode 100644
+index 0000000..ec9d57f
+--- /dev/null
++++ b/PRE_COMMIT_UPDATES.txt
+@@ -0,0 +1,27 @@
++FreshPoint Pre-Commit Updates
++=============================
++
++- Added subscription downgrade selections to the Prisma schema:
++  - Business.downgradeStaffIds
++  - Business.downgradeLocationIds
++- Added database migrations for subscription downgrade selections and Paystack webhook event tracking.
++- Updated the subscription downgrade flow and subscription tier UI.
++- Added subscription plan selection support for Growth and Pro.
++- Updated the subscription initiation API to validate the signed-in system user.
++- Added the shared business authorization policy to subscription checkout, covering owners and verified admin impersonation sessions.
++- Fixed the 403 Forbidden mismatch between the subscription page and subscription initiation API.
++- Updated billing email resolution during subscription checkout.
++- Applied and verified the pending Prisma migrations in the connected database.
++- Regenerated the Prisma client.
++- Updated Paystack webhook handling.
++- Updated subscription expiry and tier-related business logic.
++- Updated booking and order confirmation/verification routes.
++- Updated booking reminder scheduling.
++- Updated business and subscription page routing and layout behavior.
++- Updated middleware workspace routing.
++- Removed obsolete debug, migration, navbar, and utility scripts that were no longer in use.
++- Updated deployment configuration in vercel.json.
++
++Known Remaining Work
++--------------------
++- The downgrade-to-Free/Starter action still does not work and requires further investigation before it can be considered complete.
+diff --git a/app/api/auth/check-onboarding/route.ts b/app/api/auth/check-onboarding/route.ts
+index ec63b16..2cac093 100644
+--- a/app/api/auth/check-onboarding/route.ts
++++ b/app/api/auth/check-onboarding/route.ts
+@@ -66,8 +66,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
+       Boolean,
+     ).length;
+ 
+-    // ✅ FIX: Injected metadata markers explicitly so select-workspace view resolves links correctly
+-    if (identityCount >= 2) {
++        if (identityCount >= 2) {
+       return NextResponse.json(
+         {
+           destination: "/select-workspace",
+@@ -108,9 +107,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
+       );
+     }
+ 
+-    return NextResponse.json({ destination: "/" });
+-
+-
+     return NextResponse.json({ destination: "/" });
+   } catch (error: unknown) {
+     console.error("ONBOARDING_CHECK_ERROR:", error);
+diff --git a/app/api/bookings/confirm/route.ts b/app/api/bookings/confirm/route.ts
+index a46c0bd..b15edf6 100644
+--- a/app/api/bookings/confirm/route.ts
++++ b/app/api/bookings/confirm/route.ts
+@@ -1,5 +1,6 @@
+ // app/api/bookings/confirm/route.ts
+ import { NextRequest, NextResponse } from "next/server";
++import { auth } from "@clerk/nextjs/server";
+ import prisma from "@/lib/prisma";
+ import { calculateFees } from "@/lib/fees";
+ import { BookingStatus } from "@prisma/client";
+@@ -34,6 +35,11 @@ class BookingRejected extends Error {}
+ 
+ export async function POST(request: NextRequest) {
+   try {
++    const { userId: clerkId } = await auth();
++    if (!clerkId) {
++      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++    }
++
+     const body = await request.json();
+     const {
+       reference,
+@@ -71,6 +77,10 @@ export async function POST(request: NextRequest) {
+       );
+     }
+ 
++    if (payment.status !== "success") {
++      return NextResponse.json({ error: "Payment was not successful" }, { status: 400 });
++    }
++
+     const metadata = payment.metadata;
+ 
+     const resolvedUserId = metadata?.userId;
+@@ -117,7 +127,7 @@ export async function POST(request: NextRequest) {
+ 
+     const item = await prisma.item.findUnique({
+       where: { id: resolvedItemId },
+-      select: { price: true, duration: true },
++      select: { price: true, duration: true, businessId: true },
+     });
+     if (!item) {
+       return NextResponse.json(
+@@ -125,6 +135,12 @@ export async function POST(request: NextRequest) {
+         { status: 400 },
+       );
+     }
++    if (item.businessId !== resolvedBusinessId) {
++      return NextResponse.json(
++        { error: "Service does not belong to the selected business" },
++        { status: 400 },
++      );
++    }
+ 
+     const startTime = zonedWallTimeToUtc(
+       resolvedDate,
+@@ -196,6 +212,10 @@ export async function POST(request: NextRequest) {
+       }
+     }
+ 
++    if (resolvedUserId !== clerkId) {
++      return NextResponse.json({ error: "Payment does not belong to this user" }, { status: 403 });
++    }
++
+     const user = await prisma.user.findUnique({
+       where: { clerkId: resolvedUserId },
+     });
+@@ -215,6 +235,9 @@ export async function POST(request: NextRequest) {
+       where: { paymentReference: reference },
+     });
+     if (existingBooking) {
++      if (existingBooking.userId !== user.id) {
++        return NextResponse.json({ error: "Payment reference belongs to another user" }, { status: 403 });
++      }
+       return NextResponse.json({
+         success: true,
+         bookingId: existingBooking.id,
+@@ -222,6 +245,12 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     const servicePrice = payment.amount / 100;
++    if (Math.abs(servicePrice - item.price) > 0.01) {
++      return NextResponse.json(
++        { error: "Payment amount does not match the service price" },
++        { status: 400 },
++      );
++    }
+     const commissionRate =
+       business.commissionRate ??
+       getCommissionRateForTier(business.subscriptionTier);
+diff --git a/app/api/bookings/verify/route.ts b/app/api/bookings/verify/route.ts
+index dfee52a..4c4c421 100644
+--- a/app/api/bookings/verify/route.ts
++++ b/app/api/bookings/verify/route.ts
+@@ -1,8 +1,15 @@
+ import { NextRequest, NextResponse } from "next/server";
++import { auth } from "@clerk/nextjs/server";
+ import prisma from "@/lib/prisma";
++import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+ 
+ export async function POST(request: NextRequest) {
+   try {
++    const { userId: clerkId } = await auth();
++    if (!clerkId) {
++      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++    }
++
+     const { bookingId } = await request.json();
+ 
+     if (!bookingId) {
+@@ -12,6 +19,27 @@ export async function POST(request: NextRequest) {
+       );
+     }
+ 
++    const booking = await prisma.booking.findUnique({
++      where: { id: bookingId },
++      select: { id: true, businessId: true, business: { select: { ownerId: true } } },
++    });
++    if (!booking) {
++      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
++    }
++
++    const user = await prisma.user.findUnique({ where: { clerkId } });
++    if (!user) {
++      return NextResponse.json({ error: "User profile not found" }, { status: 403 });
++    }
++    const allowed = await authorizeBusinessAccess({
++      businessId: booking.businessId,
++      ownerId: booking.business.ownerId,
++      systemUserId: user.id,
++    });
++    if (!allowed) {
++      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
++    }
++
+     const updatedBooking = await prisma.booking.update({
+       where: { id: bookingId },
+       data: { isVerifiedByStaff: true },
+diff --git a/app/api/businesses/[id]/broadcast/route.ts b/app/api/businesses/[id]/broadcast/route.ts
+new file mode 100644
+index 0000000..5ef49a9
+--- /dev/null
++++ b/app/api/businesses/[id]/broadcast/route.ts
+@@ -0,0 +1,35 @@
++import { NextRequest, NextResponse } from "next/server";
++import { auth } from "@clerk/nextjs/server";
++import { prisma } from "@/lib/prisma";
++import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
++import { hasPromotionalBroadcasts } from "@/lib/subscription-tiers";
++
++interface RouteContext { params: Promise<{ id: string }> }
++
++export async function POST(request: NextRequest, context: RouteContext) {
++  const { userId: clerkId } = await auth();
++  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++
++  const { id: businessId } = await context.params;
++  const systemUser = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
++  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, ownerId: true, subscriptionTier: true } });
++  if (!systemUser || !business) return NextResponse.json({ error: "Not found" }, { status: 404 });
++
++  const authorized = await authorizeBusinessAccess({ businessId, ownerId: business.ownerId, systemUserId: systemUser.id, allowStaff: false });
++  if (!authorized) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
++  if (!hasPromotionalBroadcasts(business.subscriptionTier)) {
++    return NextResponse.json({ error: "Promotional broadcasts require Pro", code: "BROADCAST_TIER_REQUIRED" }, { status: 403 });
++  }
++
++  const body = await request.json();
++  const title = typeof body.title === "string" ? body.title.trim() : "";
++  const message = typeof body.message === "string" ? body.message.trim() : "";
++  if (title.length < 3 || message.length < 5) {
++    return NextResponse.json({ error: "Title and message must be at least 3 and 5 characters" }, { status: 400 });
++  }
++
++  const announcement = await prisma.announcement.create({
++    data: { title, message, severity: "INFO", targetType: "BUSINESS", targetBusinessId: businessId, createdById: systemUser.id },
++  });
++  return NextResponse.json({ announcement }, { status: 201 });
++}
+diff --git a/app/api/cron/booking-reminders/route.ts b/app/api/cron/booking-reminders/route.ts
+index 0c3a337..04c6135 100644
+--- a/app/api/cron/booking-reminders/route.ts
++++ b/app/api/cron/booking-reminders/route.ts
+@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
+ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { Resend } from "resend";
++import { hasBookingReminders } from "@/lib/subscription-tiers";
+ 
+ const resend = new Resend(process.env.RESEND_API_KEY);
+ 
+@@ -59,6 +60,14 @@ export async function GET(request: Request) {
+       const { booking, milestone } = log;
+       const { business, user } = booking;
+ 
++      if (!hasBookingReminders(business.subscriptionTier)) {
++        await prisma.bookingReminderLog.update({
++          where: { id: log.id },
++          data: { sentAt: now },
++        });
++        continue;
++      }
++
+       // Skip processing if the business turned off email notifications entirely
+       if (!business.emailAlertsActive) {
+         // Mark as sent anyway so it drops out of the active processing queue
+diff --git a/app/api/cron/subscription-expiry/route.ts b/app/api/cron/subscription-expiry/route.ts
+new file mode 100644
+index 0000000..ba3eef4
+--- /dev/null
++++ b/app/api/cron/subscription-expiry/route.ts
+@@ -0,0 +1,54 @@
++import { NextRequest, NextResponse } from "next/server";
++import { Resend } from "resend";
++import { prisma } from "@/lib/prisma";
++import { applySavedDowngradeSelections } from "@/lib/subscription-service";
++
++export const dynamic = "force-dynamic";
++
++export async function GET(request: NextRequest) {
++  const token = request.headers.get("authorization")?.replace("Bearer ", "");
++  if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
++    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++  }
++
++  const now = new Date();
++  const expired = await prisma.business.findMany({
++    where: {
++      subscriptionTier: { in: ["GROWTH", "PRO"] },
++      subscriptionExpiresAt: { lte: now },
++    },
++    select: { id: true, name: true, subscriptionTier: true, owner: { select: { email: true } } },
++    take: 100,
++  });
++
++  let downgraded = 0;
++  let emailsSent = 0;
++  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
++
++  for (const business of expired) {
++    const claimed = await prisma.business.updateMany({
++      where: { id: business.id, subscriptionExpiresAt: { lte: now }, subscriptionTier: business.subscriptionTier },
++      data: { subscriptionExpiresAt: null },
++    });
++    if (claimed.count !== 1) continue;
++
++    await applySavedDowngradeSelections(business.id);
++    await prisma.business.update({
++      where: { id: business.id },
++      data: { paystackSubscriptionCode: null, paystackEmailToken: null },
++    });
++    downgraded++;
++
++    if (resend && business.owner.email) {
++      await resend.emails.send({
++        from: process.env.RESEND_FROM_EMAIL || "FreshPoint <notifications@freshpoint.com>",
++        to: business.owner.email,
++        subject: "Your FreshPoint paid plan has expired",
++        html: `<p>Your ${business.subscriptionTier} plan for <strong>${business.name}</strong> has ended. The business is now on Starter. You can choose a paid plan again from the subscription page.</p>`,
++      }).catch((error) => console.error("SUBSCRIPTION_EXPIRY_EMAIL_ERROR", error));
++      emailsSent++;
++    }
++  }
++
++  return NextResponse.json({ downgraded, emailsSent });
++}
+diff --git a/app/api/debug/fix-image/route.ts b/app/api/debug/fix-image/route.ts
+deleted file mode 100644
+index 667d617..0000000
+--- a/app/api/debug/fix-image/route.ts
++++ /dev/null
+@@ -1,25 +0,0 @@
+-// Put this inside a temporary scratchpad route like /api/debug/fix-images/route.ts and hit it once in your browser
+-import { NextResponse } from "next/server";
+-import prisma from "@/lib/prisma";
+-
+-export async function GET() {
+-  const items = await prisma.item.findMany({
+-    where: { image: { contains: '"' } }, // Target entries with illegal string quotes
+-  });
+-
+-  let fixedCount = 0;
+-  for (const item of items) {
+-    if (item.image) {
+-      const safeUrl = item.image.replace(/%22/g, "").replace(/"/g, "");
+-      await prisma.item.update({
+-        where: { id: item.id },
+-        data: { image: safeUrl },
+-      });
+-      fixedCount++;
+-    }
+-  }
+-
+-  return NextResponse.json({
+-    message: `Successfully scrubbed and fixed ${fixedCount} broken database records.`,
+-  });
+-}
+diff --git a/app/api/orders/confirm/route.ts b/app/api/orders/confirm/route.ts
+index 36d859c..f534d16 100644
+--- a/app/api/orders/confirm/route.ts
++++ b/app/api/orders/confirm/route.ts
+@@ -3,7 +3,8 @@ import { auth } from "@clerk/nextjs/server";
+ import { OrderStatus } from "@prisma/client";
+ import { prisma } from "@/lib/prisma";
+ import { calculateFees } from "@/lib/fees";
+-import { getCommissionRateForTier } from "@/lib/subscription-tiers";
++import { getCommissionRateForTier, getEffectiveDeliveryRadiusKm } from "@/lib/subscription-tiers";
++import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
+ import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
+ import { refundPaystackPayment } from "@/lib/paystack";
+ import {
+@@ -110,8 +111,7 @@ export async function POST(request: NextRequest) {
+       deliveryLatitude,
+       deliveryLongitude,
+       deliveryNotes,
+-      deliveryFee,
+-      customerPhone, // Added for emergency contact tracking
++      customerPhone,  // Added for emergency contact tracking
+     } = body;
+     // NOTE: `totalAmount` and each item's `price` are intentionally NOT
+     // destructured from the client body for use in calculations below —
+@@ -142,10 +142,20 @@ export async function POST(request: NextRequest) {
+     // re-touching stock. Prevents double-decrement on retries/refreshes.
+     const existingOrder = await prisma.order.findUnique({
+       where: { id: reference },
+-      select: { id: true, code: true, status: true },
++      select: { id: true, code: true, status: true, userId: true },
+     });
+ 
+     if (existingOrder) {
++      const referenceOwner = await prisma.user.findUnique({
++        where: { clerkId },
++        select: { id: true },
++      });
++      if (!referenceOwner || existingOrder.userId !== referenceOwner.id) {
++        return NextResponse.json(
++          { error: "Payment reference belongs to another user" },
++          { status: 403 },
++        );
++      }
+       console.log(
+         `♻️ [FreshPoint API] Reference ${reference} already confirmed. Returning existing order without reprocessing.`,
+       );
+@@ -198,7 +208,15 @@ export async function POST(request: NextRequest) {
+     // precedence, otherwise fall back to the rate for their subscription tier.
+     const business = await prisma.business.findUnique({
+       where: { id: businessId },
+-      select: { commissionRate: true, subscriptionTier: true },
++      select: {
++        commissionRate: true,
++        subscriptionTier: true,
++        latitude: true,
++        longitude: true,
++        baseDeliveryFee: true,
++        deliveryFeePerKm: true,
++        deliveryRadiusKm: true,
++      },
+     });
+ 
+     if (!business) {
+@@ -208,29 +226,52 @@ export async function POST(request: NextRequest) {
+       );
+     }
+ 
+-    // Normalize incoming multi-tenant physical shipping structures.
+-    // deliveryFee is STILL client-trusted here — that's a separate,
+-    // known gap (flagged, not fixed in this pass) from the item-price one
+-    // this change closes. It's carried through unchanged from before.
+     const activeIsDelivery = Boolean(isDelivery);
+     const activeAddress =
+       activeIsDelivery && deliveryAddress
+         ? String(deliveryAddress).trim()
+         : null;
+-    const activeLatitude =
++    let activeLatitude =
+       activeIsDelivery && typeof deliveryLatitude === "number"
+         ? deliveryLatitude
+         : null;
+-    const activeLongitude =
++    let activeLongitude =
+       activeIsDelivery && typeof deliveryLongitude === "number"
+         ? deliveryLongitude
+         : null;
+     const activeNotes =
+       activeIsDelivery && deliveryNotes ? String(deliveryNotes).trim() : null;
+-    const activeFee =
+-      activeIsDelivery && deliveryFee ? Number(deliveryFee) : 0.0;
+     const activePhone = customerPhone ? String(customerPhone).trim() : null;
+ 
++    let activeFee = 0;
++    if (activeIsDelivery) {
++      if (!activeAddress) {
++        return NextResponse.json({ error: "Delivery address is required" }, { status: 400 });
++      }
++      const resolved = await geocodeAddress(activeAddress);
++      if (!resolved) {
++        return NextResponse.json({ error: "Unable to resolve delivery address" }, { status: 400 });
++      }
++      activeLatitude = resolved.latitude;
++      activeLongitude = resolved.longitude;
++
++      const distanceKm = calculateHaversineDistance(
++        { latitude: business.latitude, longitude: business.longitude },
++        { latitude: activeLatitude, longitude: activeLongitude },
++      );
++      const radiusKm = getEffectiveDeliveryRadiusKm(
++        business.subscriptionTier,
++        business.deliveryRadiusKm,
++      );
++      if (distanceKm > radiusKm) {
++        return NextResponse.json({ error: "Delivery address is outside the delivery area" }, { status: 400 });
++      }
++      activeFee = Math.round(
++        Number(business.baseDeliveryFee) +
++          Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
++      );
++    }
++
+     // 3. Execute unique code-collision fallback resolution loops
+     let friendlyCode = "";
+     let isUniqueFound = false;
+@@ -270,6 +311,14 @@ export async function POST(request: NextRequest) {
+     const quantityByItem = new Map<string, number>();
+     for (const line of items as CheckoutPayloadItem[]) {
+       const qty = Number(line.quantity);
++      if (!Number.isSafeInteger(qty) || qty <= 0) {
++        throw new InsufficientStockError(
++          line.itemId,
++          "Invalid quantity",
++          0,
++          qty,
++        );
++      }
+       quantityByItem.set(
+         line.itemId,
+         (quantityByItem.get(line.itemId) || 0) + qty,
+@@ -297,7 +346,7 @@ export async function POST(request: NextRequest) {
+         for (const [itemId, requestedQty] of quantityByItem) {
+           const item = await tx.item.findUnique({
+             where: { id: itemId },
+-            select: { price: true, stock: true, type: true, name: true },
++            select: { price: true, stock: true, type: true, name: true, businessId: true },
+           });
+ 
+           if (!item) {
+@@ -308,6 +357,14 @@ export async function POST(request: NextRequest) {
+               requestedQty,
+             );
+           }
++          if (item.businessId !== businessId) {
++            throw new InsufficientStockError(
++              itemId,
++              "Item belongs to a different business",
++              0,
++              requestedQty,
++            );
++          }
+ 
+           // Services (bookings) aren't stock-tracked — only PRODUCT items are.
+           if (item.type !== "SERVICE") {
+@@ -336,8 +393,6 @@ export async function POST(request: NextRequest) {
+           serverComputedSubtotal += effectivePrice * requestedQty;
+         }
+ 
+-        // deliveryFee is client-trusted (see comment above) — carried
+-        // through as-is until that's addressed separately.
+         const expectedTotal = serverComputedSubtotal + activeFee;
+ 
+         if (
+diff --git a/app/api/orders/route.ts b/app/api/orders/route.ts
+index ea12105..83984b9 100644
+--- a/app/api/orders/route.ts
++++ b/app/api/orders/route.ts
+@@ -1,5 +1,7 @@
+ import { NextRequest, NextResponse } from "next/server";
++import { auth } from "@clerk/nextjs/server";
+ import prisma from "@/lib/prisma";
++import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+ 
+ // ==========================================
+ // TYPES & INTERFACES (STRICT TYPE SAFETY BANS ANY)
+@@ -8,6 +10,7 @@ interface UserRelationPayload {
+   firstName: string | null;
+   lastName: string | null;
+   email: string;
++  clerkId?: string;
+ }
+ 
+ interface BusinessRelationPayload {
+@@ -46,6 +49,15 @@ interface DatabaseOrderRecord {
+ // ✅ GET: Multi-tenant endpoint supporting Vendor Lists (?businessId=) AND Success Page Lookups (?reference=)
+ export async function GET(request: NextRequest) {
+   try {
++    const { userId: clerkId } = await auth();
++    if (!clerkId) {
++      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++    }
++    const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
++    if (!user) {
++      return NextResponse.json({ error: "User profile not found" }, { status: 403 });
++    }
++
+     const { searchParams } = new URL(request.url);
+     const businessId = searchParams.get("businessId");
+     const reference = searchParams.get("reference");
+@@ -62,6 +74,7 @@ export async function GET(request: NextRequest) {
+               firstName: true,
+               lastName: true,
+               email: true,
++              clerkId: true,
+             },
+           },
+           // 🌟 FIXED: FETCH THE BUSINESS RELATION SO THE RECEIPT CARD SHOWS THE TRUE NAME
+@@ -90,6 +103,9 @@ export async function GET(request: NextRequest) {
+           { status: 404 },
+         );
+       }
++      if (singleOrderLookup.user.clerkId !== clerkId) {
++        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
++      }
+ 
+       return NextResponse.json(
+         {
+@@ -132,6 +148,22 @@ export async function GET(request: NextRequest) {
+       );
+     }
+ 
++    const business = await prisma.business.findUnique({
++      where: { id: businessId },
++      select: { ownerId: true },
++    });
++    if (!business) {
++      return NextResponse.json({ error: "Business not found" }, { status: 404 });
++    }
++    const allowed = await authorizeBusinessAccess({
++      businessId,
++      ownerId: business.ownerId,
++      systemUserId: user.id,
++    });
++    if (!allowed) {
++      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
++    }
++
+     const businessOrders = (await prisma.order.findMany({
+       where: { businessId },
+       include: {
+diff --git a/app/api/subscriptions/initiate/route.ts b/app/api/subscriptions/initiate/route.ts
+index 9bc528b..15ea5d1 100644
+--- a/app/api/subscriptions/initiate/route.ts
++++ b/app/api/subscriptions/initiate/route.ts
+@@ -5,6 +5,7 @@ import {
+   initializeSubscriptionTransaction,
+   PaidSubscriptionTier,
+ } from "@/lib/paystack";
++import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+ 
+ export async function POST(req: NextRequest) {
+   try {
+@@ -26,21 +27,39 @@ export async function POST(req: NextRequest) {
+       );
+     }
+ 
++    const systemUser = await prisma.user.findUnique({
++      where: { clerkId },
++      select: { id: true, email: true },
++    });
++
++    if (!systemUser) {
++      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
++    }
++
+     const business = await prisma.business.findUnique({
+       where: { id: businessId },
+       select: {
++        ownerId: true,
+         email: true,
+-        owner: { select: { clerkId: true, email: true } },
+       },
+     });
+ 
+-    if (!business || business.owner.clerkId !== clerkId) {
++    const authorized = business
++      ? await authorizeBusinessAccess({
++          businessId,
++          ownerId: business.ownerId,
++          systemUserId: systemUser.id,
++          allowStaff: false,
++        })
++      : false;
++
++    if (!authorized) {
+       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+     }
+ 
+     const url = new URL(req.url);
+     const callbackUrl = `${url.origin}/business/${slug}/subscription`;
+-    const billingEmail = business.owner.email || business.email;
++    const billingEmail = systemUser.email || business.email;
+ 
+     const result = await initializeSubscriptionTransaction({
+       email: billingEmail,
+diff --git a/app/api/webhooks/paystack/route.ts b/app/api/webhooks/paystack/route.ts
+index 28ce92b..f64b495 100644
+--- a/app/api/webhooks/paystack/route.ts
++++ b/app/api/webhooks/paystack/route.ts
+@@ -1,11 +1,11 @@
++import { createHash } from "crypto";
+ import { NextRequest, NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import {
+   verifyPaystackWebhookSignature,
+   tierFromPlanCode,
+ } from "@/lib/paystack";
+-import { getCommissionRateForTier } from "@/lib/subscription-tiers";
+-import type { SubscriptionTier } from "@prisma/client";
++import { applyTier } from "@/lib/subscription-service";
+ 
+ interface PaystackRefundEventData {
+   id: number;
+@@ -13,6 +13,7 @@ interface PaystackRefundEventData {
+ }
+ 
+ interface PaystackChargeEventData {
++  id?: number;
+   reference: string;
+   amount: number;
+   plan?: { plan_code: string } | string | null;
+@@ -71,6 +72,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
+     );
+   }
+ 
++  const charge = event.data as Partial<PaystackChargeEventData>;
++  const subscription = event.data as Partial<PaystackSubscriptionEventData>;
++  const eventIdentity =
++    typeof event.data?.id === "number"
++      ? `${event.data.id}:${event.event}`
++      : charge.reference || subscription.subscription_code ||
++        createHash("sha256").update(rawBody).digest("hex");
++
++  try {
++    await prisma.paystackWebhookEvent.create({
++      data: { provider: "paystack", eventKey: `${event.event}:${eventIdentity}` },
++    });
++  } catch (error) {
++    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
++      return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
++    }
++    throw error;
++  }
++
+   // ── Refund lifecycle (existing, unchanged) ──────────────────────────
+   const mappedRefundStatus = REFUND_STATUS_BY_EVENT[event.event];
+   if (mappedRefundStatus) {
+@@ -115,11 +135,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
+     if (data.metadata?.type === "subscription_tier_change") {
+       const { businessId, tier } = data.metadata;
+       if (businessId && (tier === "GROWTH" || tier === "PRO")) {
++        await applyTier(businessId, tier);
+         await prisma.business.update({
+           where: { id: businessId },
+           data: {
+-            subscriptionTier: tier as SubscriptionTier,
+-            commissionRate: getCommissionRateForTier(tier as SubscriptionTier),
+             subscriptionExpiresAt: new Date(Date.now() + THIRTY_DAYS_MS),
+             paystackCustomerCode: data.customer?.customer_code ?? null,
+           },
+@@ -188,17 +207,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
+     if (subscriptionCode) {
+       const updated = await prisma.business.updateMany({
+         where: { paystackSubscriptionCode: subscriptionCode },
+-        data: {
+-          subscriptionTier: "STARTER",
+-            
+-          paystackSubscriptionCode: null,
+-          paystackEmailToken: null,
+-        },
++        data: { paystackSubscriptionCode: null, paystackEmailToken: null },
+       });
+ 
+       if (updated.count > 0) {
+         console.log(
+-          `📉 [FreshPoint Webhook] Subscription ${subscriptionCode} disabled — business downgraded to STARTER.`,
++          `ℹ️ [FreshPoint Webhook] Subscription ${subscriptionCode} disabled; tier expiry remains authoritative.`,
+         );
+       }
+     }
+diff --git a/app/business/[slug]/broadcast/BroadcastForm.tsx b/app/business/[slug]/broadcast/BroadcastForm.tsx
+new file mode 100644
+index 0000000..6dae7f3
+--- /dev/null
++++ b/app/business/[slug]/broadcast/BroadcastForm.tsx
+@@ -0,0 +1,17 @@
++"use client";
++
++import { FormEvent, useState } from "react";
++
++export default function BroadcastForm({ businessId }: { businessId: string }) {
++  const [status, setStatus] = useState("");
++  async function submit(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault();
++    setStatus("");
++    const form = new FormData(event.currentTarget);
++    const response = await fetch(`/api/businesses/${businessId}/broadcast`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: form.get("title"), message: form.get("message") }) });
++    const data = await response.json();
++    setStatus(response.ok ? "Broadcast published." : data.error || "Could not publish broadcast.");
++    if (response.ok) (event.currentTarget as HTMLFormElement).reset();
++  }
++  return <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6"><h1 className="text-xl font-bold">Promotional broadcast</h1><input name="title" required minLength={3} placeholder="Title" className="w-full rounded-xl border border-border bg-background px-3 py-2" /><textarea name="message" required minLength={5} placeholder="Message" rows={5} className="w-full rounded-xl border border-border bg-background px-3 py-2" /><button className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Publish broadcast</button>{status && <p className="text-sm">{status}</p>}</form>;
++}
+diff --git a/app/business/[slug]/broadcast/page.tsx b/app/business/[slug]/broadcast/page.tsx
+new file mode 100644
+index 0000000..a0d607a
+--- /dev/null
++++ b/app/business/[slug]/broadcast/page.tsx
+@@ -0,0 +1,21 @@
++import { redirect, notFound } from "next/navigation";
++import { auth } from "@clerk/nextjs/server";
++import { prisma } from "@/lib/prisma";
++import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
++import BroadcastForm from "./BroadcastForm";
++import { hasPromotionalBroadcasts } from "@/lib/subscription-tiers";
++
++export default async function BroadcastPage({ params }: { params: Promise<{ slug: string }> }) {
++  const { slug } = await params;
++  const { userId } = await auth();
++  if (!userId) redirect("/sign-in");
++  const user = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
++  const business = await prisma.business.findUnique({ where: { slug }, select: { id: true, ownerId: true, subscriptionTier: true } });
++  if (!user || !business) notFound();
++  const authorized = await authorizeBusinessAccess({ businessId: business.id, ownerId: business.ownerId, systemUserId: user.id, allowStaff: false });
++  if (!authorized) redirect("/select-workspace");
++  if (!hasPromotionalBroadcasts(business.subscriptionTier)) {
++    return <main className="mx-auto max-w-3xl p-6"><div className="rounded-2xl border border-border bg-card p-6"><h1 className="text-xl font-bold">Promotional broadcasts</h1><p className="mt-2 text-sm text-muted-foreground">This perk is available on Pro.</p></div></main>;
++  }
++  return <main className="mx-auto max-w-3xl p-6"><BroadcastForm businessId={business.id} /></main>;
++}
+diff --git a/app/business/[slug]/layout.tsx b/app/business/[slug]/layout.tsx
+index 1fe2eea..f889223 100644
+--- a/app/business/[slug]/layout.tsx
++++ b/app/business/[slug]/layout.tsx
+@@ -18,6 +18,7 @@ import {
+   ShoppingBagIcon,
+   SparklesIcon,
+   MapPinIcon,
++  MegaphoneIcon,
+ } from "lucide-react";
+ import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
+ 
+@@ -120,6 +121,11 @@ export default function BusinessLayout({
+       href: `/business/${businessSlug}/settings`,
+       icon: SettingsIcon,
+     },
++    {
++      name: "Broadcast",
++      href: `/business/${businessSlug}/broadcast`,
++      icon: MegaphoneIcon,
++    },
+     {
+       name: "Subscription",
+       href: `/business/${businessSlug}/subscription`,
+diff --git a/app/business/[slug]/page.tsx b/app/business/[slug]/page.tsx
+index 52a996d..70dec1f 100644
+--- a/app/business/[slug]/page.tsx
++++ b/app/business/[slug]/page.tsx
+@@ -16,6 +16,7 @@ import {
+ } from "./types";
+ import { getImpersonationContext } from "@/lib/actions/admin-impersonate";
+ import { verifyAdminSession } from "@/lib/admin";
++import { hasFullAnalytics } from "@/lib/subscription-tiers";
+ 
+ export default async function BusinessDashboardPage({ params }: PageProps) {
+   const { slug: rawSlug } = await params;
+@@ -45,6 +46,7 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
+         id: true,
+         slug: true,
+         ownerId: true,
++        subscriptionTier: true,
+         staff: { where: { isActive: true }, select: { id: true } },
+         items: { select: { id: true, type: true } },
+         bookings: {
+@@ -161,9 +163,15 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
+ 
+       <DashboardMetricsWrapper business={business} />
+ 
+-      <div className="w-full min-w-0">
+-        <PerformanceCharts data={performanceTimelineData} />
+-      </div>
++      {hasFullAnalytics(business.subscriptionTier) ? (
++        <div className="w-full min-w-0">
++          <PerformanceCharts data={performanceTimelineData} />
++        </div>
++      ) : (
++        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
++          Full analytics are available on Growth and Pro. Your dashboard still shows basic totals above.
++        </div>
++      )}
+ 
+       <div className="w-full min-w-0">
+         <RecentActivityFeed activities={unifiedActivities} />
+diff --git a/app/business/[slug]/subscription/SubscriptionTierCard.tsx b/app/business/[slug]/subscription/SubscriptionTierCard.tsx
+index c8f1580..fb82346 100644
+--- a/app/business/[slug]/subscription/SubscriptionTierCard.tsx
++++ b/app/business/[slug]/subscription/SubscriptionTierCard.tsx
+@@ -14,6 +14,8 @@ interface SubscriptionTierCardProps {
+   commissionRate: number;
+   features: string[];
+   isCurrent: boolean;
++  staffOptions?: { id: string; name: string }[];
++  locationOptions?: { id: string; name: string; isPrimary: boolean }[];
+ }
+ 
+ export default function SubscriptionTierCard({
+@@ -25,21 +27,60 @@ export default function SubscriptionTierCard({
+   commissionRate,
+   features,
+   isCurrent,
++  staffOptions = [],
++  locationOptions = [],
+ }: SubscriptionTierCardProps) {
+   const [isPending, setIsPending] = useState(false);
++  const [showDowngradeChoices, setShowDowngradeChoices] = useState(false);
++  const [keptStaffIds, setKeptStaffIds] = useState<string[]>(staffOptions.slice(0, 1).map(({ id }) => id));
++  const [keptLocationIds, setKeptLocationIds] = useState<string[]>(locationOptions.filter(({ isPrimary }) => isPrimary).slice(0, 1).map(({ id }) => id));
+ 
+-  const handleClick = async () => {
++  const handleClick = () => {
++    if (tier === "STARTER") {
++      setShowDowngradeChoices(true);
++      return;
++    }
++    void runPlanChange();
++  };
++
++  const runPlanChange = async () => {
++    if (isCurrent || isPending) return;
++    setIsPending(true);
++    try {
++      const res = await fetch("/api/subscriptions/initiate", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ businessId, tier, slug }),
++      });
++      if (!res.ok) {
++        const data = await res.json().catch(() => ({}));
++        alert(data.error || "Could not start subscription checkout.");
++        setIsPending(false);
++        return;
++      }
++      const data: { authorizationUrl: string } = await res.json();
++      window.location.href = data.authorizationUrl;
++      return;
++    } catch (err) {
++      console.error("SUBSCRIPTION_ACTION_ERROR:", err);
++      alert("Something went wrong. Please try again.");
++      setIsPending(false);
++    }
++  };
++
++  const requestDowngrade = async (timing: "now" | "period_end") => {
+     if (isCurrent || isPending) return;
+     setIsPending(true);
+ 
+     try {
+       if (tier === "STARTER") {
+-        const result = await downgradeToStarter(businessId, slug);
++        const result = await downgradeToStarter(businessId, slug, timing, {
++          staffIds: keptStaffIds,
++          locationIds: keptLocationIds,
++        });
+         if (!result.success) {
+           alert(result.error || "Downgrade failed. Please try again.");
+         }
+-        // downgradeToStarter revalidates the path server-side, so the
+-        // current-tier UI updates automatically without a manual redirect.
+       } else {
+         const res = await fetch("/api/subscriptions/initiate", {
+           method: "POST",
+@@ -113,6 +154,55 @@ export default function SubscriptionTierCard({
+         ))}
+       </ul>
+ 
++      {showDowngradeChoices && tier === "STARTER" ? (
++        <div className="space-y-3">
++          {staffOptions.length > 1 && (
++            <fieldset className="rounded-xl border border-border p-3">
++              <legend className="px-1 text-xs font-bold">Keep 1 staff account</legend>
++              {staffOptions.map((staff) => (
++                <label key={staff.id} className="flex items-center gap-2 py-1 text-xs">
++                  <input type="radio" name="downgradeStaff" checked={keptStaffIds[0] === staff.id} onChange={() => setKeptStaffIds([staff.id])} />
++                  {staff.name}
++                </label>
++              ))}
++            </fieldset>
++          )}
++          {locationOptions.length > 1 && (
++            <fieldset className="rounded-xl border border-border p-3">
++              <legend className="px-1 text-xs font-bold">Keep 1 location</legend>
++              {locationOptions.map((location) => (
++                <label key={location.id} className="flex items-center gap-2 py-1 text-xs">
++                  <input type="radio" name="downgradeLocation" checked={keptLocationIds[0] === location.id} onChange={() => setKeptLocationIds([location.id])} />
++                  {location.name}{location.isPrimary ? " (Primary)" : ""}
++                </label>
++              ))}
++            </fieldset>
++          )}
++          <button
++            type="button"
++            onClick={() => void requestDowngrade("now")}
++            disabled={isPending}
++            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-primary text-primary-foreground"
++          >
++            Downgrade now
++          </button>
++          <button
++            type="button"
++            onClick={() => void requestDowngrade("period_end")}
++            disabled={isPending}
++            className="w-full py-3 px-4 rounded-xl font-bold text-sm border border-border"
++          >
++            Keep paid plan until expiry
++          </button>
++          <button
++            type="button"
++            onClick={() => setShowDowngradeChoices(false)}
++            className="w-full text-xs text-muted-foreground py-1"
++          >
++            Cancel
++          </button>
++        </div>
++      ) : (
+       <button
+         type="button"
+         onClick={handleClick}
+@@ -132,6 +222,7 @@ export default function SubscriptionTierCard({
+               ? "Downgrade"
+               : "Upgrade"}
+       </button>
++      )}
+     </div>
+   );
+ }
+diff --git a/app/business/[slug]/subscription/actions.ts b/app/business/[slug]/subscription/actions.ts
+index d3cd854..2f6d0a3 100644
+--- a/app/business/[slug]/subscription/actions.ts
++++ b/app/business/[slug]/subscription/actions.ts
+@@ -4,53 +4,80 @@ import { auth } from "@clerk/nextjs/server";
+ import { prisma } from "@/lib/prisma";
+ import { revalidatePath } from "next/cache";
+ import { disablePaystackSubscription } from "@/lib/paystack";
+-import { getCommissionRateForTier } from "@/lib/subscription-tiers";
++import { applyTier } from "@/lib/subscription-service";
+ 
+ /**
+  * Downgrading to Starter is free and instant — no payment involved.
+  * If the business had an active paid subscription, we also cancel it on
+  * Paystack's side so they stop being billed going forward.
+  */
+-export async function downgradeToStarter(businessId: string, slug: string) {
++export async function downgradeToStarter(
++  businessId: string,
++  slug: string,
++  timing: "now" | "period_end",
++  selection?: { staffIds?: string[]; locationIds?: string[] },
++) {
+   const { userId } = await auth();
+   if (!userId) {
+     return { success: false, error: "Unauthorized" };
+   }
+ 
++  const systemUser = await prisma.user.findUnique({
++    where: { clerkId: userId },
++    select: { id: true },
++  });
++
++  if (!systemUser) {
++    return { success: false, error: "Unauthorized" };
++  }
++
+   const business = await prisma.business.findUnique({
+     where: { id: businessId },
+     select: {
++      ownerId: true,
+       paystackSubscriptionCode: true,
+       paystackEmailToken: true,
+-      owner: { select: { clerkId: true } },
+     },
+   });
+ 
+-  if (!business || business.owner.clerkId !== userId) {
++  if (!business || business.ownerId !== systemUser.id) {
+     return { success: false, error: "Forbidden" };
+   }
+ 
+-  if (business.paystackSubscriptionCode && business.paystackEmailToken) {
++  const hasPaystackSubscription = Boolean(
++    business.paystackSubscriptionCode && business.paystackEmailToken,
++  );
++
++  if (hasPaystackSubscription) {
+     const cancelled = await disablePaystackSubscription(
+-      business.paystackSubscriptionCode,
+-      business.paystackEmailToken,
++      business.paystackSubscriptionCode!,
++      business.paystackEmailToken!,
+     );
+-    if (!cancelled) {
+-      console.error(
+-        `⚠️ Failed to cancel Paystack subscription for business ${businessId} during downgrade — proceeding with local downgrade anyway.`,
+-      );
++    if (!cancelled && timing === "period_end") {
++      return {
++        success: false,
++        error: "Could not stop recurring billing. Please try again.",
++      };
+     }
+   }
+ 
+-  await prisma.business.update({
+-    where: { id: businessId },
+-    data: {
+-      subscriptionTier: "STARTER",
+-      commissionRate: getCommissionRateForTier("STARTER" as any),
+-      paystackSubscriptionCode: null,
+-      paystackEmailToken: null,
+-    },
+-  });
++  if (timing === "now") {
++    await applyTier(businessId, "STARTER", selection);
++    await prisma.business.update({
++      where: { id: businessId },
++      data: { paystackSubscriptionCode: null, paystackEmailToken: null },
++    });
++  } else {
++    await prisma.business.update({
++      where: { id: businessId },
++      data: {
++        downgradeStaffIds: selection?.staffIds ?? [],
++        downgradeLocationIds: selection?.locationIds ?? [],
++      },
++    });
++  }
++  // At period end the paid tier remains active until subscriptionExpiresAt;
++  // the expiry job then applies Starter centrally.
+ 
+   revalidatePath(`/business/${slug}/subscription`);
+   return { success: true };
+diff --git a/app/business/[slug]/subscription/page.tsx b/app/business/[slug]/subscription/page.tsx
+index 7f165e7..bb17535 100644
+--- a/app/business/[slug]/subscription/page.tsx
++++ b/app/business/[slug]/subscription/page.tsx
+@@ -70,7 +70,11 @@ export default async function SubscriptionPage({ params }: PageProps) {
+ 
+   const business = await prisma.business.findUnique({
+     where: { slug },
+-    include: { owner: true },
++    include: {
++      owner: true,
++      staff: { select: { id: true, name: true, email: true, isActive: true }, orderBy: { createdAt: "asc" } },
++      locations: { select: { id: true, name: true, isPrimary: true, isActive: true }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
++    },
+   });
+ 
+   if (!business) {
+@@ -189,6 +193,8 @@ export default async function SubscriptionPage({ params }: PageProps) {
+             commissionRate={TIER_COMMISSION_RATES[tier]}
+             features={TIER_COPY[tier].features}
+             isCurrent={business.subscriptionTier === tier}
++            staffOptions={business.staff.map(({ id, name }) => ({ id, name }))}
++            locationOptions={business.locations.map(({ id, name, isPrimary }) => ({ id, name, isPrimary }))}
+           />
+         ))}
+       </div>
+diff --git a/app/business/[slug]/types.ts b/app/business/[slug]/types.ts
+index b5ac69e..22022a6 100644
+--- a/app/business/[slug]/types.ts
++++ b/app/business/[slug]/types.ts
+@@ -1,5 +1,5 @@
+ import * as React from "react";
+-import { BookingStatus, OrderStatus } from "@prisma/client";
++import { BookingStatus, OrderStatus, SubscriptionTier } from "@prisma/client";
+ 
+ // =========================================================================
+ // 🔀 REGULAR VIEW LAYOUT & SIDEBAR NAVIGATION INTERFACES
+@@ -63,6 +63,7 @@ export interface FullDashboardBusinessData {
+   description: string | null; // Added for customer profile info
+   image: string | null; // Added for storefront cover images
+   ownerId: string;
++  subscriptionTier: SubscriptionTier;
+   staff: DashboardStaffSubset[];
+   items: DashboardItemSubset[];
+   bookings: DashboardBookingSubset[];
+diff --git a/baseline.sql b/baseline.sql
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/check-staff.ts b/check-staff.ts
+deleted file mode 100644
+index 449a5da..0000000
+--- a/check-staff.ts
++++ /dev/null
+@@ -1,17 +0,0 @@
+-import { prisma } from "./lib/prisma";
+-
+-async function main() {
+-  const staffProfile = await prisma.staffProfile.findFirst({
+-    where: { email: "maooghenem+test3@gmail.com" },
+-  });
+-  console.log("StaffProfile:", staffProfile);
+-
+-  const user = await prisma.user.findUnique({
+-    where: { email: "maooghenem+test3@gmail.com" },
+-  });
+-  console.log("User:", user);
+-
+-  console.log("MATCH?", staffProfile?.userId === user?.id);
+-}
+-
+-main().finally(() => process.exit(0));
+diff --git a/components/navbar/BusinessLinks.tsx b/components/navbar/BusinessLinks.tsx
+deleted file mode 100644
+index 89b5a42..0000000
+--- a/components/navbar/BusinessLinks.tsx
++++ /dev/null
+@@ -1,117 +0,0 @@
+-"use client";
+-
+-import * as React from "react";
+-import Link from "next/link";
+-import { useUser } from "@clerk/nextjs";
+-import { LayoutDashboard, Store, Users, Menu, X, Loader2 } from "lucide-react";
+-
+-interface BusinessLinksProps {
+-  businessId: string;
+-  pathSegments: string[];
+-}
+-
+-export function BusinessLinks({
+-  businessId,
+-  pathSegments,
+-}: BusinessLinksProps) {
+-  const { user, isLoaded } = useUser();
+-  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+-  const [hasManagementAccess, setHasManagementAccess] =
+-    React.useState<boolean>(false);
+-  const [isValidating, setIsValidating] = React.useState<boolean>(false);
+-
+-  // 🔐 Dynamic operational gate verification pass
+-  React.useEffect(() => {
+-    if (!user) {
+-      setHasManagementAccess(false);
+-      return;
+-    }
+-
+-    const checkAccess = async () => {
+-      setIsValidating(true);
+-      try {
+-        // Calls your auth endpoint to verify if the user owns or works at this specific businessId
+-        const res = await fetch(
+-          `/api/auth/verify-business-access?businessId=${businessId}`,
+-        );
+-        if (res.ok) {
+-          const data = await res.json();
+-          setHasManagementAccess(data.hasAccess);
+-        } else {
+-          setHasManagementAccess(false);
+-        }
+-      } catch (err) {
+-        console.error("BUSINESS_NAVBAR_RESOLVER_ERROR:", err);
+-        setHasManagementAccess(false);
+-      } finally {
+-        setIsValidating(false);
+-      }
+-    };
+-
+-    checkAccess();
+-  }, [user, businessId]);
+-
+-  // Keep components entirely hidden from regular public users and unauthenticated sessions
+-  if (!isLoaded || isValidating || !hasManagementAccess) {
+-    return null;
+-  }
+-
+-  return (
+-    <div className="relative flex items-center md:flex-1 md:justify-center animate-in fade-in duration-200">
+-      <button
+-        onClick={() => setIsOpen(!isOpen)}
+-        className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer"
+-        aria-label="Toggle store menu"
+-      >
+-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+-      </button>
+-
+-      <div className="hidden md:flex items-center gap-6 flex-1 justify-center">
+-        <Link
+-          href={`/business/${businessId}`}
+-          className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${pathSegments.length === 2 ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`}
+-        >
+-          <LayoutDashboard size={16} /> Overview
+-        </Link>
+-        <Link
+-          href={`/business/${businessId}/manage-items`}
+-          className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${pathSegments.includes("add-service") ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`}
+-        >
+-          <Store size={16} /> Services & Products
+-        </Link>
+-        <Link
+-          href={`/business/${businessId}/staff`}
+-          className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${pathSegments.includes("staff") ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`}
+-        >
+-          <Users size={16} /> Staff
+-        </Link>
+-      </div>
+-
+-      {isOpen && (
+-        <div className="absolute top-12 left-0 w-56 bg-card border border-border rounded-xl p-3 shadow-xl flex flex-col gap-2 z-50 animate-fadeIn">
+-          <Link
+-            href={`/business/${businessId}`}
+-            onClick={() => setIsOpen(false)}
+-            className={`text-sm font-medium flex items-center gap-2 p-2.5 rounded-lg transition-colors ${pathSegments.length === 2 ? "text-primary font-bold bg-primary/5" : "text-muted-foreground"}`}
+-          >
+-            <LayoutDashboard size={16} /> Overview
+-          </Link>
+-          <Link
+-            href={`/business/${businessId}/manage-items`}
+-            onClick={() => setIsOpen(false)}
+-            className={`text-sm font-medium flex items-center gap-2 p-2.5 rounded-lg transition-colors ${pathSegments.includes("add-service") ? "text-primary font-bold bg-primary/5" : "text-muted-foreground"}`}
+-          >
+-            <Store size={16} /> Services & Products
+-          </Link>
+-          <Link
+-            href={`/business/${businessId}/staff`}
+-            onClick={() => setIsOpen(false)}
+-            className={`text-sm font-medium flex items-center gap-2 p-2.5 rounded-lg transition-colors ${pathSegments.includes("staff") ? "text-primary font-bold bg-primary/5" : "text-muted-foreground"}`}
+-          >
+-            <Users size={16} /> Staff
+-          </Link>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+diff --git a/components/navbar/LandingLinks.tsx b/components/navbar/LandingLinks.tsx
+deleted file mode 100644
+index cc481e8..0000000
+--- a/components/navbar/LandingLinks.tsx
++++ /dev/null
+@@ -1,31 +0,0 @@
+-"use client";
+-
+-import * as React from "react";
+-import { Menu, X } from "lucide-react";
+-
+-export function LandingLinks() {
+-  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+-
+-  return (
+-    <div className="relative">
+-      <button
+-        onClick={() => setIsOpen(!isOpen)}
+-        className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer"
+-      >
+-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+-      </button>
+-
+-      <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+-        <a href="#how-it-works" className="hover:text-foreground transition-colors">How it Works</a>
+-        <a href="#for-owners" className="hover:text-foreground transition-colors">For Providers</a>
+-      </div>
+-
+-      {isOpen && (
+-        <div className="absolute top-12 right-0 w-48 bg-card border border-border rounded-xl p-4 shadow-xl flex flex-col gap-3 text-sm font-medium text-muted-foreground z-50 animate-fadeIn">
+-          <a href="#how-it-works" onClick={() => setIsOpen(false)} className="hover:text-foreground p-2 rounded-lg hover:bg-muted/50">How it Works</a>
+-          <a href="#for-owners" onClick={() => setIsOpen(false)} className="hover:text-foreground p-2 rounded-lg hover:bg-muted/50">For Providers</a>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+diff --git a/components/navbar/MarketplaceLinks.tsx b/components/navbar/MarketplaceLinks.tsx
+deleted file mode 100644
+index 89af55d..0000000
+--- a/components/navbar/MarketplaceLinks.tsx
++++ /dev/null
+@@ -1,120 +0,0 @@
+-"use client";
+-
+-import * as React from "react";
+-import Link from "next/link";
+-import { useRouter, useSearchParams } from "next/navigation";
+-import { Search, MapPin, ClipboardList, Menu, X } from "lucide-react";
+-
+-export function MarketplaceLinks() {
+-  const router = useRouter();
+-  const searchParams = useSearchParams();
+-  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+-  const [searchQuery, setSearchQuery] = React.useState<string>(
+-    searchParams?.get("search") || "",
+-  );
+-
+-  const handleSearchSubmit = (e: React.FormEvent) => {
+-    e.preventDefault();
+-    setIsOpen(false);
+-    router.push(
+-      searchQuery.trim()
+-        ? `/explore?search=${encodeURIComponent(searchQuery)}`
+-        : "/explore",
+-    );
+-  };
+-
+-  return (
+-    <div className="flex items-center justify-end md:flex-1 md:justify-center">
+-      {/* ── HAMBURGER ACTION TRIGGER BUTTON ── */}
+-      <button
+-        onClick={() => setIsOpen(!isOpen)}
+-        className="md:hidden p-2.5 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 cursor-pointer transition-colors z-50 relative"
+-        aria-label="Toggle navigation options panel"
+-      >
+-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+-      </button>
+-
+-      {/* ── PERSISTENT DESKTOP VIEW CONTAINER ── */}
+-      <div className="hidden md:flex items-center gap-6 w-full max-w-xl justify-center">
+-        <form
+-          onSubmit={handleSearchSubmit}
+-          className="flex items-center gap-2 bg-muted/50 rounded-lg px-4 py-2 border border-border/50 focus-within:border-primary/50 w-full max-w-sm"
+-        >
+-          <Search size={18} className="text-muted-foreground" />
+-          <input
+-            type="text"
+-            placeholder="Search spas, salons..."
+-            value={searchQuery}
+-            onChange={(e) => setSearchQuery(e.target.value)}
+-            className="bg-transparent outline-none flex-1 text-sm text-foreground"
+-          />
+-        </form>
+-        <Link
+-          href="/explore"
+-          className="text-muted-foreground hover:text-foreground text-sm font-medium flex items-center gap-1.5 whitespace-nowrap"
+-        >
+-          <MapPin size={16} /> Browse all
+-        </Link>
+-        <Link
+-          href="/orders/history"
+-          className="text-muted-foreground hover:text-foreground text-sm font-medium flex items-center gap-1.5 border-l border-border pl-4 whitespace-nowrap"
+-        >
+-          <ClipboardList size={16} className="text-primary/80" /> Track Orders
+-        </Link>
+-      </div>
+-
+-      {/* ── REFACTORED CENTRALISED FIXED VIEWPORT MOBILE OVERLAY ── */}
+-      {isOpen && (
+-        <div className="md:hidden fixed inset-0 top-16 left-0 w-full h-[calc(100vh-4rem)] bg-background/95 backdrop-blur-md z-40 flex flex-col p-6 animate-fadeIn transition-all">
+-          <div className="w-full max-w-sm mx-auto space-y-6 pt-4">
+-            {/* Context Header Label */}
+-            <div className="space-y-1 text-center">
+-              <h2 className="text-lg font-black tracking-tight text-foreground">
+-                Marketplace Menu
+-              </h2>
+-              <p className="text-xs text-muted-foreground">
+-                Discover services and track checkouts instantly
+-              </p>
+-            </div>
+-
+-            {/* Centralized Full-Width Search Input Form */}
+-            <form
+-              onSubmit={handleSearchSubmit}
+-              className="flex items-center gap-3 bg-muted/80 border border-border rounded-xl px-4 py-3.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all w-full"
+-            >
+-              <Search size={18} className="text-muted-foreground shrink-0" />
+-              <input
+-                type="text"
+-                placeholder="Search services, shops, treatments..."
+-                value={searchQuery}
+-                onChange={(e) => setSearchQuery(e.target.value)}
+-                className="bg-transparent outline-none flex-1 text-sm text-foreground placeholder:text-muted-foreground w-full"
+-              />
+-            </form>
+-
+-            {/* Fully Center-Aligned Navigation Actions List */}
+-            <div className="flex flex-col gap-3 pt-2">
+-              <Link
+-                href="/explore"
+-                onClick={() => setIsOpen(false)}
+-                className="text-foreground hover:text-primary text-sm font-bold flex items-center justify-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors shadow-2xs"
+-              >
+-                <MapPin size={16} className="text-primary" />
+-                <span>Browse Marketplace Catalog</span>
+-              </Link>
+-
+-              <Link
+-                href="/orders/history"
+-                onClick={() => setIsOpen(false)}
+-                className="text-primary-foreground text-sm font-bold flex items-center justify-center gap-2.5 p-4 rounded-xl bg-primary hover:opacity-90 transition-all shadow-sm"
+-              >
+-                <ClipboardList size={16} />
+-                <span>Track My Active Orders</span>
+-              </Link>
+-            </div>
+-          </div>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+diff --git a/components/navbar/NavbarLinks.tsx b/components/navbar/NavbarLinks.tsx
+deleted file mode 100644
+index c370a38..0000000
+--- a/components/navbar/NavbarLinks.tsx
++++ /dev/null
+@@ -1,32 +0,0 @@
+-"use client";
+-
+-import * as React from "react";
+-import { LandingLinks } from "./LandingLinks";
+-import { BusinessLinks } from "./BusinessLinks";
+-import { MarketplaceLinks } from "./MarketplaceLinks";
+-
+-interface NavbarLinksProps {
+-  showAppNavbar: boolean;
+-  isCurrentlyInBusinessDashboard: boolean;
+-  businessId: string;
+-  pathSegments: string[];
+-}
+-
+-export function NavbarLinks({
+-  showAppNavbar,
+-  isCurrentlyInBusinessDashboard,
+-  businessId,
+-  pathSegments,
+-}: NavbarLinksProps) {
+-  if (!showAppNavbar) {
+-    return <LandingLinks />;
+-  }
+-
+-  if (isCurrentlyInBusinessDashboard && businessId) {
+-    return (
+-      <BusinessLinks businessId={businessId} pathSegments={pathSegments} />
+-    );
+-  }
+-
+-  return <MarketplaceLinks />;
+-}
+diff --git a/fix-staff-link.ts b/fix-staff-link.ts
+deleted file mode 100644
+index c9252dd..0000000
+--- a/fix-staff-link.ts
++++ /dev/null
+@@ -1,11 +0,0 @@
+-import { prisma } from "./lib/prisma";
+-
+-async function main() {
+-  const updated = await prisma.staffProfile.update({
+-    where: { id: "cmscwz30m000104jsdzappinj" },
+-    data: { userId: "cmscx24fi000204jstx74kex9" },
+-  });
+-  console.log("Linked:", updated);
+-}
+-
+-main().finally(() => process.exit(0));
+diff --git a/lib/subscription-service.ts b/lib/subscription-service.ts
+new file mode 100644
+index 0000000..06a7265
+--- /dev/null
++++ b/lib/subscription-service.ts
+@@ -0,0 +1,86 @@
++import type { SubscriptionTier } from "@prisma/client";
++import { prisma } from "@/lib/prisma";
++import { getCommissionRateForTier, getMaxLocationsForTier, getStaffLimitForTier } from "@/lib/subscription-tiers";
++
++interface TierSelection {
++  staffIds?: string[];
++  locationIds?: string[];
++}
++
++/** All persisted plan changes must pass through this server-side boundary. */
++export async function applyTier(
++  businessId: string,
++  tier: SubscriptionTier,
++  selection?: TierSelection,
++): Promise<void> {
++  await prisma.$transaction(async (tx) => {
++    await tx.business.update({
++      where: { id: businessId },
++      data: {
++        subscriptionTier: tier,
++        commissionRate: getCommissionRateForTier(tier),
++        subscriptionExpiresAt: tier === "STARTER" ? null : undefined,
++        downgradeStaffIds: selection?.staffIds ?? [],
++        downgradeLocationIds: selection?.locationIds ?? [],
++      },
++    });
++
++    const staffLimit = getStaffLimitForTier(tier);
++    if (staffLimit !== null) {
++      const staff = await tx.staffProfile.findMany({
++        where: { businessId, isActive: true },
++        select: { id: true },
++        orderBy: { createdAt: "asc" },
++      });
++      const validSelectedStaffIds = staff
++        .map(({ id }) => id)
++        .filter((id) => selection?.staffIds?.includes(id));
++      const selectedStaffIds = validSelectedStaffIds.slice(0, staffLimit);
++      const kept = new Set(selectedStaffIds.length
++        ? selectedStaffIds
++        : staff.slice(0, staffLimit).map(({ id }) => id));
++      const excessIds = staff.filter(({ id }) => !kept.has(id)).map(({ id }) => id);
++      if (excessIds.length) {
++        await tx.staffProfile.updateMany({
++          where: { id: { in: excessIds }, businessId },
++          data: { isActive: false },
++        });
++      }
++    }
++
++    const locationLimit = getMaxLocationsForTier(tier);
++    if (locationLimit !== null) {
++      const locations = await tx.location.findMany({
++        where: { businessId, isActive: true },
++        select: { id: true },
++        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
++      });
++      const validSelectedLocationIds = locations
++        .map(({ id }) => id)
++        .filter((id) => selection?.locationIds?.includes(id));
++      const selectedLocationIds = validSelectedLocationIds.slice(0, locationLimit);
++      const keptIds = selectedLocationIds.length
++        ? selectedLocationIds
++        : locations.slice(0, locationLimit).map(({ id }) => id);
++      const excessIds = locations.filter(({ id }) => !keptIds.includes(id)).map(({ id }) => id);
++      if (excessIds.length) {
++        await tx.location.updateMany({
++          where: { id: { in: excessIds }, businessId },
++          data: { isActive: false },
++        });
++      }
++    }
++  });
++}
++
++export async function applySavedDowngradeSelections(businessId: string): Promise<void> {
++  const business = await prisma.business.findUnique({
++    where: { id: businessId },
++    select: { subscriptionTier: true, downgradeStaffIds: true, downgradeLocationIds: true },
++  });
++  if (!business || business.subscriptionTier === "STARTER") return;
++  await applyTier(businessId, "STARTER", {
++    staffIds: business.downgradeStaffIds,
++    locationIds: business.downgradeLocationIds,
++  });
++}
+diff --git a/lib/subscription-tiers.ts b/lib/subscription-tiers.ts
+index e063b40..5753c01 100644
+--- a/lib/subscription-tiers.ts
++++ b/lib/subscription-tiers.ts
+@@ -62,6 +62,35 @@ export function canAddLocation(
+   if (max === null) return true;
+   return currentLocationCount < max;
+ }
++
++// Plan perks are enforced separately from commission, location, and staff limits.
++// This mirrors the product subscription page: Starter has basic totals, while
++// Growth and Pro expose the full analytics dashboard.
++export const TIER_FULL_ANALYTICS: Record<SubscriptionTier, boolean> = {
++  STARTER: false,
++  GROWTH: true,
++  PRO: true,
++};
++export const TIER_BOOKING_REMINDERS: Record<SubscriptionTier, boolean> = {
++  STARTER: false,
++  GROWTH: true,
++  PRO: true,
++};
++export const TIER_PROMOTIONAL_BROADCASTS: Record<SubscriptionTier, boolean> = {
++  STARTER: false,
++  GROWTH: false,
++  PRO: true,
++};
++
++export function hasFullAnalytics(tier: SubscriptionTier): boolean {
++  return TIER_FULL_ANALYTICS[tier];
++}
++export function hasBookingReminders(tier: SubscriptionTier): boolean {
++  return TIER_BOOKING_REMINDERS[tier];
++}
++export function hasPromotionalBroadcasts(tier: SubscriptionTier): boolean {
++  return TIER_PROMOTIONAL_BROADCASTS[tier];
++}
+ // Explore-page sort rank: lower = shown first. Pro ranks above Growth,
+ // which ranks above Starter.
+ export const TIER_SORT_RANK: Record<SubscriptionTier, number> = {
+diff --git a/middleware.ts b/middleware.ts
+index 4e11fc5..e59dd55 100644
+--- a/middleware.ts
++++ b/middleware.ts
+@@ -15,8 +15,8 @@ const isPublicRoute = createRouteMatcher([
+   "/bookings/success(.*)",
+   "/contact(.*)",
+   "/api/user/sync(.*)",
+-  "/api/explore(.*)", // ← ADD THIS
+-  "/api/businesses", // ← ADD THIS (exact bare route)
++  "/api/explore(.*)",
++  "/api/businesses", // Exact bare route
+   "/api/businesses/slug/(.*)",
+   "/api/businesses/(.*)/items",
+   "/api/businesses/items(.*)",
+@@ -75,10 +75,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
+   }
+ 
+   // D. Multi-Tenant Subdomain Parsing Logic
+-  const rootDomain = "freshpoint.com";
++  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+   let tenantSlug = "";
+ 
+-  if (hostname.endsWith(`.${rootDomain}`)) {
++  if (rootDomain && hostname.endsWith(`.${rootDomain}`)) {
+     tenantSlug = hostname
+       .replace(`.${rootDomain}`, "")
+       .replace(`:${url.port}`, "");
+diff --git a/prisma/migrations/20261101234000_subscription_webhook_events/migration.sql b/prisma/migrations/20261101234000_subscription_webhook_events/migration.sql
+new file mode 100644
+index 0000000..41f71ff
+--- /dev/null
++++ b/prisma/migrations/20261101234000_subscription_webhook_events/migration.sql
+@@ -0,0 +1,14 @@
++CREATE TABLE "PaystackWebhookEvent" (
++    "id" TEXT NOT NULL,
++    "provider" TEXT NOT NULL,
++    "eventKey" TEXT NOT NULL,
++    "processedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "PaystackWebhookEvent_pkey" PRIMARY KEY ("id")
++);
++
++CREATE UNIQUE INDEX "PaystackWebhookEvent_provider_eventKey_key"
++ON "PaystackWebhookEvent"("provider", "eventKey");
++
++CREATE INDEX "PaystackWebhookEvent_processedAt_idx"
++ON "PaystackWebhookEvent"("processedAt");
+diff --git a/prisma/migrations/20261102010000_downgrade_selections/migration.sql b/prisma/migrations/20261102010000_downgrade_selections/migration.sql
+new file mode 100644
+index 0000000..9a264f7
+--- /dev/null
++++ b/prisma/migrations/20261102010000_downgrade_selections/migration.sql
+@@ -0,0 +1,3 @@
++ALTER TABLE "Business"
++ADD COLUMN "downgradeStaffIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
++ADD COLUMN "downgradeLocationIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index b2557b0..7f0fe13 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -52,6 +52,8 @@ model Business {
+   status            String             @default("pending")
+   subscriptionTier   SubscriptionTier @default(STARTER)
+   subscriptionExpiresAt DateTime?
++  downgradeStaffIds     String[]  @default([])
++  downgradeLocationIds  String[]  @default([])
+   commissionRate     Float @default(0.10) // overridden per tier
+   baseDeliveryFee   Float              @default(0)
+   deliveryFeePerKm  Float              @default(0)
+@@ -95,6 +97,16 @@ model Business {
+   @@index([ownerId])
+ }
+ 
++model PaystackWebhookEvent {
++  id         String   @id @default(cuid())
++  provider   String
++  eventKey   String
++  processedAt DateTime @default(now())
++
++  @@unique([provider, eventKey])
++  @@index([processedAt])
++}
++
+ // NEW MODEL — Pro-tier multi-location support.
+ // Every Business gets at least one Location (auto-migrated for existing
+ // businesses — see migration script). Starter/Growth are hard-capped at one
+diff --git a/scripts/check-businesses.ts b/scripts/check-businesses.ts
+deleted file mode 100644
+index fdd09f2..0000000
+--- a/scripts/check-businesses.ts
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import { prisma } from "../lib/prisma";
+-
+-async function main() {
+-  const rows = await prisma.business.findMany({
+-    select: {
+-      id: true,
+-      name: true,
+-      slug: true,
+-      subscriptionTier: true,
+-      subscriptionExpiresAt: true,
+-      paystackCustomerCode: true,
+-      owner: { select: { email: true } },
+-    },
+-  });
+-  console.log(JSON.stringify(rows, null, 2));
+-}
+-
+-main()
+-  .catch((e) => console.error(e))
+-  .finally(() => process.exit(0));
+diff --git a/scripts/check-orphaned-businesses.ts b/scripts/check-orphaned-businesses.ts
+deleted file mode 100644
+index ce5a0ee..0000000
+--- a/scripts/check-orphaned-businesses.ts
++++ /dev/null
+@@ -1,19 +0,0 @@
+-// scripts/check-orphaned-businesses.ts
+-import prisma from "@/lib/prisma";
+-
+-async function main() {
+-  const businesses = await prisma.business.findMany({
+-    select: { id: true, name: true, ownerId: true },
+-  });
+-
+-  for (const b of businesses) {
+-    const owner = await prisma.user.findUnique({ where: { id: b.ownerId } });
+-    if (!owner) {
+-      console.log(
+-        `ORPHANED: Business "${b.name}" (${b.id}) → missing owner ${b.ownerId}`,
+-      );
+-    }
+-  }
+-}
+-
+-main().finally(() => prisma.$disconnect());
+diff --git a/scripts/debug-availability.ts b/scripts/debug-availability.ts
+deleted file mode 100644
+index 4913890..0000000
+--- a/scripts/debug-availability.ts
++++ /dev/null
+@@ -1,17 +0,0 @@
+-import { prisma } from "../lib/prisma";
+-
+-async function main() {
+-  const item = await prisma.item.findUnique({
+-    where: { id: "cmrze2v0d000a04l5yt4yilno" },
+-    include: { business: { include: { schedules: true, staff: true } } },
+-  });
+-
+-  console.log("Business timezone:", item?.business?.timezone);
+-  console.log("Business bufferTimeMinutes:", item?.business?.bufferTimeMinutes);
+-  console.log("Staff count:", item?.business?.staff?.length);
+-  console.log("Schedules:", JSON.stringify(item?.business?.schedules, null, 2));
+-
+-  await prisma.$disconnect();
+-}
+-
+-main();
+diff --git a/scripts/fix-business-slugs.ts b/scripts/fix-business-slugs.ts
+deleted file mode 100644
+index 107d81d..0000000
+--- a/scripts/fix-business-slugs.ts
++++ /dev/null
+@@ -1,73 +0,0 @@
+-// scripts/fix-business-slugs.ts
+-import { prisma } from "@/lib/prisma";
+-
+-function generateSlug(name: string): string {
+-  return name
+-    .toLowerCase()
+-    .trim()
+-    .replace(/[^a-z0-9\s-]/g, "") // strip special chars first, keep spaces/hyphens
+-    .trim()
+-    .replace(/\s+/g, "-") // collapse whitespace to single hyphens
+-    .replace(/-+/g, "-") // collapse any repeated hyphens
+-    .replace(/^-+|-+$/g, ""); // trim leading/trailing hyphens
+-}
+-
+-async function main() {
+-  const businesses = await prisma.business.findMany({
+-    select: { id: true, name: true, slug: true },
+-  });
+-
+-  console.log(`Checking ${businesses.length} business slugs...`);
+-
+-  let fixedCount = 0;
+-
+-  for (const business of businesses) {
+-    const correctBase = generateSlug(business.name);
+-
+-    // Skip if the current slug is already clean (matches the base, or is a
+-    // valid "base-N" collision-suffixed variant of it)
+-    const isClean =
+-      business.slug === correctBase ||
+-      new RegExp(`^${correctBase}-\\d+$`).test(business.slug);
+-
+-    if (isClean) continue;
+-
+-    // Recompute slug, respecting existing collision-avoidance logic,
+-    // but exclude this business's own current row from the collision check
+-    let newSlug = correctBase;
+-    let counter = 1;
+-
+-    while (
+-      await prisma.business.findFirst({
+-        where: {
+-          slug: newSlug,
+-          NOT: { id: business.id },
+-        },
+-      })
+-    ) {
+-      newSlug = `${correctBase}-${counter}`;
+-      counter++;
+-    }
+-
+-    if (newSlug === business.slug) continue; // no actual change needed
+-
+-    await prisma.business.update({
+-      where: { id: business.id },
+-      data: { slug: newSlug },
+-    });
+-
+-    console.log(`Fixed: "${business.slug}" -> "${newSlug}" (${business.name})`);
+-    fixedCount++;
+-  }
+-
+-  console.log(`Done. Fixed ${fixedCount} slug(s).`);
+-}
+-
+-main()
+-  .catch((err) => {
+-    console.error("Backfill failed:", err);
+-    process.exit(1);
+-  })
+-  .finally(async () => {
+-    await prisma.$disconnect();
+-  });
+diff --git a/scripts/migrate-to-locations.ts b/scripts/migrate-to-locations.ts
+deleted file mode 100644
+index 7010055..0000000
+--- a/scripts/migrate-to-locations.ts
++++ /dev/null
+@@ -1,101 +0,0 @@
+-import { prisma } from "../lib/prisma";
+-
+-// One-time migration: gives every existing Business a primary Location,
+-// carried over from its current address/latitude/longitude/deliveryRadiusKm.
+-// Also migrates BusinessSchedule -> LocationSchedule, and assigns existing
+-// StaffProfile rows to the new primary Location.
+-//
+-// Safe to re-run: any Business that already has a primary Location is
+-// skipped entirely (idempotent), so running this twice is a no-op for
+-// businesses already migrated.
+-//
+-// Run with:
+-//   npx tsx --env-file=.env scripts/migrate-to-locations.ts
+-//
+-// Do NOT use a `dotenv` config() call inside this script — ESM import
+-// hoisting means lib/prisma.ts will throw on missing env vars before
+-// config() ever runs. Node's --env-file flag sidesteps this (same reason
+-// scripts/check-businesses.ts uses it).
+-
+-async function main() {
+-  const businesses = await prisma.business.findMany({
+-    select: {
+-      id: true,
+-      name: true,
+-      address: true,
+-      latitude: true,
+-      longitude: true,
+-      deliveryRadiusKm: true,
+-      schedules: true, // BusinessSchedule[]
+-      staff: { select: { id: true, locationId: true } },
+-      locations: { select: { id: true, isPrimary: true } },
+-    },
+-  });
+-
+-  console.log(`Found ${businesses.length} businesses to check.`);
+-
+-  let migrated = 0;
+-  let skipped = 0;
+-
+-  for (const business of businesses) {
+-    const alreadyHasPrimary = business.locations.some((l) => l.isPrimary);
+-    if (alreadyHasPrimary) {
+-      skipped++;
+-      continue;
+-    }
+-
+-    await prisma.$transaction(async (tx) => {
+-      const primaryLocation = await tx.location.create({
+-        data: {
+-          businessId: business.id,
+-          name: `${business.name} — Main Location`,
+-          address: business.address,
+-          latitude: business.latitude,
+-          longitude: business.longitude,
+-          deliveryRadiusKm: business.deliveryRadiusKm,
+-          isPrimary: true,
+-          isActive: true,
+-        },
+-      });
+-
+-      // Migrate BusinessSchedule -> LocationSchedule, one row per day.
+-      if (business.schedules.length > 0) {
+-        await tx.locationSchedule.createMany({
+-          data: business.schedules.map((s) => ({
+-            locationId: primaryLocation.id,
+-            day: s.day,
+-            openTime: s.openTime,
+-            closeTime: s.closeTime,
+-            isClosed: s.isClosed,
+-          })),
+-        });
+-      }
+-
+-      // Assign all existing staff (regardless of role) to the new primary
+-      // location. Starter/Growth businesses only ever have one location, so
+-      // this is correct and final for them. Pro businesses that later add a
+-      // second location can manually reassign specific staff off primary.
+-      const unassignedStaff = business.staff.filter((s) => !s.locationId);
+-      if (unassignedStaff.length > 0) {
+-        await tx.staffProfile.updateMany({
+-          where: { id: { in: unassignedStaff.map((s) => s.id) } },
+-          data: { locationId: primaryLocation.id },
+-        });
+-      }
+-    });
+-
+-    migrated++;
+-    console.log(`Migrated: ${business.name} (${business.id})`);
+-  }
+-
+-  console.log(
+-    `\nDone. Migrated: ${migrated}, already had primary location (skipped): ${skipped}`,
+-  );
+-}
+-
+-main()
+-  .catch((e) => {
+-    console.error(e);
+-    process.exitCode = 1;
+-  })
+-  .finally(() => process.exit());
+diff --git a/tsc-output.txt b/tsc-output.txt
+deleted file mode 100644
+index 0b95ec3..0000000
+--- a/tsc-output.txt
++++ /dev/null
+@@ -1,29 +0,0 @@
+-﻿.next/types/validator.ts(432,31): error TS2344: Type 'typeof import("C:/freshpoint/app/api/businesses/[id]/staff/[staffId]/schedule/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/businesses/[id]/staff/[staffId]/schedule">'.
+-  Types of property 'PUT' are incompatible.
+-    Type '(req: Request, { params }: { params: { id: string; staffId: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; staffId: string; }>; }) => void | Response | Promise<void | Response>'.
+-      Types of parameters '__1' and 'context' are incompatible.
+-        Type '{ params: Promise<{ id: string; staffId: string; }>; }' is not assignable to type '{ params: { id: string; staffId: string; }; }'.
+-          Types of property 'params' are incompatible.
+-            Type 'Promise<{ id: string; staffId: string; }>' is missing the following properties from type '{ id: string; staffId: string; }': id, staffId
+-app/api/admin/dashboard/route.ts(34,13): error TS2353: Object literal may only specify known properties, and 'itemId' does not exist in type 'BookingSelect<DefaultArgs>'.
+-app/api/admin/dashboard/route.ts(47,29): error TS2339: Property 'item' does not exist on type '{ businessId: string; staffId: string | null; totalAmount: number | null; createdAt: Date; id: string; updatedAt: Date; startTime: Date; endTime: Date; status: BookingStatus; ... 10 more ...; userId: string; }'.
+-app/api/admin/dashboard/route.ts(61,19): error TS2339: Property 'item' does not exist on type '{ businessId: string; staffId: string | null; totalAmount: number | null; createdAt: Date; id: string; updatedAt: Date; startTime: Date; endTime: Date; status: BookingStatus; ... 10 more ...; userId: string; }'.
+-app/api/admin/dashboard/route.ts(65,18): error TS2339: Property 'item' does not exist on type '{ businessId: string; staffId: string | null; totalAmount: number | null; createdAt: Date; id: string; updatedAt: Date; startTime: Date; endTime: Date; status: BookingStatus; ... 10 more ...; userId: string; }'.
+-app/api/businesses/route.ts(54,11): error TS2353: Object literal may only specify known properties, and '_count' does not exist in type 'BusinessOrderByWithRelationInput'.
+-app/api/businesses/route.ts(75,23): error TS2551: Property 'owner' does not exist on type '{ address: string; createdAt: Date; id: string; name: string; image: string | null; email: string; phone: string; updatedAt: Date; status: string; slug: string; sittingCapacity: number; categories: string[]; description: string | null; isActive: boolean; ownerId: string; }'. Did you mean 'ownerId'?
+-app/api/businesses/route.ts(76,31): error TS2339: Property '_count' does not exist on type '{ address: string; createdAt: Date; id: string; name: string; image: string | null; email: string; phone: string; updatedAt: Date; status: string; slug: string; sittingCapacity: number; categories: string[]; description: string | null; isActive: boolean; ownerId: string; }'.
+-app/api/businesses/route.ts(77,30): error TS2339: Property '_count' does not exist on type '{ address: string; createdAt: Date; id: string; name: string; image: string | null; email: string; phone: string; updatedAt: Date; status: string; slug: string; sittingCapacity: number; categories: string[]; description: string | null; isActive: boolean; ownerId: string; }'.
+-app/api/businesses/route.ts(78,24): error TS2339: Property '_count' does not exist on type '{ address: string; createdAt: Date; id: string; name: string; image: string | null; email: string; phone: string; updatedAt: Date; status: string; slug: string; sittingCapacity: number; categories: string[]; description: string | null; isActive: boolean; ownerId: string; }'.
+-app/api/businesses/staff/route.ts(41,7): error TS2322: Type '{ name: any; businessId: any; isActive: true; }' is not assignable to type '(Without<StaffProfileCreateInput, StaffProfileUncheckedCreateInput> & StaffProfileUncheckedCreateInput) | (Without<...> & StaffProfileCreateInput)'.
+-  Type '{ name: any; businessId: any; isActive: true; }' is not assignable to type 'Without<StaffProfileUncheckedCreateInput, StaffProfileCreateInput> & StaffProfileCreateInput'.
+-    Type '{ name: any; businessId: any; isActive: true; }' is missing the following properties from type 'StaffProfileCreateInput': email, business
+-components/business/staff/StaffDashboard.tsx(179,22): error TS2345: Argument of type '(prev: StaffMember[]) => { schedules: StaffSchedule[]; id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string; user: { id: string; firstName: string | null; lastName: string | null; email: string; image: string | null; } | null; }[]' is not assignable to parameter of type 'SetStateAction<StaffMember[]>'.
+-  Type '(prev: StaffMember[]) => { schedules: StaffSchedule[]; id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string; user: { id: string; firstName: string | null; lastName: string | null; email: string; image: string | null; } | null; }[]' is not assignable to type '(prevState: StaffMember[]) => StaffMember[]'.
+-    Type '{ schedules: StaffSchedule[]; id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string; user: { id: string; firstName: string | null; lastName: string | null; email: string; image: string | null; } | null; }[]' is not assignable to type 'StaffMember[]'.
+-      Type '{ schedules: StaffSchedule[]; id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string; user: { id: string; firstName: string | null; lastName: string | null; email: string; image: string | null; } | null; }' is not assignable to type 'StaffMember'.
+-        Types of property 'schedules' are incompatible.
+-          Type 'StaffSchedule[]' is not assignable to type 'import("C:/freshpoint/components/business/staff/types").StaffSchedule[]'.
+-            Type 'StaffSchedule' is not assignable to type 'import("C:/freshpoint/components/business/staff/types").StaffSchedule'.
+-              Types of property 'id' are incompatible.
+-                Type 'string | undefined' is not assignable to type 'string'.
+-                  Type 'undefined' is not assignable to type 'string'.
+diff --git a/utils/reminders.ts b/utils/reminders.ts
+index c1d8770..e224523 100644
+--- a/utils/reminders.ts
++++ b/utils/reminders.ts
+@@ -1,5 +1,6 @@
+ import { prisma } from "@/lib/prisma";
+ import { syncBookingToGoogleCalendar } from "./googleCalendar";
++import { hasBookingReminders } from "@/lib/subscription-tiers";
+ 
+ export async function queueBookingReminders(bookingId: string) {
+   const booking = await prisma.booking.findUnique({
+@@ -8,6 +9,10 @@ export async function queueBookingReminders(bookingId: string) {
+   });
+ 
+   if (!booking || booking.status !== "CONFIRMED") return;
++  if (!hasBookingReminders(booking.business.subscriptionTier)) {
++    await prisma.bookingReminderLog.deleteMany({ where: { bookingId: booking.id, sentAt: null } });
++    return;
++  }
+ 
+   // Trigger Google Calendar sync instantly (detached, never crashes the booking flow)
+   syncBookingToGoogleCalendar({ bookingId: booking.id }).catch((err) =>
+diff --git a/vercel.json b/vercel.json
+index d1c323d..618b419 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -7,6 +7,10 @@
+     {
+       "path": "/api/cron/booking-reminders",
+       "schedule": "0 0 * * *"
++    },
++    {
++      "path": "/api/cron/subscription-expiry",
++      "schedule": "0 1 * * *"
+     }
+   ]
+ }

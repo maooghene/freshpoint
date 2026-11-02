@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 // ==========================================
 // TYPES & INTERFACES (STRICT TYPE SAFETY BANS ANY)
@@ -8,6 +10,7 @@ interface UserRelationPayload {
   firstName: string | null;
   lastName: string | null;
   email: string;
+  clerkId?: string;
 }
 
 interface BusinessRelationPayload {
@@ -46,6 +49,15 @@ interface DatabaseOrderRecord {
 // ✅ GET: Multi-tenant endpoint supporting Vendor Lists (?businessId=) AND Success Page Lookups (?reference=)
 export async function GET(request: NextRequest) {
   try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
+    if (!user) {
+      return NextResponse.json({ error: "User profile not found" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
     const reference = searchParams.get("reference");
@@ -62,6 +74,7 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               email: true,
+              clerkId: true,
             },
           },
           // 🌟 FIXED: FETCH THE BUSINESS RELATION SO THE RECEIPT CARD SHOWS THE TRUE NAME
@@ -89,6 +102,9 @@ export async function GET(request: NextRequest) {
           { error: "Requested transactional order tracking records not found" },
           { status: 404 },
         );
+      }
+      if (singleOrderLookup.user.clerkId !== clerkId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
       return NextResponse.json(
@@ -130,6 +146,22 @@ export async function GET(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { ownerId: true },
+    });
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+    const allowed = await authorizeBusinessAccess({
+      businessId,
+      ownerId: business.ownerId,
+      systemUserId: user.id,
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const businessOrders = (await prisma.order.findMany({

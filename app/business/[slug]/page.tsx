@@ -16,6 +16,7 @@ import {
 } from "./types";
 import { getImpersonationContext } from "@/lib/actions/admin-impersonate";
 import { verifyAdminSession } from "@/lib/admin";
+import { hasFullAnalytics } from "@/lib/subscription-tiers";
 
 export default async function BusinessDashboardPage({ params }: PageProps) {
   const { slug: rawSlug } = await params;
@@ -45,6 +46,7 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
         id: true,
         slug: true,
         ownerId: true,
+        subscriptionTier: true,
         staff: { where: { isActive: true }, select: { id: true } },
         items: { select: { id: true, type: true } },
         bookings: {
@@ -161,9 +163,15 @@ export default async function BusinessDashboardPage({ params }: PageProps) {
 
       <DashboardMetricsWrapper business={business} />
 
-      <div className="w-full min-w-0">
-        <PerformanceCharts data={performanceTimelineData} />
-      </div>
+      {hasFullAnalytics(business.subscriptionTier) ? (
+        <div className="w-full min-w-0">
+          <PerformanceCharts data={performanceTimelineData} />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          Full analytics are available on Growth and Pro. Your dashboard still shows basic totals above.
+        </div>
+      )}
 
       <div className="w-full min-w-0">
         <RecentActivityFeed activities={unifiedActivities} />

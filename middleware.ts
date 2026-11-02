@@ -15,8 +15,8 @@ const isPublicRoute = createRouteMatcher([
   "/bookings/success(.*)",
   "/contact(.*)",
   "/api/user/sync(.*)",
-  "/api/explore(.*)", // ← ADD THIS
-  "/api/businesses", // ← ADD THIS (exact bare route)
+  "/api/explore(.*)",
+  "/api/businesses", // Exact bare route
   "/api/businesses/slug/(.*)",
   "/api/businesses/(.*)/items",
   "/api/businesses/items(.*)",
@@ -75,10 +75,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // D. Multi-Tenant Subdomain Parsing Logic
-  const rootDomain = "freshpoint.com";
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
   let tenantSlug = "";
 
-  if (hostname.endsWith(`.${rootDomain}`)) {
+  if (rootDomain && hostname.endsWith(`.${rootDomain}`)) {
     tenantSlug = hostname
       .replace(`.${rootDomain}`, "")
       .replace(`:${url.port}`, "");

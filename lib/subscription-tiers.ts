@@ -62,6 +62,35 @@ export function canAddLocation(
   if (max === null) return true;
   return currentLocationCount < max;
 }
+
+// Plan perks are enforced separately from commission, location, and staff limits.
+// This mirrors the product subscription page: Starter has basic totals, while
+// Growth and Pro expose the full analytics dashboard.
+export const TIER_FULL_ANALYTICS: Record<SubscriptionTier, boolean> = {
+  STARTER: false,
+  GROWTH: true,
+  PRO: true,
+};
+export const TIER_BOOKING_REMINDERS: Record<SubscriptionTier, boolean> = {
+  STARTER: false,
+  GROWTH: true,
+  PRO: true,
+};
+export const TIER_PROMOTIONAL_BROADCASTS: Record<SubscriptionTier, boolean> = {
+  STARTER: false,
+  GROWTH: false,
+  PRO: true,
+};
+
+export function hasFullAnalytics(tier: SubscriptionTier): boolean {
+  return TIER_FULL_ANALYTICS[tier];
+}
+export function hasBookingReminders(tier: SubscriptionTier): boolean {
+  return TIER_BOOKING_REMINDERS[tier];
+}
+export function hasPromotionalBroadcasts(tier: SubscriptionTier): boolean {
+  return TIER_PROMOTIONAL_BROADCASTS[tier];
+}
 // Explore-page sort rank: lower = shown first. Pro ranks above Growth,
 // which ranks above Starter.
 export const TIER_SORT_RANK: Record<SubscriptionTier, number> = {

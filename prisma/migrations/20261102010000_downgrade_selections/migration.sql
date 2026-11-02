@@ -1,0 +1,3 @@
+ALTER TABLE "Business"
+ADD COLUMN "downgradeStaffIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN "downgradeLocationIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

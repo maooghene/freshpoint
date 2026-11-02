@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import { hasBookingReminders } from "@/lib/subscription-tiers";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -58,6 +59,14 @@ export async function GET(request: Request) {
     for (const log of dueReminders) {
       const { booking, milestone } = log;
       const { business, user } = booking;
+
+      if (!hasBookingReminders(business.subscriptionTier)) {
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: now },
+        });
+        continue;
+      }
 
       // Skip processing if the business turned off email notifications entirely
       if (!business.emailAlertsActive) {

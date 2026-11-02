@@ -1,0 +1,27 @@
+FreshPoint Pre-Commit Updates
+=============================
+
+- Added subscription downgrade selections to the Prisma schema:
+  - Business.downgradeStaffIds
+  - Business.downgradeLocationIds
+- Added database migrations for subscription downgrade selections and Paystack webhook event tracking.
+- Updated the subscription downgrade flow and subscription tier UI.
+- Added subscription plan selection support for Growth and Pro.
+- Updated the subscription initiation API to validate the signed-in system user.
+- Added the shared business authorization policy to subscription checkout, covering owners and verified admin impersonation sessions.
+- Fixed the 403 Forbidden mismatch between the subscription page and subscription initiation API.
+- Updated billing email resolution during subscription checkout.
+- Applied and verified the pending Prisma migrations in the connected database.
+- Regenerated the Prisma client.
+- Updated Paystack webhook handling.
+- Updated subscription expiry and tier-related business logic.
+- Updated booking and order confirmation/verification routes.
+- Updated booking reminder scheduling.
+- Updated business and subscription page routing and layout behavior.
+- Updated middleware workspace routing.
+- Removed obsolete debug, migration, navbar, and utility scripts that were no longer in use.
+- Updated deployment configuration in vercel.json.
+
+Known Remaining Work
+--------------------
+- The downgrade-to-Free/Starter action still does not work and requires further investigation before it can be considered complete.

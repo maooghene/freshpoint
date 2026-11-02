@@ -66,8 +66,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       Boolean,
     ).length;
 
-    // ✅ FIX: Injected metadata markers explicitly so select-workspace view resolves links correctly
-    if (identityCount >= 2) {
+        if (identityCount >= 2) {
       return NextResponse.json(
         {
           destination: "/select-workspace",
@@ -107,9 +106,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         },
       );
     }
-
-    return NextResponse.json({ destination: "/" });
-
 
     return NextResponse.json({ destination: "/" });
   } catch (error: unknown) {

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { BookingStatus, OrderStatus } from "@prisma/client";
+import { BookingStatus, OrderStatus, SubscriptionTier } from "@prisma/client";
 
 // =========================================================================
 // 🔀 REGULAR VIEW LAYOUT & SIDEBAR NAVIGATION INTERFACES
@@ -63,6 +63,7 @@ export interface FullDashboardBusinessData {
   description: string | null; // Added for customer profile info
   image: string | null; // Added for storefront cover images
   ownerId: string;
+  subscriptionTier: SubscriptionTier;
   staff: DashboardStaffSubset[];
   items: DashboardItemSubset[];
   bookings: DashboardBookingSubset[];
