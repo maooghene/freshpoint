@@ -38,7 +38,7 @@ const TIER_COPY: Record<
   },
   GROWTH: {
     label: "Growth",
-    price: "₦5,000/mo",
+    price: "₦10,000/mo",
     features: [
       "Unlimited staff accounts",
       "Full analytics dashboard",

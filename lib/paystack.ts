@@ -221,7 +221,7 @@ export const SUBSCRIPTION_PLANS: Record<
 > = {
   GROWTH: {
     planCode: process.env.PAYSTACK_GROWTH_PLAN_CODE,
-    amountKobo: 500_000, // ₦5,000
+    amountKobo: 1_000_000, // ₦10,000
   },
   PRO: {
     planCode: process.env.PAYSTACK_PRO_PLAN_CODE,
