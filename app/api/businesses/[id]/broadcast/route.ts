@@ -21,11 +21,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Promotional broadcasts require Pro", code: "BROADCAST_TIER_REQUIRED" }, { status: 403 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
   if (title.length < 3 || message.length < 5) {
     return NextResponse.json({ error: "Title and message must be at least 3 and 5 characters" }, { status: 400 });
+  }
+  if (title.length > 100 || message.length > 1000) {
+    return NextResponse.json({ error: "Title must be at most 100 characters and message at most 1000" }, { status: 400 });
   }
 
   const announcement = await prisma.announcement.create({

@@ -66,7 +66,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       Boolean,
     ).length;
 
-        if (identityCount >= 2) {
+    if (identityCount >= 2) {
       return NextResponse.json(
         {
           destination: "/select-workspace",
