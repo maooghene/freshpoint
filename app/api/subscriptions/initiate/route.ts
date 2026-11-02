@@ -1,3 +1,4 @@
+import { auditImpersonatedAction } from "@/lib/impersonation-audit";
 import { z } from "zod";
 import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -100,6 +101,14 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+
+    await auditImpersonatedAction({
+      businessId,
+      ownerId: business.ownerId,
+      actorUserId: systemUser.id,
+      action: "IMPERSONATED_CHECKOUT_STARTED",
+      metadata: { fromTier: business.subscriptionTier, toTier: tier },
+    });
 
     return NextResponse.json({ authorizationUrl: result.authorizationUrl });
   } catch (error: unknown) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveAbsoluteImageUrl } from "@/lib/resolve-image-url";
+import { hasPromotionalBroadcasts } from "@/lib/subscription-tiers";
 interface DatabaseItemPayload {
   id: string;
   name: string;
@@ -90,6 +91,23 @@ export async function GET(
         rating: true,
       },
     });
+    // Customer-facing promotional broadcast: newest active public one, and
+    // only while the business is still on a plan that includes broadcasts.
+    const now = new Date();
+    const broadcast = hasPromotionalBroadcasts(business.subscriptionTier)
+      ? await prisma.announcement.findFirst({
+          where: {
+            targetType: "BUSINESS",
+            targetBusinessId: business.id,
+            isPublic: true,
+            isActive: true,
+            startsAt: { lte: now },
+            OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, message: true },
+        })
+      : null;
     const totalReviewsCount = aggregationData._count.id;
     const averageRatingScore = aggregationData._avg.rating ?? 0.0;
     const functionalRatingString =
@@ -111,6 +129,7 @@ export async function GET(
       items: formattedItems,
       staff: business.staff || [],
       locations: business.locations || [],
+      broadcast,
     });
   } catch (error) {
     console.error("Critical public workspace slug API error:", error);

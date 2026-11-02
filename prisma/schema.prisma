@@ -578,6 +578,9 @@ model Announcement {
   startsAt         DateTime                @default(now())
   endsAt           DateTime?
   isActive         Boolean                 @default(true)
+  // Promotional broadcasts shown to customers on the storefront. Internal
+  // notices (admin -> business) stay false and are never shown publicly.
+  isPublic         Boolean                 @default(false)
   createdById      String
   createdBy        User                    @relation("AnnouncementCreator", fields: [createdById], references: [id])
   dismissals       AnnouncementDismissal[]
