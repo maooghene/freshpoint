@@ -1,6 +1,8 @@
 // app/api/address/route.ts
 export const dynamic = "force-dynamic";
 
+import { z } from "zod";
+import { parseJsonBody, text, optionalText } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -15,7 +17,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Parse incoming address field values from client payload
-    const { street, city, state, zipCode, isDefault } = await request.json();
+    const parsed = await parseJsonBody(
+      request,
+      z.object({
+        street: text(200),
+        city: text(100),
+        state: optionalText(100),
+        zipCode: z.coerce.string().trim().min(1).max(20),
+        isDefault: z.boolean().optional(),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { street, city, state, zipCode, isDefault } = parsed.data;
 
     if (!street || !city || !zipCode) {
       return NextResponse.json(

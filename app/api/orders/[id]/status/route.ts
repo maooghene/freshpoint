@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { parseJsonBody } from "@/lib/validation";
+import { orderStatusSchema, bookingStatusSchema, dayOfWeekSchema } from "@/lib/schemas";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -30,8 +33,12 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    const body = await request.json().catch(() => null);
-    const { status } = body || {};
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ status: orderStatusSchema }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { status } = parsed.data;
 
     if (!status) {
       return NextResponse.json(
@@ -42,7 +49,7 @@ async function handleStatusMutation(request: NextRequest, id: string) {
 
     const targetOrder = await prisma.order.findUnique({
       where: { id },
-      select: { businessId: true, userId: true },
+      select: { businessId: true, userId: true, status: true },
     });
 
     if (!targetOrder) {
@@ -83,7 +90,20 @@ async function handleStatusMutation(request: NextRequest, id: string) {
       );
     }
 
-    const normalizedStatus = status.trim().toUpperCase() as OrderStatus;
+    const normalizedStatus: OrderStatus = status;
+
+    // A customer who is not part of the business may only cancel their own
+    // order, and only while it is still pending. Everything else is a business
+    // action (processing, shipping, delivery, refunds).
+    if (
+      !businessAuthorized &&
+      (normalizedStatus !== "CANCELLED" || targetOrder.status !== "PENDING")
+    ) {
+      return NextResponse.json(
+        { error: "Customers can only cancel an order that is still pending" },
+        { status: 403 },
+      );
+    }
 
     const updatedOrder = await prisma.order.update({
       where: { id },

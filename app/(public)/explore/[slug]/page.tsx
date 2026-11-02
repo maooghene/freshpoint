@@ -40,6 +40,12 @@ interface BusinessProfileInfo {
   reviewCount?: number;
 }
 
+interface StorefrontBroadcast {
+  id: string;
+  title: string;
+  message: string;
+}
+
 // Moved outside the component to fix the React Compiler skip
 const resolveWorkspaceImage = (savedPath: string | null): string => {
   if (!savedPath || savedPath.trim().length === 0) {
@@ -63,6 +69,7 @@ export default function BusinessProfile() {
   const [services, setServices] = useState<UnifiedItem[]>([]);
   const [products, setProducts] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [broadcast, setBroadcast] = useState<StorefrontBroadcast | null>(null);
 
   // First load shows the full-page spinner; subsequent polling refreshes
   // happen silently in the background so the grid doesn't flash/reset.
@@ -95,6 +102,8 @@ export default function BusinessProfile() {
         rating: data.rating || "New",
         reviewCount: data.totalReviews || 0,
       });
+
+      setBroadcast(data.broadcast ?? null);
 
       const allItems: UnifiedItem[] = data.items || [];
       setServices(allItems.filter((item) => item.type === "SERVICE"));
@@ -158,6 +167,20 @@ export default function BusinessProfile() {
         >
           <ArrowLeftIcon className="w-4 h-4" /> Back to Providers
         </button>
+
+        {broadcast && (
+          <div
+            role="status"
+            className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-5 py-4"
+          >
+            <p className="text-sm font-black tracking-tight">
+              {broadcast.title}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line">
+              {broadcast.message}
+            </p>
+          </div>
+        )}
 
         <BusinessProfileHeader
           id={businessInfo.id}

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -10,7 +12,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { bookingId } = await request.json();
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ bookingId: idSchema }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { bookingId } = parsed.data;
 
     if (!bookingId) {
       return NextResponse.json(

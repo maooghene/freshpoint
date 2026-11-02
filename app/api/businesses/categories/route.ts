@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, text } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -14,14 +16,12 @@ export async function PUT(request: NextRequest) {
     if (!businessId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { categories } = await request.json();
-
-    if (!Array.isArray(categories)) {
-      return NextResponse.json(
-        { error: "Categories parameter must be a string array" },
-        { status: 400 },
-      );
-    }
+    const parsed = await parseJsonBody(
+      request,
+      z.object({ categories: z.array(text(50)).max(30) }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { categories } = parsed.data;
 
     const updatedBusiness = await prisma.business.update({
       where: { id: businessId },

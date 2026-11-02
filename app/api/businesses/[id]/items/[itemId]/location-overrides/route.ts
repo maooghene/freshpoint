@@ -1,4 +1,6 @@
 // app/api/businesses/[id]/items/[itemId]/location-overrides/route.ts
+import { z } from "zod";
+import { parseValue, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -124,9 +126,27 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const body = (await request.json().catch(() => null)) as {
-      overrides?: OverrideInput[];
-    } | null;
+    const overridesParse = parseValue(
+      await request.json().catch(() => null),
+      z.object({
+        overrides: z
+          .array(
+            z.object({
+              locationId: idSchema,
+              price: z
+                .number()
+                .min(0)
+                .max(100_000_000)
+                .nullish()
+                .transform((v) => v ?? null),
+              isAvailable: z.boolean().optional().default(true),
+            }),
+          )
+          .max(100),
+      }),
+    );
+    if (!overridesParse.ok) return overridesParse.response;
+    const body: { overrides?: OverrideInput[] } | null = overridesParse.data;
 
     if (!body || !Array.isArray(body.overrides)) {
       return NextResponse.json(

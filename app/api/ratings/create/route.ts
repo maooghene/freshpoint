@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseValue, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -32,7 +34,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { rating, review, bookingId, businessId, itemId } = body;
+    const ratingParse = parseValue(
+      body,
+      z.object({
+        rating: z.coerce.number().int().min(1).max(5),
+        review: z.string().trim().max(2000).nullish(),
+        bookingId: idSchema.nullish(),
+        businessId: idSchema,
+        itemId: idSchema,
+      }),
+    );
+    if (!ratingParse.ok) return ratingParse.response;
+    const { rating, review, bookingId, businessId, itemId } = ratingParse.data;
 
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json(

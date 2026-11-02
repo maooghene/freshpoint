@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseValue, text, idSchema, phoneSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { OrderStatus } from "@prisma/client";
@@ -120,6 +122,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const checkoutParse = parseValue(
+      body,
+      z.object({
+        reference: text(100),
+        businessId: idSchema,
+        items: z
+          .array(
+            z.object({
+              itemId: idSchema,
+              quantity: z.coerce.number().int().min(1).max(1000),
+              price: z.coerce.number().optional(),
+            }),
+          )
+          .min(1)
+          .max(100),
+        isDelivery: z.boolean().optional(),
+        deliveryAddress: z.string().trim().max(300).nullish(),
+        deliveryLatitude: z.number().min(-90).max(90).nullish(),
+        deliveryLongitude: z.number().min(-180).max(180).nullish(),
+        deliveryNotes: z.string().trim().max(500).nullish(),
+        customerPhone: phoneSchema.nullish(),
+      }),
+    );
+    if (!checkoutParse.ok) return checkoutParse.response;
+    const validatedBody = checkoutParse.data;
     const {
       reference,
       businessId,
@@ -129,8 +156,8 @@ export async function POST(request: NextRequest) {
       deliveryLatitude,
       deliveryLongitude,
       deliveryNotes,
-      customerPhone,  // Added for emergency contact tracking
-    } = body;
+      customerPhone, // Added for emergency contact tracking
+    } = validatedBody;
     // NOTE: `totalAmount` and each item's `price` are intentionally NOT
     // destructured from the client body for use in calculations below —
     // both are re-derived server-side now. See PriceMismatchError above.

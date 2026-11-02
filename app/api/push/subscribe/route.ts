@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -9,10 +11,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { businessId, subscription } = await req.json();
-  if (!businessId || !subscription?.endpoint || !subscription?.keys) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
+  const parsed = await parseJsonBody(
+    req,
+    z.object({
+      businessId: idSchema,
+      subscription: z.object({
+        endpoint: z.string().trim().max(2048).startsWith("https://"),
+        keys: z.object({
+          p256dh: z.string().trim().min(1).max(256),
+          auth: z.string().trim().min(1).max(128),
+        }),
+      }),
+    }),
+  );
+  if (!parsed.ok) return parsed.response;
+  const { businessId, subscription } = parsed.data;
 
   const dbUser = await prisma.user.findUnique({
     where: { clerkId },
@@ -59,10 +72,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { endpoint } = await req.json();
-  if (!endpoint) {
-    return NextResponse.json({ error: "Missing endpoint" }, { status: 400 });
-  }
+  const parsedDelete = await parseJsonBody(
+    req,
+    z.object({ endpoint: z.string().trim().min(1).max(2048) }),
+  );
+  if (!parsedDelete.ok) return parsedDelete.response;
+  const { endpoint } = parsedDelete.data;
 
   await prisma.pushSubscription.deleteMany({ where: { endpoint } });
   return NextResponse.json({ success: true });

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseValue, text, emailSchema, phoneSchema, validateImageFile, safeFileName } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import prisma from "@/lib/prisma";
@@ -54,6 +56,31 @@ export async function POST(request: NextRequest) {
     const description = formData.get("description") as string | null;
     const image = formData.get("image") as File | null;
 
+    const fieldsParse = parseValue(
+      {
+        name,
+        email,
+        sittingCapacity,
+        phone,
+        address,
+        description: description ?? undefined,
+      },
+      z.object({
+        name: text(120),
+        email: emailSchema,
+        sittingCapacity: z.string().trim().regex(/^\d{1,6}$/),
+        phone: phoneSchema.refine((v) => v.length > 0, "Phone is required"),
+        address: text(300),
+        description: z.string().trim().max(2000).optional(),
+      }),
+    );
+    if (!fieldsParse.ok) return fieldsParse.response;
+
+    const imageError = validateImageFile(image, true);
+    if (imageError) {
+      return NextResponse.json({ error: imageError }, { status: 400 });
+    }
+
     // Strict parameter boundary assertions
     if (!name || !email || !sittingCapacity || !phone || !address || !image) {
       return NextResponse.json(
@@ -96,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const uploadResponse = await imagekit.upload({
       file: buffer,
-      fileName: `${Date.now()}-${image.name}`,
+      fileName: `${Date.now()}-${safeFileName(image.name)}`,
       folder: "/businesses",
     });
 

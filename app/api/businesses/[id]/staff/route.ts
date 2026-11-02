@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, text, optionalText, idSchema, emailSchema, escapeHtml } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -18,14 +20,17 @@ export async function POST(
     }
 
     const { id: businessId } = await params;
-    const { name, email, role, locationId } = await req.json();
-
-    if (!name || !email) {
-      return NextResponse.json(
-        { error: "Missing required fields: name and email" },
-        { status: 400 },
-      );
-    }
+    const parsed = await parseJsonBody(
+      req,
+      z.object({
+        name: text(100),
+        email: emailSchema,
+        role: optionalText(60),
+        locationId: idSchema.nullish(),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { name, email, role, locationId } = parsed.data;
 
     const cleanEmail = String(email).toLowerCase().trim();
 
@@ -140,9 +145,9 @@ export async function POST(
         html: `
           <div style="font-family: sans-serif; max-w: 500px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
             <h2 style="color: #6d28d9; margin-bottom: 4px; font-weight: 900;">Workspace Invitation</h2>
-            <p style="font-size: 14px; color: #475569; margin-top: 0;">Hello ${name},</p>
+            <p style="font-size: 14px; color: #475569; margin-top: 0;">Hello ${escapeHtml(name)},</p>
             <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-              You have been invited to join <strong>${business.name}</strong>on FreshPoint as a <strong>${role || "Specialist"}</strong>.
+              You have been invited to join <strong>${escapeHtml(business.name)}</strong>on FreshPoint as a <strong>${escapeHtml(role || "Specialist")}</strong>.
             </p>
             <div style="margin: 24px 0; text-align: center;">
               <a href="${secureOnboardingLink}" style="background-color: #6d28d9; color: white; padding: 12px 24px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 12px; display: inline-block;">

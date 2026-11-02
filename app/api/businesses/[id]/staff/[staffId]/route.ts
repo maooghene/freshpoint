@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { parseJsonBody, text } from "@/lib/validation";
+import { orderStatusSchema, bookingStatusSchema, dayOfWeekSchema } from "@/lib/schemas";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
@@ -21,8 +24,26 @@ export async function PATCH(
     }
 
     const { id: businessId, staffId } = await params;
-    const body = await request.json();
-    const { name, isActive, schedules } = body;
+    const parsed = await parseJsonBody(
+      request,
+      z.object({
+        name: text(100).optional(),
+        isActive: z.boolean().optional(),
+        schedules: z
+          .array(
+            z.object({
+              day: dayOfWeekSchema,
+              startTime: z.string().trim().max(8).regex(/^(\d{1,2}:\d{2})?$/),
+              endTime: z.string().trim().max(8).regex(/^(\d{1,2}:\d{2})?$/),
+              isOff: z.boolean().optional(),
+            }),
+          )
+          .max(7)
+          .optional(),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { name, isActive, schedules } = parsed.data;
 
     const business = await prisma.business.findFirst({
       where: {

@@ -1,4 +1,6 @@
 // app/api/support/chat/route.ts
+import { z } from "zod";
+import { parseJsonBody } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -11,7 +13,25 @@ interface IncomingMessage {
 
 export async function POST(req: Request) {
   try {
-    const { messages } = (await req.json()) as { messages: IncomingMessage[] };
+    const chatParse = await parseJsonBody(
+      req,
+      z.object({
+        messages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant", "system"]),
+              content: z.string().max(4000),
+            }),
+          )
+          .min(1)
+          .max(30)
+          // The server supplies its own system prompt. A client-supplied
+          // "system" message is a prompt-injection attempt, so drop it.
+          .transform((all) => all.filter((m) => m.role !== "system")),
+      }),
+    );
+    if (!chatParse.ok) return chatParse.response;
+    const messages: IncomingMessage[] = chatParse.data.messages;
     const apiKey = process.env.HF_API_KEY;
 
     if (!apiKey) {

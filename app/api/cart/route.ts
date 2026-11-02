@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -11,14 +13,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { businessId, items } = await request.json();
-
-    if (!businessId || !Array.isArray(items)) {
-      return NextResponse.json(
-        { error: "Missing required parameters: businessId and items array" },
-        { status: 400 },
-      );
-    }
+    const parsed = await parseJsonBody(
+      request,
+      z.object({
+        businessId: idSchema,
+        items: z
+          .array(
+            z.object({
+              itemId: idSchema,
+              quantity: z.number().int().min(1).max(1000),
+              price: z.number().min(0).max(100_000_000),
+            }),
+          )
+          .max(200),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { businessId, items } = parsed.data;
 
     // 1. Resolve internal sequential database User.id row from Clerk token context
     const user = await prisma.user.findUnique({

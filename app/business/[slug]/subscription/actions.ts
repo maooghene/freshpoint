@@ -1,5 +1,6 @@
 "use server";
 
+import { auditImpersonatedAction } from "@/lib/impersonation-audit";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -98,6 +99,18 @@ export async function downgradeToStarter(
       },
     });
   }
+
+  await auditImpersonatedAction({
+    businessId,
+    ownerId: business.ownerId,
+    actorUserId: systemUser.id,
+    action: "IMPERSONATED_PLAN_DOWNGRADE",
+    metadata: {
+      fromTier: business.subscriptionTier,
+      requestedTiming: timing,
+      appliedTiming: effectiveTiming,
+    },
+  });
 
   revalidatePath(`/business/${slug}/subscription`);
   return { success: true };

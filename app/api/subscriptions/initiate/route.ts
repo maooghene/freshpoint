@@ -1,10 +1,10 @@
+import { auditImpersonatedAction } from "@/lib/impersonation-audit";
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import {
-  initializeSubscriptionTransaction,
-  PaidSubscriptionTier,
-} from "@/lib/paystack";
+import { initializeSubscriptionTransaction } from "@/lib/paystack";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { compareTierRank } from "@/lib/subscription-tiers";
 
@@ -15,18 +15,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { businessId, tier } = (await req.json()) as {
-      businessId: string;
-      tier: PaidSubscriptionTier;
-      slug?: string;
-    };
-
-    if (!businessId || !tier || (tier !== "GROWTH" && tier !== "PRO")) {
-      return NextResponse.json(
-        { error: "Invalid subscription request" },
-        { status: 400 },
-      );
-    }
+    const parsed = await parseJsonBody(
+      req,
+      z.object({
+        businessId: idSchema,
+        tier: z.enum(["GROWTH", "PRO"]),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { businessId, tier } = parsed.data;
 
     const systemUser = await prisma.user.findUnique({
       where: { clerkId },
@@ -104,6 +101,14 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+
+    await auditImpersonatedAction({
+      businessId,
+      ownerId: business.ownerId,
+      actorUserId: systemUser.id,
+      action: "IMPERSONATED_CHECKOUT_STARTED",
+      metadata: { fromTier: business.subscriptionTier, toTier: tier },
+    });
 
     return NextResponse.json({ authorizationUrl: result.authorizationUrl });
   } catch (error: unknown) {

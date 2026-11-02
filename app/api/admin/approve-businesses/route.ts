@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody, idSchema } from "@/lib/validation";
 import authAdmin from "@/lib/authAdmin";
 import { auth } from "@clerk/nextjs/server";
 import  prisma  from "@/lib/prisma";
@@ -54,9 +56,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await request.json();
-    // FIXED: Swapped 'salonId' parameter tracking mapping keys over to 'businessId'
-    const { businessId, status } = body; // status parameters pass explicitly as 'approved' | 'rejected'
+    const parsed = await parseJsonBody(
+      request,
+      z.object({
+        businessId: idSchema,
+        status: z.enum(["approved", "rejected", "pending", "suspended"]),
+      }),
+    );
+    if (!parsed.ok) return parsed.response;
+    const { businessId, status } = parsed.data;
 
     if (!businessId || !status) {
       return NextResponse.json(
