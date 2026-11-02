@@ -35,11 +35,19 @@ export async function GET(request: NextRequest) {
       `✅ DISK PURGE SUCCESSFUL: Removed ${purgeSummary.count} stale booking records from disk.`,
     );
 
+    // Paystack stops retrying a webhook after about 3 days, so dedupe markers
+    // older than 14 days are no longer needed.
+    const webhookEventCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const webhookPurge = await prisma.paystackWebhookEvent.deleteMany({
+      where: { processedAt: { lt: webhookEventCutoff } },
+    });
+
     return NextResponse.json(
       {
         success: true,
         message: "Database pruning execution complete.",
         rowsDeleted: purgeSummary.count,
+        webhookEventsDeleted: webhookPurge.count,
         timestamp: new Date().toISOString(),
       },
       { status: 200 },

@@ -24,6 +24,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/bookings/reference/(.*)",
   "/api/categories/items(.*)",
   "/api/webhooks/(.*)",
+  // Vercel cron requests carry no Clerk session. Each cron handler checks
+  // the CRON_SECRET bearer token itself.
+  "/api/cron/(.*)",
   "/api/items/(.*)",
   "/checkout(.*)",
   "/register-business(.*)",
@@ -75,7 +78,9 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // D. Multi-Tenant Subdomain Parsing Logic
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  // Falls back to the production domain so tenant subdomain routing keeps
+  // working if NEXT_PUBLIC_ROOT_DOMAIN is not set at build time.
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "freshpoint.com";
   let tenantSlug = "";
 
   if (rootDomain && hostname.endsWith(`.${rootDomain}`)) {
