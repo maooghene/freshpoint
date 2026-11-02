@@ -6,6 +6,7 @@ import {
   PaidSubscriptionTier,
 } from "@/lib/paystack";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
+import { compareTierRank } from "@/lib/subscription-tiers";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,10 +15,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { businessId, tier, slug } = (await req.json()) as {
+    const { businessId, tier } = (await req.json()) as {
       businessId: string;
       tier: PaidSubscriptionTier;
-      slug: string;
+      slug?: string;
     };
 
     if (!businessId || !tier || (tier !== "GROWTH" && tier !== "PRO")) {
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest) {
       select: {
         ownerId: true,
         email: true,
+        slug: true,
+        subscriptionTier: true,
+        owner: { select: { email: true } },
       },
     });
 
@@ -57,9 +61,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    if (business.subscriptionTier === tier) {
+      return NextResponse.json(
+        { error: "This business is already on that plan." },
+        { status: 400 },
+      );
+    }
+
+    // Moving from a paid plan to a lower paid plan would need a staff and
+    // location selection and would create a second subscription. Route it
+    // through the Starter downgrade flow instead.
+    if (
+      business.subscriptionTier !== "STARTER" &&
+      compareTierRank(tier, business.subscriptionTier) > 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "To move to a lower plan, downgrade to Starter first, then choose your new plan.",
+        },
+        { status: 400 },
+      );
+    }
+
     const url = new URL(req.url);
-    const callbackUrl = `${url.origin}/business/${slug}/subscription`;
-    const billingEmail = systemUser.email || business.email;
+    // Use the stored slug, not the client-supplied one.
+    const callbackUrl = `${url.origin}/business/${business.slug}/subscription`;
+    // Bill the business owner, never the signed-in user: under admin
+    // impersonation the signed-in user is the admin.
+    const billingEmail = business.owner.email || business.email;
 
     const result = await initializeSubscriptionTransaction({
       email: billingEmail,

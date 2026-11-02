@@ -80,6 +80,13 @@ export default function SubscriptionTierCard({
         });
         if (!result.success) {
           alert(result.error || "Downgrade failed. Please try again.");
+        } else {
+          setShowDowngradeChoices(false);
+          alert(
+            timing === "now"
+              ? "Your plan has been changed to Starter."
+              : "Done. Your paid plan stays active until it expires, then moves to Starter.",
+          );
         }
       } else {
         const res = await fetch("/api/subscriptions/initiate", {
@@ -154,7 +161,7 @@ export default function SubscriptionTierCard({
         ))}
       </ul>
 
-      {showDowngradeChoices && tier === "STARTER" ? (
+      {showDowngradeChoices && tier === "STARTER" && !isCurrent ? (
         <div className="space-y-3">
           {staffOptions.length > 1 && (
             <fieldset className="rounded-xl border border-border p-3">

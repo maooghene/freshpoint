@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { disablePaystackSubscription } from "@/lib/paystack";
 import { applyTier } from "@/lib/subscription-service";
+import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 /**
- * Downgrading to Starter is free and instant — no payment involved.
- * If the business had an active paid subscription, we also cancel it on
- * Paystack's side so they stop being billed going forward.
+ * Downgrading to Starter is free. If the business has an active paid
+ * subscription, recurring billing is cancelled on Paystack first. If that
+ * cancel fails we stop, so the stored subscription code and token are never
+ * lost while the customer is still being billed.
  */
 export async function downgradeToStarter(
   businessId: string,
@@ -35,25 +37,45 @@ export async function downgradeToStarter(
     where: { id: businessId },
     select: {
       ownerId: true,
+      subscriptionTier: true,
+      subscriptionExpiresAt: true,
       paystackSubscriptionCode: true,
       paystackEmailToken: true,
     },
   });
 
-  if (!business || business.ownerId !== systemUser.id) {
+  // Same policy as the subscription page and the checkout route:
+  // the owner, or a verified admin impersonation session for this business.
+  const authorized = business
+    ? await authorizeBusinessAccess({
+        businessId,
+        ownerId: business.ownerId,
+        systemUserId: systemUser.id,
+        allowStaff: false,
+      })
+    : false;
+
+  if (!business || !authorized) {
     return { success: false, error: "Forbidden" };
   }
 
-  const hasPaystackSubscription = Boolean(
-    business.paystackSubscriptionCode && business.paystackEmailToken,
-  );
+  if (business.subscriptionTier === "STARTER") {
+    return { success: false, error: "This business is already on Starter." };
+  }
 
-  if (hasPaystackSubscription) {
+  // The expiry job only picks up businesses that have an expiry date, so a
+  // paid tier with no expiry cannot wait for period end. Apply it now.
+  const effectiveTiming: "now" | "period_end" =
+    timing === "period_end" && !business.subscriptionExpiresAt
+      ? "now"
+      : timing;
+
+  if (business.paystackSubscriptionCode && business.paystackEmailToken) {
     const cancelled = await disablePaystackSubscription(
-      business.paystackSubscriptionCode!,
-      business.paystackEmailToken!,
+      business.paystackSubscriptionCode,
+      business.paystackEmailToken,
     );
-    if (!cancelled && timing === "period_end") {
+    if (!cancelled) {
       return {
         success: false,
         error: "Could not stop recurring billing. Please try again.",
@@ -61,13 +83,13 @@ export async function downgradeToStarter(
     }
   }
 
-  if (timing === "now") {
-    await applyTier(businessId, "STARTER", selection);
-    await prisma.business.update({
-      where: { id: businessId },
-      data: { paystackSubscriptionCode: null, paystackEmailToken: null },
+  if (effectiveTiming === "now") {
+    await applyTier(businessId, "STARTER", selection, {
+      clearPaystackSubscription: true,
     });
   } else {
+    // The paid tier stays active until subscriptionExpiresAt; the expiry job
+    // then applies Starter using these saved selections.
     await prisma.business.update({
       where: { id: businessId },
       data: {
@@ -76,8 +98,6 @@ export async function downgradeToStarter(
       },
     });
   }
-  // At period end the paid tier remains active until subscriptionExpiresAt;
-  // the expiry job then applies Starter centrally.
 
   revalidatePath(`/business/${slug}/subscription`);
   return { success: true };

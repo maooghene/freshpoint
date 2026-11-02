@@ -72,8 +72,10 @@ export default async function SubscriptionPage({ params }: PageProps) {
     where: { slug },
     include: {
       owner: true,
-      staff: { select: { id: true, name: true, email: true, isActive: true }, orderBy: { createdAt: "asc" } },
-      locations: { select: { id: true, name: true, isPrimary: true, isActive: true }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+      // Only active staff and locations can be kept on a downgrade; inactive
+      // ones are ignored by the server, so do not offer them.
+      staff: { where: { isActive: true }, select: { id: true, name: true, email: true, isActive: true }, orderBy: { createdAt: "asc" } },
+      locations: { where: { isActive: true }, select: { id: true, name: true, isPrimary: true, isActive: true }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
     },
   });
 
