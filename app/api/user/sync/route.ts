@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -10,7 +11,11 @@ import { UserRole } from "@prisma/client";
  * route used to accept a clerkId and email from the body on a public route,
  * which let anyone overwrite any user's profile.
  */
-export async function POST() {
+export async function POST(request: Request) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.mutation);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {

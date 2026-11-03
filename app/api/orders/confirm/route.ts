@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseValue, text, idSchema, phoneSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -97,6 +98,10 @@ function getEffectiveItemPrice(item: { price: number }): number {
 }
 
 export async function POST(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.payment);
+    if (limited) return limited;
+  }
   try {
     console.log("------------------------------------------------");
     console.log("🚀 [FreshPoint API] ORDER CONFIRMATION INITIATED");
