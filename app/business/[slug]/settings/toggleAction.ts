@@ -13,6 +13,10 @@ export async function toggleOwnerRosterStatus(
     const { userId: clerkId } = await auth();
     if (!clerkId) throw new Error("Authentication required");
 
+    if (typeof businessId !== "string" || !businessId || typeof makeActive !== "boolean") {
+      throw new Error("Invalid request");
+    }
+
     const user = await prisma.user.findUnique({
       where: { clerkId },
       select: { id: true },

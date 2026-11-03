@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { uploadToImageKit } from "@/lib/imagekit";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { canCustomizeDeliveryRadius } from "@/lib/subscription-tiers";
+import { validateImageFile } from "@/lib/validation";
+
+const MAX_DELIVERY_FEE = 1_000_000;
+const MAX_DELIVERY_RADIUS_KM = 200;
 
 export interface ActionState {
   success: boolean;
@@ -78,14 +82,6 @@ export async function updateBusinessSettings(
       };
     }
 
-    // Verified via Prisma Schema: ownerId references internal User.id (cuid)
-    if (!business || business.ownerId !== systemUser.id) {
-      return {
-        success: false,
-        message: "Forbidden. You do not own this workspace.",
-      };
-    }
-
     const name = formData.get("name")?.toString().trim() || "";
     const phone = formData.get("phone")?.toString().trim() || "";
     const address = formData.get("address")?.toString().trim() || "";
@@ -128,36 +124,10 @@ export async function updateBusinessSettings(
 
     const errors: Record<string, string[]> = {};
 
-    if (file && file.size > 0) {
-      if (file.size > 4 * 1024 * 1024) {
-        errors.image = [
-          "File size is too massive. Maximum allowed size is 4MB.",
-        ];
-      }
-
-      const allowedMimeTypes = [
-        "image/jpeg",
-        "image/jpg",
-        "image/png",
-        "image/webp",
-      ];
-      if (!allowedMimeTypes.includes(file.type)) {
-        errors.image = [
-          "Invalid format type. Only JPEG, PNG, and WebP are allowed.",
-        ];
-      }
-
-      if (Object.keys(errors).length === 0) {
-        try {
-          savedImagePath = await uploadToImageKit(file);
-        } catch (uploadError: unknown) {
-          console.error("IMAGE_UPLOAD_FAILURE:", uploadError);
-          return {
-            success: false,
-            message: "Media storage synchronization pipeline failed.",
-          };
-        }
-      }
+    const hasNewImage = file instanceof File && file.size > 0;
+    if (hasNewImage) {
+      const imageError = validateImageFile(file);
+      if (imageError) errors.image = [imageError];
     }
 
     const sittingCapacityRaw = formData.get("sittingCapacity");
@@ -167,30 +137,62 @@ export async function updateBusinessSettings(
 
     const categoriesRaw = formData.get("categories")?.toString().trim();
     const categories = categoriesRaw
-      ? categoriesRaw
-          .split(",")
-          .map((c) => c.trim())
-          .filter(Boolean)
+      ? [
+          ...new Set(
+            categoriesRaw
+              .split(",")
+              .map((c) => c.trim().toUpperCase())
+              .filter(Boolean),
+          ),
+        ]
       : [];
 
-    if (!name || name.length < 2)
-      errors.name = ["Business name must be at least 2 characters long."];
-    if (!phone || phone.length < 7)
-      errors.phone = ["Phone number must be at least 7 characters long."];
-    if (!address || address.length < 5)
-      errors.address = ["Address must be at least 5 characters long."];
-    if (isNaN(sittingCapacity) || sittingCapacity < 1)
-      errors.sittingCapacity = ["Sitting capacity must be at least 1."];
+    if (categories.length > 3) {
+      errors.categories = ["You can select a maximum of 3 categories."];
+    } else if (categories.length > 0) {
+      const matched = await prisma.businessCategory.findMany({
+        where: { value: { in: categories }, isActive: true },
+        select: { value: true },
+      });
+      const valid = new Set(matched.map((c) => c.value));
+      if (!categories.every((c) => valid.has(c))) {
+        errors.categories = ["One or more selected categories are invalid."];
+      }
+    }
+
+    if (!name || name.length < 2 || name.length > 120)
+      errors.name = ["Business name must be between 2 and 120 characters."];
+    if (
+      !phone ||
+      phone.length < 7 ||
+      phone.length > 30 ||
+      !/^[+()\-\s\d]+$/.test(phone)
+    )
+      errors.phone = ["Phone number must be 7-30 digits (spaces, + and - allowed)."];
+    if (!address || address.length < 5 || address.length > 300)
+      errors.address = ["Address must be between 5 and 300 characters."];
+    if (description && description.length > 2000)
+      errors.description = ["Description must be 2000 characters or fewer."];
+    if (isNaN(sittingCapacity) || sittingCapacity < 1 || sittingCapacity > 100000)
+      errors.sittingCapacity = ["Sitting capacity must be between 1 and 100,000."];
 
     // Validate delivery fee parameters safely
-    if (isNaN(baseDeliveryFee) || baseDeliveryFee < 0) {
+    if (
+      !Number.isFinite(baseDeliveryFee) ||
+      baseDeliveryFee < 0 ||
+      baseDeliveryFee > MAX_DELIVERY_FEE
+    ) {
       errors.baseDeliveryFee = [
-        "Base delivery fee must be a valid number greater than or equal to 0.",
+        "Base delivery fee must be a number between 0 and 1,000,000.",
       ];
     }
-    if (isNaN(deliveryFeePerKm) || deliveryFeePerKm < 0) {
+    if (
+      !Number.isFinite(deliveryFeePerKm) ||
+      deliveryFeePerKm < 0 ||
+      deliveryFeePerKm > MAX_DELIVERY_FEE
+    ) {
       errors.deliveryFeePerKm = [
-        "Delivery fee per KM must be a valid number greater than or equal to 0.",
+        "Delivery fee per KM must be a number between 0 and 1,000,000.",
       ];
     }
 
@@ -198,27 +200,31 @@ export async function updateBusinessSettings(
     // to set one — a Starter/Growth submission was already forced to null
     // above, so there's nothing here to validate for them.
     if (canCustomizeRadius && deliveryRadiusKm !== null) {
-      if (isNaN(deliveryRadiusKm) || deliveryRadiusKm <= 0) {
+      if (
+        !Number.isFinite(deliveryRadiusKm) ||
+        deliveryRadiusKm <= 0 ||
+        deliveryRadiusKm > MAX_DELIVERY_RADIUS_KM
+      ) {
         errors.deliveryRadiusKm = [
-          "Delivery radius must be a valid number greater than 0.",
+          "Delivery radius must be a number between 0 and 200 km.",
         ];
       }
     }
 
-    console.log("VALIDATION_ERRORS_DEBUG:", errors);
-    console.log("SUBMITTED_VALUES_DEBUG:", {
-      name,
-      phone,
-      address,
-      sittingCapacity,
-      baseDeliveryFee,
-      deliveryFeePerKm,
-      deliveryRadiusKm,
-      canCustomizeRadius,
-    });
-
     if (Object.keys(errors).length > 0) {
       return { success: false, message: "Validation failed.", errors };
+    }
+
+    if (hasNewImage) {
+      try {
+        savedImagePath = await uploadToImageKit(file);
+      } catch (uploadError: unknown) {
+        console.error("IMAGE_UPLOAD_FAILURE:", uploadError);
+        return {
+          success: false,
+          message: "Media storage synchronization pipeline failed.",
+        };
+      }
     }
 
     await prisma.business.update({
@@ -245,11 +251,10 @@ export async function updateBusinessSettings(
       message: "Vendor configurations saved successfully.",
     };
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred.";
+    console.error("UPDATE_BUSINESS_SETTINGS_ERROR:", error);
     return {
       success: false,
-      message: `Failed to commit database update: ${errorMessage}`,
+      message: "Could not save your settings. Please try again.",
     };
   }
 }

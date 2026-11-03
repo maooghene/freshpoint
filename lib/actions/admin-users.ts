@@ -36,7 +36,7 @@ export async function searchPlatformUsers(
     throw new Error("Unauthorized access to administrative data pools.");
   }
 
-  const trimmed = query.trim();
+  const trimmed = (typeof query === "string" ? query : "").trim().slice(0, 100);
 
   return await prisma.user.findMany({
     where: trimmed

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
 import { logAdminAction } from "@/lib/actions/admin-audit";
+import { z } from "zod";
+import { idSchema } from "@/lib/validation";
 
 export interface VendorDetails {
   id: string;
@@ -64,10 +66,21 @@ export async function updateVendorStatusAction(
     return { success: false, message: "Unauthorized access." };
   }
 
+  const input = z
+    .object({
+      businessId: idSchema,
+      status: z.enum(["approved", "suspended", "pending"]),
+      isActive: z.boolean(),
+    })
+    .safeParse({ businessId, status, isActive });
+  if (!input.success) {
+    return { success: false, message: "Invalid vendor update request." };
+  }
+
   try {
     await prisma.business.update({
-      where: { id: businessId },
-      data: { status, isActive },
+      where: { id: input.data.businessId },
+      data: { status: input.data.status, isActive: input.data.isActive },
     });
 
     await logAdminAction({
@@ -107,10 +120,17 @@ export async function toggleVendorPayoutFreezeAction(
     };
   }
 
+  const input = z
+    .object({ businessId: idSchema, freezeState: z.boolean() })
+    .safeParse({ businessId, freezeState });
+  if (!input.success) {
+    return { success: false, message: "Invalid payout freeze request." };
+  }
+
   try {
     await prisma.business.update({
-      where: { id: businessId },
-      data: { isPayoutFrozen: freezeState },
+      where: { id: input.data.businessId },
+      data: { isPayoutFrozen: input.data.freezeState },
     });
 
     await logAdminAction({

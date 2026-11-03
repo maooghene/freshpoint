@@ -108,11 +108,11 @@ export async function createLocation(
 
     const errors: Record<string, string[]> = {};
 
-    if (!name || name.length < 2) {
-      errors.name = ["Location name must be at least 2 characters long."];
+    if (!name || name.length < 2 || name.length > 120) {
+      errors.name = ["Location name must be between 2 and 120 characters."];
     }
-    if (!address || address.length < 5) {
-      errors.address = ["Address must be at least 5 characters long."];
+    if (!address || address.length < 5 || address.length > 300) {
+      errors.address = ["Address must be between 5 and 300 characters."];
     }
     if (isNaN(latitude) || latitude < -90 || latitude > 90) {
       errors.latitude = [
@@ -126,10 +126,12 @@ export async function createLocation(
     }
     if (
       deliveryRadiusKm !== null &&
-      (isNaN(deliveryRadiusKm) || deliveryRadiusKm <= 0)
+      (!Number.isFinite(deliveryRadiusKm) ||
+        deliveryRadiusKm <= 0 ||
+        deliveryRadiusKm > 200)
     ) {
       errors.deliveryRadiusKm = [
-        "Delivery radius must be a valid number greater than 0.",
+        "Delivery radius must be a number between 0 and 200 km.",
       ];
     }
 
@@ -163,11 +165,10 @@ export async function createLocation(
       message: "Location added successfully.",
     };
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred.";
+    console.error("CREATE_LOCATION_ERROR:", error);
     return {
       success: false,
-      message: `Failed to commit database update: ${errorMessage}`,
+      message: "Could not add the location. Please try again.",
     };
   }
 }
