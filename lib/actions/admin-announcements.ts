@@ -3,6 +3,31 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
+import { z } from "zod";
+import { idSchema, text } from "@/lib/validation";
+import { UserRole } from "@prisma/client";
+
+const announcementFormSchema = z
+  .object({
+    title: text(100, 3).describe("Title"),
+    message: text(1000, 5),
+    severity: z.enum(["INFO", "WARNING", "CRITICAL"]),
+    targetType: z.enum(["ALL", "ROLE", "BUSINESS"]),
+    targetRole: z.nativeEnum(UserRole).optional(),
+    targetBusinessId: idSchema.optional(),
+    endsAt: z.coerce
+      .date({ message: "Enter a valid end date." })
+      .refine((d) => d.getTime() > Date.now(), "End date must be in the future.")
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.targetType === "ROLE" && !value.targetRole) {
+      ctx.addIssue({ code: "custom", path: ["targetRole"], message: "Select a role to target." });
+    }
+    if (value.targetType === "BUSINESS" && !value.targetBusinessId) {
+      ctx.addIssue({ code: "custom", path: ["targetBusinessId"], message: "Select a business to target." });
+    }
+  });
 
 export interface AnnouncementActionState {
   success: boolean;
@@ -24,35 +49,27 @@ export async function createAnnouncementAction(
     return { success: false, message: "Unauthorized." };
   }
 
-  const title = formData.get("title")?.toString().trim() || "";
-  const message = formData.get("message")?.toString().trim() || "";
-  const severity = (formData.get("severity")?.toString() || "INFO") as
-    | "INFO"
-    | "WARNING"
-    | "CRITICAL";
-  const targetType = (formData.get("targetType")?.toString() || "ALL") as
-    | "ALL"
-    | "ROLE"
-    | "BUSINESS";
-  const targetRole = formData.get("targetRole")?.toString() || null;
-  const targetBusinessId = formData.get("targetBusinessId")?.toString() || null;
-  const endsAtRaw = formData.get("endsAt")?.toString();
+  const parsed = announcementFormSchema.safeParse({
+    title: formData.get("title")?.toString(),
+    message: formData.get("message")?.toString(),
+    severity: formData.get("severity")?.toString() || "INFO",
+    targetType: formData.get("targetType")?.toString() || "ALL",
+    targetRole: formData.get("targetRole")?.toString() || undefined,
+    targetBusinessId: formData.get("targetBusinessId")?.toString() || undefined,
+    endsAt: formData.get("endsAt")?.toString() || undefined,
+  });
 
-  const errors: Record<string, string[]> = {};
-  if (!title || title.length < 3)
-    errors.title = ["Title must be at least 3 characters."];
-  if (!message || message.length < 5)
-    errors.message = ["Message must be at least 5 characters."];
-  if (targetType === "ROLE" && !targetRole) {
-    errors.targetRole = ["Select a role to target."];
-  }
-  if (targetType === "BUSINESS" && !targetBusinessId) {
-    errors.targetBusinessId = ["Select a business to target."];
-  }
-
-  if (Object.keys(errors).length > 0) {
+  if (!parsed.success) {
+    const errors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[0] ?? "message");
+      (errors[key] ??= []).push(issue.message);
+    }
     return { success: false, message: "Validation failed.", errors };
   }
+
+  const { title, message, severity, targetType, targetRole, targetBusinessId, endsAt } =
+    parsed.data;
 
   await prisma.announcement.create({
     data: {
@@ -60,9 +77,9 @@ export async function createAnnouncementAction(
       message,
       severity,
       targetType,
-      targetRole: targetType === "ROLE" ? (targetRole as any) : null,
+      targetRole: targetType === "ROLE" ? targetRole : null,
       targetBusinessId: targetType === "BUSINESS" ? targetBusinessId : null,
-      endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
+      endsAt: endsAt ?? null,
       createdById: session.userId!,
     },
   });
@@ -76,6 +93,7 @@ export async function toggleAnnouncementActiveAction(id: string) {
   if (!session.isAdmin && !session.isPlatformStaff) {
     throw new Error("Unauthorized.");
   }
+  if (!idSchema.safeParse(id).success) throw new Error("Invalid announcement.");
 
   const current = await prisma.announcement.findUnique({
     where: { id },
@@ -96,6 +114,7 @@ export async function deleteAnnouncementAction(id: string) {
   if (!session.isAdmin && !session.isPlatformStaff) {
     throw new Error("Unauthorized.");
   }
+  if (!idSchema.safeParse(id).success) throw new Error("Invalid announcement.");
 
   await prisma.announcement.delete({ where: { id } });
   revalidatePath("/admin/announcements");

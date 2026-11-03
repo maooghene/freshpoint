@@ -10,6 +10,8 @@ import {
   ComplaintCategory,
 } from "@prisma/client";
 import { logAdminAction } from "@/lib/actions/admin-audit";
+import { z } from "zod";
+import { idSchema } from "@/lib/validation";
 import { syncBanStatusToClerk, revokeAllUserSessions } from "@/lib/clerk-sync";
 
 export interface ComplaintData {
@@ -80,12 +82,19 @@ export async function updateComplaintStatusAction(
     };
   }
 
+  const input = z
+    .object({ id: idSchema, status: z.nativeEnum(ComplaintStatus) })
+    .safeParse({ id, status });
+  if (!input.success) {
+    return { success: false, message: "Invalid ticket update request." };
+  }
+
   try {
     await prisma.complaint.update({
-      where: { id },
+      where: { id: input.data.id },
       data: {
-        status,
-        resolvedAt: status === "RESOLVED" ? new Date() : null,
+        status: input.data.status,
+        resolvedAt: input.data.status === "RESOLVED" ? new Date() : null,
       },
     });
 
@@ -116,12 +125,35 @@ export async function toggleCustomerBanAction(
   userId: string,
   banState: boolean,
 ): Promise<{ success: boolean; message: string }> {
-  const { isAdmin } = await verifyAdminSession();
+  const { isAdmin, userId: actorId } = await verifyAdminSession();
   if (!isAdmin) {
     return {
       success: false,
       message: "You do not have permission to change account access status.",
     };
+  }
+
+  const input = z
+    .object({ userId: idSchema, banState: z.boolean() })
+    .safeParse({ userId, banState });
+  if (!input.success) {
+    return { success: false, message: "Invalid account access request." };
+  }
+
+  if (banState) {
+    if (actorId && actorId === userId) {
+      return { success: false, message: "You cannot block your own account." };
+    }
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (target?.role === "ADMIN") {
+      return {
+        success: false,
+        message: "Master admin accounts cannot be blocked from here.",
+      };
+    }
   }
 
   try {

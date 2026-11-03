@@ -3,6 +3,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { parseValue, text, phoneSchema } from "@/lib/validation";
 
 export interface StaffSettingsInput {
   name: string;
@@ -14,6 +16,11 @@ export interface ActionResponse {
   message: string;
 }
 
+const staffSettingsSchema = z.object({
+  name: text(120, 2),
+  phone: phoneSchema.optional(),
+});
+
 export async function updateStaffPersonalSettings(
   data: StaffSettingsInput,
 ): Promise<ActionResponse> {
@@ -23,10 +30,18 @@ export async function updateStaffPersonalSettings(
       return { success: false, message: "Unauthorized access token mapping." };
     }
 
-    // 1. Locate the absolute user registration row via Clerk ID mapping
+    // Server actions are public endpoints: never trust the argument's shape.
+    const parsed = parseValue(data, staffSettingsSchema);
+    if (!parsed.ok) {
+      return {
+        success: false,
+        message: "Please enter a name between 2 and 120 characters.",
+      };
+    }
+
     const userProfile = await prisma.user.findUnique({
       where: { clerkId },
-      select: { id: true },
+      select: { id: true, email: true },
     });
 
     if (!userProfile) {
@@ -36,34 +51,26 @@ export async function updateStaffPersonalSettings(
       };
     }
 
-    // 2. Track the corresponding active workplace staff profile bound to this specific user
-    const staffProfile = await prisma.staffProfile.findFirst({
+    // A person can be rostered at several businesses, so update every
+    // staff profile that belongs to this user (linked by account or email).
+    const result = await prisma.staffProfile.updateMany({
       where: {
-        email: {
-          equals: await prisma.user
-            .findUnique({ where: { clerkId }, select: { email: true } })
-            .then((u) => u?.email || ""),
-          mode: "insensitive",
-        },
+        OR: [
+          { userId: userProfile.id },
+          ...(userProfile.email
+            ? [{ email: { equals: userProfile.email, mode: "insensitive" as const } }]
+            : []),
+        ],
       },
-      select: { id: true, businessId: true },
+      data: { name: parsed.data.name },
     });
 
-    if (!staffProfile) {
+    if (result.count === 0) {
       return {
         success: false,
         message: "Forbidden: No active workplace staff matrix found.",
       };
     }
-
-    // 3. Execute an atomic parameter update targeting only safe profile strings
-    await prisma.staffProfile.update({
-      where: { id: staffProfile.id },
-      data: {
-        name: data.name.trim(),
-        // Storing phone directly under standard parameters or extended metadata maps if required
-      },
-    });
 
     revalidatePath("/staff/settings");
     return {
@@ -71,11 +78,10 @@ export async function updateStaffPersonalSettings(
       message: "Personal profile configurations updated successfully.",
     };
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown database error.";
+    console.error("UPDATE_STAFF_SETTINGS_ERROR:", error);
     return {
       success: false,
-      message: `Failed to save changes: ${errorMessage}`,
+      message: "Could not save your changes. Please try again.",
     };
   }
 }

@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
 import { PlatformAdminRole, UserRole } from "@prisma/client";
 import { clerkClient } from "@clerk/nextjs/server";
+import { z } from "zod";
+import { idSchema, emailSchema } from "@/lib/validation";
 
 export interface PlatformStaffData {
   id: string;
@@ -35,8 +37,15 @@ export async function provisionPlatformAdminAction(
     };
   }
 
+  const input = z
+    .object({ email: emailSchema, targetRole: z.nativeEnum(PlatformAdminRole) })
+    .safeParse({ email, targetRole });
+  if (!input.success) {
+    return { success: false, message: "Enter a valid email and platform role." };
+  }
+
   try {
-    const lowerEmail = email.toLowerCase().trim();
+    const lowerEmail = input.data.email;
     const userRecord = await prisma.user.findUnique({
       where: { email: lowerEmail },
     });
@@ -49,6 +58,15 @@ export async function provisionPlatformAdminAction(
       };
     }
 
+    // Never turn the master admin into platform staff: that would silently
+    // strip their ADMIN role.
+    if (userRecord.role === UserRole.ADMIN) {
+      return {
+        success: false,
+        message: "This account is a master admin and cannot be reassigned.",
+      };
+    }
+
     // Atomic Update Transaction: Changes their base user role and builds their admin configurations
     await prisma.$transaction([
       prisma.user.update({
@@ -57,10 +75,10 @@ export async function provisionPlatformAdminAction(
       }),
       prisma.platformAdminProfile.upsert({
         where: { userId: userRecord.id },
-        update: { adminRole: targetRole, isActive: true },
+        update: { adminRole: input.data.targetRole, isActive: true },
         create: {
           userId: userRecord.id,
-          adminRole: targetRole,
+          adminRole: input.data.targetRole,
           isActive: true,
         },
       }),
@@ -98,10 +116,17 @@ export async function togglePlatformStaffStatusAction(
     return { success: false, message: "Unauthorized adjustment block." };
   }
 
+  const input = z
+    .object({ profileId: idSchema, isActive: z.boolean() })
+    .safeParse({ profileId, isActive });
+  if (!input.success) {
+    return { success: false, message: "Invalid staff update request." };
+  }
+
   try {
     await prisma.platformAdminProfile.update({
-      where: { id: profileId },
-      data: { isActive },
+      where: { id: input.data.profileId },
+      data: { isActive: input.data.isActive },
     });
 
     revalidatePath("/admin/staff");

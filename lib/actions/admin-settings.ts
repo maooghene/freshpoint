@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
+import { z } from "zod";
 
 export interface MasterConfigValues {
   bookingCommissionPct: number;
@@ -20,6 +21,31 @@ export interface MasterConfigValues {
   absorbPaystackFees: boolean;
   globalAlertBannerText: string | null;
 }
+
+const pct = z.number().finite().min(0, "Commission must be 0-100.").max(100, "Commission must be 0-100.");
+const settingsSchema = z.object({
+  bookingCommissionPct: pct,
+  productCommissionPct: pct,
+  minGlobalDeliveryFee: z.number().finite().min(0).max(1_000_000),
+  platformPayoutFloor: z.number().finite().min(0).max(100_000_000),
+  maintenanceModeActive: z.boolean(),
+  allowNewRegistrations: z.boolean(),
+  enforceInstantApproval: z.boolean(),
+  maxDailyBookingsPerUser: z.number().int().min(1).max(1000),
+  maxDistanceLimitKm: z.number().finite().min(0.1).max(500),
+  payoutHoldingPeriodDays: z
+    .number()
+    .int("Payout holding days must be a whole number.")
+    .min(0, "Payout holding days cannot be a negative number.")
+    .max(90),
+  absorbPaystackFees: z.boolean(),
+  globalAlertBannerText: z
+    .string()
+    .trim()
+    .max(300, "Alert banner text must be 300 characters or fewer.")
+    .nullable()
+    .transform((v) => (v ? v : null)),
+});
 
 export async function getSystemSettings(): Promise<MasterConfigValues> {
   const { isAdmin } = await verifyAdminSession();
@@ -59,30 +85,23 @@ export async function updateSystemSettingsAction(
     };
   }
 
-  if (
-    values.bookingCommissionPct < 0 ||
-    values.bookingCommissionPct > 100 ||
-    values.productCommissionPct < 0 ||
-    values.productCommissionPct > 100
-  ) {
+  // Parse instead of spreading the argument into Prisma: only these known
+  // fields are ever written, each within a sane range.
+  const parsedValues = settingsSchema.safeParse(values);
+  if (!parsedValues.success) {
     return {
       success: false,
-      message: "Commission thresholds must remain within 0-100 ranges.",
+      message:
+        parsedValues.error.issues[0]?.message ?? "Invalid settings values.",
     };
   }
-
-  if (values.payoutHoldingPeriodDays < 0) {
-    return {
-      success: false,
-      message: "Payout holding days cannot be a negative number.",
-    };
-  }
+  const safeValues = parsedValues.data;
 
   try {
     await prisma.systemSetting.upsert({
       where: { id: "singleton" },
-      update: { ...values },
-      create: { id: "singleton", ...values },
+      update: safeValues,
+      create: { id: "singleton", ...safeValues },
     });
 
     revalidatePath("/admin/settings");

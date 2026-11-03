@@ -6,6 +6,23 @@ import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
 import { logAdminAction } from "@/lib/actions/admin-audit";
 import { CategoryScope } from "@prisma/client";
+import { z } from "zod";
+import { idSchema, text } from "@/lib/validation";
+
+const labelSchema = text(80, 2);
+const valueSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9_]{2,40}$/, "Use 2-40 letters, numbers or underscores");
+const scopeSchema = z.nativeEnum(CategoryScope);
+
+function invalid(error: z.ZodError) {
+  return {
+    success: false as const,
+    message: error.issues[0]?.message ?? "Invalid input.",
+  };
+}
 
 // ── Business Categories ──
 
@@ -20,9 +37,14 @@ export async function createBusinessCategoryAction(
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ label: labelSchema, value: valueSchema })
+    .safeParse({ label, value });
+  if (!input.success) return invalid(input.error);
+
   try {
     const created = await prisma.businessCategory.create({
-      data: { label: label.trim(), value: value.trim().toUpperCase() },
+      data: input.data,
     });
     await logAdminAction({
       action: "CREATE_BUSINESS_CATEGORY",
@@ -45,9 +67,14 @@ export async function updateBusinessCategoryLabelAction(
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ id: idSchema, label: labelSchema })
+    .safeParse({ id, label });
+  if (!input.success) return invalid(input.error);
+
   const updated = await prisma.businessCategory.update({
-    where: { id },
-    data: { label: label.trim() },
+    where: { id: input.data.id },
+    data: { label: input.data.label },
   });
   await logAdminAction({
     action: "RENAME_BUSINESS_CATEGORY",
@@ -66,9 +93,14 @@ export async function toggleBusinessCategoryAction(
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ id: idSchema, isActive: z.boolean() })
+    .safeParse({ id, isActive });
+  if (!input.success) return invalid(input.error);
+
   const updated = await prisma.businessCategory.update({
-    where: { id },
-    data: { isActive },
+    where: { id: input.data.id },
+    data: { isActive: input.data.isActive },
   });
   await logAdminAction({
     action: "TOGGLE_BUSINESS_CATEGORY",
@@ -87,6 +119,9 @@ export async function toggleBusinessCategoryAction(
 export async function deleteBusinessCategoryAction(id: string) {
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
+
+  if (!idSchema.safeParse(id).success)
+    return { success: false, message: "Invalid category." };
 
   const category = await prisma.businessCategory.findUnique({ where: { id } });
   if (!category) return { success: false, message: "Category not found." };
@@ -127,9 +162,14 @@ export async function createItemCategoryAction(
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ name: labelSchema, scope: scopeSchema })
+    .safeParse({ name, scope });
+  if (!input.success) return invalid(input.error);
+
   try {
     const created = await prisma.itemCategory.create({
-      data: { name: name.trim(), scope },
+      data: input.data,
     });
     await logAdminAction({
       action: "CREATE_ITEM_CATEGORY",
@@ -153,9 +193,14 @@ export async function updateItemCategoryAction(
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ id: idSchema, name: labelSchema, scope: scopeSchema })
+    .safeParse({ id, name, scope });
+  if (!input.success) return invalid(input.error);
+
   const updated = await prisma.itemCategory.update({
-    where: { id },
-    data: { name: name.trim(), scope },
+    where: { id: input.data.id },
+    data: { name: input.data.name, scope: input.data.scope },
   });
   await logAdminAction({
     action: "UPDATE_ITEM_CATEGORY",
@@ -171,9 +216,14 @@ export async function toggleItemCategoryAction(id: string, isActive: boolean) {
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
 
+  const input = z
+    .object({ id: idSchema, isActive: z.boolean() })
+    .safeParse({ id, isActive });
+  if (!input.success) return invalid(input.error);
+
   const updated = await prisma.itemCategory.update({
-    where: { id },
-    data: { isActive },
+    where: { id: input.data.id },
+    data: { isActive: input.data.isActive },
   });
   await logAdminAction({
     action: "TOGGLE_ITEM_CATEGORY",
@@ -192,6 +242,9 @@ export async function toggleItemCategoryAction(id: string, isActive: boolean) {
 export async function deleteItemCategoryAction(id: string) {
   const { isAdmin } = await verifyAdminSession();
   if (!isAdmin) return { success: false, message: "Unauthorized." };
+
+  if (!idSchema.safeParse(id).success)
+    return { success: false, message: "Invalid category." };
 
   const category = await prisma.itemCategory.findUnique({ where: { id } });
   if (!category) return { success: false, message: "Category not found." };

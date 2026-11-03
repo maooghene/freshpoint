@@ -14,7 +14,19 @@ export interface PolicyActionState {
     cancelWindowHours?: string[];
     bufferTimeMinutes?: string[];
     customInvoiceNote?: string[];
+    timezone?: string[];
+    currencyCode?: string[];
   };
+}
+
+function isValidTimeZone(value: string): boolean {
+  if (value.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function updateBusinessPolicies(
@@ -69,12 +81,6 @@ export async function updateBusinessPolicies(
         message: "Forbidden. You do not own this workspace.",
       };
     }
-    if (!business || business.ownerId !== systemUser.id) {
-      return {
-        success: false,
-        message: "Forbidden. You do not own this workspace.",
-      };
-    }
 
     // Extracted Fields & Conversions
     const minNoticeHours = parseInt(
@@ -93,8 +99,10 @@ export async function updateBusinessPolicies(
       formData.get("bufferTimeMinutes")?.toString() || "0",
       10,
     );
-    const timezone = formData.get("timezone")?.toString() || "Africa/Lagos";
-    const currencyCode = formData.get("currencyCode")?.toString() || "NGN";
+    const timezone =
+      formData.get("timezone")?.toString().trim() || "Africa/Lagos";
+    const currencyCode =
+      formData.get("currencyCode")?.toString().trim().toUpperCase() || "NGN";
 
     // Cleaned-Up Boolean Conversion (Matches the single checkbox value on your new form)
     const emailAlertsActive = formData.get("emailAlertsActive") === "true";
@@ -132,6 +140,12 @@ export async function updateBusinessPolicies(
       errors.bufferTimeMinutes = [
         "Rest time buffers between appointments must be between 0 and 120 minutes.",
       ];
+    }
+    if (!isValidTimeZone(timezone)) {
+      errors.timezone = ["Please choose a valid timezone."];
+    }
+    if (!/^[A-Z]{3}$/.test(currencyCode)) {
+      errors.currencyCode = ["Currency must be a 3-letter code such as NGN."];
     }
     if (customInvoiceNote && customInvoiceNote.length > 500) {
       errors.customInvoiceNote = [
@@ -171,11 +185,10 @@ export async function updateBusinessPolicies(
       message: "Shop rules and preferences updated successfully.",
     };
   } catch (error: unknown) {
-    const errorMsg =
-      error instanceof Error ? error.message : "Unknown connection exception.";
+    console.error("UPDATE_BUSINESS_POLICIES_ERROR:", error);
     return {
       success: false,
-      message: `Failed to commit policy values: ${errorMsg}`,
+      message: "Could not save your shop rules. Please try again.",
     };
   }
 }

@@ -6,6 +6,7 @@ export interface RegisterErrors {
   email?: string;
   phone?: string;
   address?: string;
+  description?: string;
   sittingCapacity?: string;
   image?: string;
   category?: string;
