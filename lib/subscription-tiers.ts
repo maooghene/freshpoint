@@ -98,7 +98,9 @@ export const TIER_SORT_RANK: Record<SubscriptionTier, number> = {
   GROWTH: 1,
   STARTER: 2,
 };
-export const FEATURED_TIERS: SubscriptionTier[] = ["GROWTH", "PRO"];
+// The "Featured" badge is a Pro perk. Growth still ranks above Starter in
+// explore results (see TIER_SORT_RANK) but does not carry the badge.
+export const FEATURED_TIERS: SubscriptionTier[] = ["PRO"];
 export function isFeaturedTier(tier: SubscriptionTier): boolean {
   return FEATURED_TIERS.includes(tier);
 }

@@ -43,7 +43,7 @@ const TIER_COPY: Record<
       "Unlimited staff accounts",
       "Full analytics dashboard",
       "Automated booking reminders",
-      "Featured placement badge",
+      "Higher placement in Explore results",
       `${TIER_DEFAULT_DELIVERY_RADIUS_KM.GROWTH}km fixed delivery radius`,
     ],
   },
@@ -52,7 +52,7 @@ const TIER_COPY: Record<
     price: "₦15,000/mo",
     features: [
       "Everything in Growth",
-      "Top featured placement",
+      "Top placement and Featured badge",
       "Promotional broadcast messages",
       "Customizable delivery radius — set your own reach",
       "Lowest commission rate",
