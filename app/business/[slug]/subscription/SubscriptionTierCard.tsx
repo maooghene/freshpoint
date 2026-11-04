@@ -14,6 +14,13 @@ interface SubscriptionTierCardProps {
   commissionRate: number;
   features: string[];
   isCurrent: boolean;
+  /** True while this business is running a free trial of its current plan. */
+  isOnTrial?: boolean;
+  /** True when this business can still start its one free trial. */
+  trialAvailable?: boolean;
+  trialDays?: number;
+  /** Short value note shown under the feature list (e.g. break-even). */
+  note?: string;
   staffOptions?: { id: string; name: string }[];
   locationOptions?: { id: string; name: string; isPrimary: boolean }[];
 }
@@ -27,6 +34,10 @@ export default function SubscriptionTierCard({
   commissionRate,
   features,
   isCurrent,
+  isOnTrial = false,
+  trialAvailable = false,
+  trialDays = 14,
+  note,
   staffOptions = [],
   locationOptions = [],
 }: SubscriptionTierCardProps) {
@@ -44,7 +55,7 @@ export default function SubscriptionTierCard({
   };
 
   const runPlanChange = async () => {
-    if (isCurrent || isPending) return;
+    if ((isCurrent && !isOnTrial) || isPending) return;
     setIsPending(true);
     try {
       const res = await fetch("/api/subscriptions/initiate", {
@@ -63,6 +74,29 @@ export default function SubscriptionTierCard({
       return;
     } catch (err) {
       console.error("SUBSCRIPTION_ACTION_ERROR:", err);
+      alert("Something went wrong. Please try again.");
+      setIsPending(false);
+    }
+  };
+
+  const startTrial = async () => {
+    if (isPending || tier === "STARTER") return;
+    setIsPending(true);
+    try {
+      const res = await fetch("/api/subscriptions/trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId, tier }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Could not start your free trial.");
+        setIsPending(false);
+        return;
+      }
+      window.location.reload();
+    } catch (err) {
+      console.error("SUBSCRIPTION_TRIAL_ERROR:", err);
       alert("Something went wrong. Please try again.");
       setIsPending(false);
     }
@@ -126,7 +160,7 @@ export default function SubscriptionTierCard({
     >
       {isCurrent && (
         <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground tracking-wide uppercase">
-          Current Plan
+          {isOnTrial ? "Free Trial" : "Current Plan"}
         </span>
       )}
 
@@ -160,6 +194,12 @@ export default function SubscriptionTierCard({
           </li>
         ))}
       </ul>
+
+      {note && (
+        <p className="mb-6 -mt-4 rounded-xl bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          {note}
+        </p>
+      )}
 
       {showDowngradeChoices && tier === "STARTER" && !isCurrent ? (
         <div className="space-y-3">
@@ -209,6 +249,39 @@ export default function SubscriptionTierCard({
             Cancel
           </button>
         </div>
+      ) : isCurrent && isOnTrial && tier !== "STARTER" ? (
+        <button
+          type="button"
+          onClick={() => void runPlanChange()}
+          disabled={isPending}
+          className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-primary text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isPending ? "Please wait..." : `Subscribe to keep ${label}`}
+        </button>
+      ) : !isCurrent && tier !== "STARTER" && trialAvailable ? (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => void startTrial()}
+            disabled={isPending}
+            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-primary text-primary-foreground shadow-md shadow-primary/10 flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isPending ? "Please wait..." : `Start ${trialDays}-day free trial`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runPlanChange()}
+            disabled={isPending}
+            className="w-full text-xs font-semibold text-muted-foreground underline underline-offset-4 py-1 disabled:opacity-60"
+          >
+            or subscribe now
+          </button>
+          <p className="text-center text-[11px] text-muted-foreground">
+            No card needed to try it.
+          </p>
+        </div>
       ) : (
       <button
         type="button"
@@ -227,7 +300,7 @@ export default function SubscriptionTierCard({
             ? "Please wait..."
             : tier === "STARTER"
               ? "Downgrade"
-              : "Upgrade"}
+              : "Subscribe"}
       </button>
       )}
     </div>

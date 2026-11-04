@@ -52,6 +52,10 @@ model Business {
   status            String             @default("pending")
   subscriptionTier   SubscriptionTier @default(STARTER)
   subscriptionExpiresAt DateTime?
+  // Free trial: one per business. isOnTrial is true while a trial plan runs
+  // (no card, no Paystack subscription); trialUsedAt is never cleared.
+  isOnTrial             Boolean            @default(false)
+  trialUsedAt           DateTime?
   downgradeStaffIds     String[]  @default([])
   downgradeLocationIds  String[]  @default([])
   commissionRate     Float @default(0.10) // overridden per tier

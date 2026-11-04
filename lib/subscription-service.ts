@@ -18,6 +18,10 @@ interface ApplyTierOptions {
   paystackCustomerCode?: string | null;
   /** Clear the stored Paystack subscription code and token. */
   clearPaystackSubscription?: boolean;
+  /** Mark the paid tier as a free trial. Any other plan change clears it. */
+  isOnTrial?: boolean;
+  /** Stamp trialUsedAt (set when a trial starts). */
+  trialStartedAt?: Date;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -35,6 +39,8 @@ async function applyTierInTx(
       subscriptionTier: tier,
       commissionRate: getCommissionRateForTier(tier),
       subscriptionExpiresAt: tier === "STARTER" ? null : options.expiresAt,
+      isOnTrial: tier === "STARTER" ? false : (options.isOnTrial ?? false),
+      ...(options.trialStartedAt ? { trialUsedAt: options.trialStartedAt } : {}),
       downgradeStaffIds: selection?.staffIds ?? [],
       downgradeLocationIds: selection?.locationIds ?? [],
       ...(options.paystackCustomerCode !== undefined

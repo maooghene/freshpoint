@@ -5,9 +5,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { getStaffLimitForTier } from "@/lib/subscription-tiers";
-import { Resend } from "resend";
+import { resend, FROM_EMAIL } from "@/lib/resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(
   req: NextRequest,
@@ -139,7 +138,7 @@ export async function POST(
 
     try {
       await resend.emails.send({
-        from: "FreshPointTeam <onboarding@resend.dev>",
+        from: FROM_EMAIL,
         to: cleanEmail,
         subject: `Join ${business.name} on Freshpoint!`,
         html: `

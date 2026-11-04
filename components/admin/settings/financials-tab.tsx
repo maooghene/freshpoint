@@ -3,7 +3,8 @@ import { MasterConfigValues } from "@/lib/actions/admin-settings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CalendarCheck2, ShoppingBag, Clock, Percent } from "lucide-react";
+import { Clock, Percent } from "lucide-react";
+import { TIER_COMMISSION_RATES } from "@/lib/subscription-tiers";
 import * as React from "react";
 
 export function FinancialsTab({ settings }: { settings: MasterConfigValues }) {
@@ -24,64 +25,31 @@ export function FinancialsTab({ settings }: { settings: MasterConfigValues }) {
         </p>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Booking Cut Card */}
-        <div className="group flex flex-col justify-between p-5 rounded-2xl border border-border bg-card shadow-sm hover:border-border/80 transition-all duration-200">
-          <div className="space-y-1.5 mb-5">
-            <Label
-              htmlFor="bookingCommissionPct"
-              className="flex items-center gap-2 font-semibold text-sm text-foreground group-focus-within:text-primary transition-colors"
+      {/* Commission is fixed per plan (see lib/subscription-tiers.ts) */}
+      <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-3">
+        <Label className="flex items-center gap-2 font-semibold text-sm text-foreground">
+          <Percent className="h-4 w-4 text-muted-foreground/60" />
+          Commission per plan
+        </Label>
+        <p className="text-xs text-muted-foreground leading-normal">
+          FreshPoint&apos;s cut of every booking and shop order is set by the
+          business&apos;s subscription plan. It is fixed in the app, not editable
+          here.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {(["STARTER", "GROWTH", "PRO"] as const).map((tier) => (
+            <div
+              key={tier}
+              className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-center"
             >
-              <CalendarCheck2 className="h-4 w-4 text-muted-foreground/60" />{" "}
-              Service Booking Cut
-            </Label>
-            <p className="text-xs text-muted-foreground leading-normal">
-              The percentage FreshPoint takes from every booked service.
-            </p>
-          </div>
-          <div className="relative flex items-center mt-auto">
-            <Input
-              id="bookingCommissionPct"
-              name="bookingCommissionPct"
-              type="number"
-              defaultValue={settings.bookingCommissionPct}
-              required
-              className="h-11 font-mono font-medium pl-4 pr-12 bg-muted/40 border-border/80 rounded-xl focus:bg-background focus:ring-1 focus:ring-primary"
-            />
-            <div className="absolute right-3 px-2 py-1 rounded-md bg-muted border border-border/50 text-[10px] text-muted-foreground font-bold pointer-events-none tracking-wider">
-              %
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {tier}
+              </p>
+              <p className="text-lg font-black font-mono text-foreground">
+                {Math.round(TIER_COMMISSION_RATES[tier] * 100)}%
+              </p>
             </div>
-          </div>
-        </div>
-
-        {/* Storefront Cut Card */}
-        <div className="group flex flex-col justify-between p-5 rounded-2xl border border-border bg-card shadow-sm hover:border-border/80 transition-all duration-200">
-          <div className="space-y-1.5 mb-5">
-            <Label
-              htmlFor="productCommissionPct"
-              className="flex items-center gap-2 font-semibold text-sm text-foreground group-focus-within:text-primary transition-colors"
-            >
-              <ShoppingBag className="h-4 w-4 text-muted-foreground/60" />{" "}
-              Product Storefront Cut
-            </Label>
-            <p className="text-xs text-muted-foreground leading-normal">
-              The percentage FreshPoint takes from every shop order.
-            </p>
-          </div>
-          <div className="relative flex items-center mt-auto">
-            <Input
-              id="productCommissionPct"
-              name="productCommissionPct"
-              type="number"
-              defaultValue={settings.productCommissionPct}
-              required
-              className="h-11 font-mono font-medium pl-4 pr-12 bg-muted/40 border-border/80 rounded-xl focus:bg-background focus:ring-1 focus:ring-primary"
-            />
-            <div className="absolute right-3 px-2 py-1 rounded-md bg-muted border border-border/50 text-[10px] text-muted-foreground font-bold pointer-events-none tracking-wider">
-              %
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 

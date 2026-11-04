@@ -54,14 +54,6 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
     const formData = new FormData(event.currentTarget);
 
     const payload: MasterConfigValues = {
-      bookingCommissionPct: parseInt(
-        formData.get("bookingCommissionPct") as string,
-        10,
-      ),
-      productCommissionPct: parseInt(
-        formData.get("productCommissionPct") as string,
-        10,
-      ),
       minGlobalDeliveryFee: parseFloat(
         formData.get("minGlobalDeliveryFee") as string,
       ),

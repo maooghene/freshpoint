@@ -2,25 +2,19 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Resend } from "resend";
 import { hasBookingReminders } from "@/lib/subscription-tiers";
+import { resend, FROM_EMAIL } from "@/lib/resend";
+import { escapeHtml } from "@/lib/validation";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Helper to format milestones into reader-friendly text for emails
-const formatMilestoneText = (milestone: string): string => {
-  const match = milestone.match(/^(\d+)_HOURS_BEFORE$/);
-  if (!match) return "soon"; // handles any leftover old-format rows gracefully
-
-  const hours = parseInt(match[1], 10);
-  if (hours >= 24 && hours % 24 === 0) {
-    const days = hours / 24;
-    return days === 1 ? "tomorrow" : `in ${days} days`;
-  }
-  if (hours >= 1) {
-    return `in ${hours} hour${hours > 1 ? "s" : ""}`;
-  }
-  return "soon";
+// Describes how far away the appointment really is when the email goes out.
+// The job may run later than a reminder was scheduled for, so this uses the
+// actual time remaining rather than the milestone's nominal hours.
+const describeTimeUntil = (start: Date, now: Date): string => {
+  const hours = Math.round((start.getTime() - now.getTime()) / 3_600_000);
+  if (hours < 1) return "very soon";
+  if (hours < 24) return `in about ${hours} hour${hours > 1 ? "s" : ""}`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "tomorrow" : `in about ${days} days`;
 };
 
 export async function GET(request: Request) {
@@ -57,8 +51,18 @@ export async function GET(request: Request) {
     let emailsDispatched = 0;
 
     for (const log of dueReminders) {
-      const { booking, milestone } = log;
+      const { booking } = log;
       const { business, user } = booking;
+
+      // The appointment has already started or passed (e.g. the job ran late):
+      // a reminder is no use and would be misleading. Drop it from the queue.
+      if (booking.startTime <= now) {
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: now },
+        });
+        continue;
+      }
 
       if (!hasBookingReminders(business.subscriptionTier)) {
         await prisma.bookingReminderLog.update({
@@ -91,24 +95,24 @@ export async function GET(request: Request) {
         timeZone: business.timezone,
       });
 
-      const clientName = user.firstName ?? "Valued Client";
-      const vendorName = business.name;
-      const horizonText = formatMilestoneText(milestone);
+      const clientName = escapeHtml(user.firstName ?? "Valued Client");
+      const vendorName = escapeHtml(business.name);
+      const horizonText = describeTimeUntil(booking.startTime, now);
 
       try {
         // 2. Dispatch email notification to the CUSTOMER
         await resend.emails.send({
-          from: "FreshPoint Alerts <onboarding@resend.dev>",
+          from: FROM_EMAIL,
           to: user.email,
-          subject: `Reminder: Your booking with ${vendorName} is ${horizonText}!`,
+          subject: `Reminder: Your booking with ${business.name} is ${horizonText}`,
           html: `<p>Hi ${clientName}, this is a friendly reminder that your upcoming appointment with <strong>${vendorName}</strong> is ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
 
         // 3. Dispatch email notification to the BUSINESS OWNER
         await resend.emails.send({
-          from: "FreshPoint Studio <onboarding@resend.dev>",
+          from: FROM_EMAIL,
           to: business.email,
-          subject: `Upcoming Session: Appointment with ${clientName} ${horizonText}`,
+          subject: `Upcoming session: appointment with ${user.firstName ?? "a client"} ${horizonText}`,
           html: `<p>Hello ${vendorName}, your session with client <strong>${clientName}</strong> is scheduled for ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
 
