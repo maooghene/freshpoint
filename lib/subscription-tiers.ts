@@ -98,11 +98,12 @@ export const TIER_SORT_RANK: Record<SubscriptionTier, number> = {
   GROWTH: 1,
   STARTER: 2,
 };
-// The "Featured" badge is a Pro perk. Growth still ranks above Starter in
-// explore results (see TIER_SORT_RANK) but does not carry the badge.
-export const FEATURED_TIERS: SubscriptionTier[] = ["PRO"];
-export function isFeaturedTier(tier: SubscriptionTier): boolean {
-  return FEATURED_TIERS.includes(tier);
+// Pro businesses appear in the "Sponsored" section at the top of Explore,
+// ahead of every other result. Growth still ranks above Starter in the main
+// list (see TIER_SORT_RANK). There are no tier badges.
+export const SPONSORED_TIERS: SubscriptionTier[] = ["PRO"];
+export function isSponsoredTier(tier: SubscriptionTier): boolean {
+  return SPONSORED_TIERS.includes(tier);
 }
 export function compareTierRank(
   a: SubscriptionTier,

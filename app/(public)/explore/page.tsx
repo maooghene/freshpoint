@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import BusinessesGrid, { GridItem } from "./BusinessesGrid";
 import { getBusinessCategories } from "@/lib/actions/admin-categories"; // CHANGED: was static import from "@/lib/categories"
-import { compareTierRank, isFeaturedTier } from "@/lib/subscription-tiers";
+import { compareTierRank, isSponsoredTier } from "@/lib/subscription-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +101,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     orderBy: { createdAt: "desc" },
   });
 
-  // Featured placement: Growth/Pro businesses rank above Starter, then by
+  // Placement: Growth/Pro businesses rank above Starter, then by
   // original createdAt-desc order within each tier group. Done in
   // application code since ranking by an enum's "importance" rather than
   // its literal value isn't expressible in a single Prisma orderBy clause.
@@ -129,9 +129,12 @@ export default async function ExplorePage({ searchParams }: PageProps) {
       address: b.address,
       status: b.status,
       category: displayedCategory,
-      isFeatured: isFeaturedTier(b.subscriptionTier as SubscriptionTier),
+      isSponsored: isSponsoredTier(b.subscriptionTier as SubscriptionTier),
     };
   });
+
+  const sponsoredBusinesses = normalizedBusinesses.filter((b) => b.isSponsored);
+  const regularBusinesses = normalizedBusinesses.filter((b) => !b.isSponsored);
 
   return (
     <div className="relative min-h-screen pt-24 pb-32 bg-background text-foreground overflow-hidden">
@@ -200,7 +203,32 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             </div>
           </div>
         ) : (
-          <BusinessesGrid businesses={normalizedBusinesses} />
+          <div className="space-y-12">
+            {sponsoredBusinesses.length > 0 && (
+              <section aria-labelledby="sponsored-heading" className="space-y-4">
+                <h2
+                  id="sponsored-heading"
+                  className="text-xs font-black uppercase tracking-widest text-muted-foreground"
+                >
+                  Sponsored
+                </h2>
+                <BusinessesGrid businesses={sponsoredBusinesses} />
+              </section>
+            )}
+            {regularBusinesses.length > 0 && (
+              <section aria-labelledby="all-heading" className="space-y-4">
+                {sponsoredBusinesses.length > 0 && (
+                  <h2
+                    id="all-heading"
+                    className="text-xs font-black uppercase tracking-widest text-muted-foreground"
+                  >
+                    All providers
+                  </h2>
+                )}
+                <BusinessesGrid businesses={regularBusinesses} />
+              </section>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -52,7 +52,7 @@ const TIER_COPY: Record<
     price: "₦15,000/mo",
     features: [
       "Everything in Growth",
-      "Top placement and Featured badge",
+      "Sponsored placement — shown first in Explore",
       "Promotional broadcast messages",
       "Customizable delivery radius — set your own reach",
       "Lowest commission rate",
