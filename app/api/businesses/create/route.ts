@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseValue, text, emailSchema, phoneSchema, validateImageFile, safeFileName } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -20,6 +21,10 @@ function generateSlug(name: string): string {
 
 // ✅ POST: Process onboarding application forms and create a new business tenant space
 export async function POST(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.upload);
+    if (limited) return limited;
+  }
   console.log("POST /api/businesses/create initialized");
 
   try {

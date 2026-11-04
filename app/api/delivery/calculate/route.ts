@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -14,6 +15,10 @@ interface DeliveryCalculateRequestBody {
 }
 
 export async function POST(req: NextRequest) {
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.geocode);
+    if (limited) return limited;
+  }
   try {
     const { userId } = await auth();
 

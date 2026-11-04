@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import BusinessesGrid, { GridItem } from "./BusinessesGrid";
 import { getBusinessCategories } from "@/lib/actions/admin-categories"; // CHANGED: was static import from "@/lib/categories"
-import { compareTierRank, isFeaturedTier } from "@/lib/subscription-tiers";
+import { compareTierRank, isSponsoredTier } from "@/lib/subscription-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +101,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     orderBy: { createdAt: "desc" },
   });
 
-  // Featured placement: Growth/Pro businesses rank above Starter, then by
+  // Placement: Growth/Pro businesses rank above Starter, then by
   // original createdAt-desc order within each tier group. Done in
   // application code since ranking by an enum's "importance" rather than
   // its literal value isn't expressible in a single Prisma orderBy clause.
@@ -129,12 +129,15 @@ export default async function ExplorePage({ searchParams }: PageProps) {
       address: b.address,
       status: b.status,
       category: displayedCategory,
-      isFeatured: isFeaturedTier(b.subscriptionTier as SubscriptionTier),
+      isSponsored: isSponsoredTier(b.subscriptionTier as SubscriptionTier),
     };
   });
 
+  const sponsoredBusinesses = normalizedBusinesses.filter((b) => b.isSponsored);
+  const regularBusinesses = normalizedBusinesses.filter((b) => !b.isSponsored);
+
   return (
-    <div className="relative min-h-screen pt-24 pb-32 bg-background text-foreground overflow-hidden">
+    <div className="relative min-h-screen pt-8 pb-32 bg-background text-foreground overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
       </div>
@@ -200,7 +203,32 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             </div>
           </div>
         ) : (
-          <BusinessesGrid businesses={normalizedBusinesses} />
+          <div className="space-y-12">
+            {sponsoredBusinesses.length > 0 && (
+              <section aria-labelledby="sponsored-heading" className="space-y-4">
+                <h2
+                  id="sponsored-heading"
+                  className="text-xs font-black uppercase tracking-widest text-muted-foreground"
+                >
+                  Sponsored
+                </h2>
+                <BusinessesGrid businesses={sponsoredBusinesses} />
+              </section>
+            )}
+            {regularBusinesses.length > 0 && (
+              <section aria-labelledby="all-heading" className="space-y-4">
+                {sponsoredBusinesses.length > 0 && (
+                  <h2
+                    id="all-heading"
+                    className="text-xs font-black uppercase tracking-widest text-muted-foreground"
+                  >
+                    All providers
+                  </h2>
+                )}
+                <BusinessesGrid businesses={regularBusinesses} />
+              </section>
+            )}
+          </div>
         )}
       </div>
     </div>

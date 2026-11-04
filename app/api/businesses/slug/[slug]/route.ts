@@ -91,21 +91,19 @@ export async function GET(
         rating: true,
       },
     });
-    // Customer-facing promotional broadcast: newest active public one, and
-    // only while the business is still on a plan that includes broadcasts.
+    // Running promotion, shown on the storefront with a countdown. Only while
+    // the business is still on a plan that includes promotions.
     const now = new Date();
-    const broadcast = hasPromotionalBroadcasts(business.subscriptionTier)
-      ? await prisma.announcement.findFirst({
+    const promotion = hasPromotionalBroadcasts(business.subscriptionTier)
+      ? await prisma.promotion.findFirst({
           where: {
-            targetType: "BUSINESS",
-            targetBusinessId: business.id,
-            isPublic: true,
+            businessId: business.id,
             isActive: true,
             startsAt: { lte: now },
-            OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+            endsAt: { gt: now },
           },
           orderBy: { createdAt: "desc" },
-          select: { id: true, title: true, message: true },
+          select: { id: true, title: true, details: true, endsAt: true },
         })
       : null;
     const totalReviewsCount = aggregationData._count.id;
@@ -129,7 +127,7 @@ export async function GET(
       items: formattedItems,
       staff: business.staff || [],
       locations: business.locations || [],
-      broadcast,
+      promotion,
     });
   } catch (error) {
     console.error("Critical public workspace slug API error:", error);

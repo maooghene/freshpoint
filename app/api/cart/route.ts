@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody, idSchema } from "@/lib/validation";
 import { auth } from "@clerk/nextjs/server"; // CORRECTED: Swapped legacy getAuth with async server session evaluator
@@ -6,6 +7,10 @@ import prisma from "@/lib/prisma";
 
 // ✅ POST: Synchronize and persist client-side basket states to the database
 export async function POST(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.mutation);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
 

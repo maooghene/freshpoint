@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseValue, text, phoneSchema, emailSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -7,6 +8,10 @@ import authOwner from "@/lib/authOwner";
 
 // ✅ PATCH: Handle inline meta updates for an existing workspace profile
 export async function PATCH(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.upload);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = await auth(); // CORRECTED: Async session retrieval
     if (!clerkId) {

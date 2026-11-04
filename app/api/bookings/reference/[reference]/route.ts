@@ -1,9 +1,14 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ reference: string }> },
 ) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.bookingLookup);
+    if (limited) return limited;
+  }
   try {
     const { reference } = await params;
     if (!reference) {

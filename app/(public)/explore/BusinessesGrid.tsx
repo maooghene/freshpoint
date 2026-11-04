@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPinIcon, ImageIcon, SparklesIcon } from "lucide-react";
+import { MapPinIcon, ImageIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export interface GridItem {
@@ -15,7 +15,7 @@ export interface GridItem {
   address: string | null;
   status: string | null;
   category: string;
-  isFeatured: boolean;
+  isSponsored: boolean;
 }
 
 export default function BusinessesGrid({
@@ -50,13 +50,6 @@ export default function BusinessesGrid({
               ) : (
                 <div className="w-full h-full flex items-center justify-centerbg-muted">
                   <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
-                </div>
-              )}
-              {business.isFeatured && (
-                <div className="absolute top-2.5 left-2.5">
-                  <Badge className="bg-amber-500/90 text-white border-none font-bold text-[9px] px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
-                    <SparklesIcon className="w-2.5 h-2.5" /> Featured
-                  </Badge>
                 </div>
               )}
             </div>

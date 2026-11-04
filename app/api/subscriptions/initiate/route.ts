@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { auditImpersonatedAction } from "@/lib/impersonation-audit";
 import { z } from "zod";
 import { parseJsonBody, idSchema } from "@/lib/validation";
@@ -9,6 +10,10 @@ import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { compareTierRank } from "@/lib/subscription-tiers";
 
 export async function POST(req: NextRequest) {
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.payment);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {

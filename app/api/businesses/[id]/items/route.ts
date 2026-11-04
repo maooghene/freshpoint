@@ -1,4 +1,5 @@
 // app/api/businesses/[id]/items/route.ts
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateImageFile } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -78,6 +79,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 // 🔐 POST: Create a new inventory record element
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.upload);
+    if (limited) return limited;
+  }
   try {
     const { id: routeSlugOrId } = await params;
     const { userId: clerkId } = await auth();
@@ -195,6 +200,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
 // 🔐 PUT: Modify properties for an existing service or product row element
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.upload);
+    if (limited) return limited;
+  }
   try {
     const { id: routeSlugOrId } = await params;
     const { userId: clerkId } = await auth();
