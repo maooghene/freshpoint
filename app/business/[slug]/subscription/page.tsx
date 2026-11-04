@@ -49,7 +49,7 @@ const TIER_COPY: Record<
   },
   PRO: {
     label: "Pro",
-    price: "₦15,000/mo",
+    price: "₦20,000/mo",
     features: [
       "Everything in Growth",
       "Sponsored placement — shown first in Explore",
