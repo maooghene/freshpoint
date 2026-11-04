@@ -5,6 +5,7 @@ import {
   ComplaintSeverity,
   ComplaintAssignee,
 } from "@prisma/client";
+import { escapeHtml } from "@/lib/validation";
 
 interface ComplaintClassification {
   isComplaint: boolean;
@@ -170,14 +171,14 @@ async function notifyComplaint(
         <div style="font-family: sans-serif; max-width: 560px;">
           <h2>${complaint.category.replace("_", " ")} Complaint</h2>
           <p><strong>Severity:</strong> ${complaint.severity}</p>
-          <p><strong>Customer:</strong> ${complaint.user.firstName || ""} ${complaint.user.lastName || ""} (${complaint.user.email})</p>
-          ${complaint.orderCode ? `<p><strong>Order:</strong> ${complaint.orderCode}</p>` : ""}
-          ${complaint.bookingId ? `<p><strong>Booking ID:</strong> ${complaint.bookingId}</p>` : ""}
-          <p><strong>Summary:</strong> ${complaint.summary}</p>
+          <p><strong>Customer:</strong> ${escapeHtml(complaint.user.firstName || "")} ${escapeHtml(complaint.user.lastName || "")} (${escapeHtml(complaint.user.email)})</p>
+          ${complaint.orderCode ? `<p><strong>Order:</strong> ${escapeHtml(complaint.orderCode)}</p>` : ""}
+          ${complaint.bookingId ? `<p><strong>Booking ID:</strong> ${escapeHtml(complaint.bookingId)}</p>` : ""}
+          <p><strong>Summary:</strong> ${escapeHtml(complaint.summary)}</p>
           <hr />
-          <p style="color:#666; font-size: 13px;"><strong>Original message:</strong><br/>${complaint.rawMessage}</p>
+          <p style="color:#666; font-size: 13px;"><strong>Original message:</strong><br/>${escapeHtml(complaint.rawMessage).replace(/\n/g, "<br/>")}</p>
           <p style="margin-top: 24px;">
-            <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/complaints/${complaint.id}"
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/complaints"
                style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">
               View in dashboard
             </a>

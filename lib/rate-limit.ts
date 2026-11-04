@@ -136,4 +136,6 @@ export const RATE_LIMITS = {
   mutation: { name: "mutation", limit: 120, windowSec: 10 * MINUTE },
   registration: { name: "register-business", limit: 5, windowSec: HOUR },
   geocode: { name: "geocode", limit: 60, windowSec: 10 * MINUTE },
+  // Support questions create a ticket and email the admins.
+  supportQuestion: { name: "support-question", limit: 5, windowSec: HOUR },
 } satisfies Record<string, RateLimitRule>;
