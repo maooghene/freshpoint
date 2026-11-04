@@ -54,6 +54,14 @@ export async function GET(request: Request) {
       const { booking } = log;
       const { business, user } = booking;
 
+      // Claim this reminder atomically so two overlapping runs of the job
+      // (it is triggered every few minutes) can never email it twice.
+      const claim = await prisma.bookingReminderLog.updateMany({
+        where: { id: log.id, sentAt: null },
+        data: { sentAt: now },
+      });
+      if (claim.count !== 1) continue;
+
       // The appointment has already started or passed (e.g. the job ran late):
       // a reminder is no use and would be misleading. Drop it from the queue.
       if (booking.startTime <= now) {
@@ -122,14 +130,12 @@ export async function GET(request: Request) {
           `Failed to dispatch email for log ID ${log.id}:`,
           emailError,
         );
-        // Continue processing other records even if an email fails
+        // Put it back in the queue so the next run retries it.
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: null },
+        });
       }
-
-      // 4. Mark this specific queue milestone item as completed
-      await prisma.bookingReminderLog.update({
-        where: { id: log.id },
-        data: { sentAt: now },
-      });
     }
 
     return NextResponse.json({ success: true, emailsSent: emailsDispatched });
