@@ -10,26 +10,18 @@ export const TRIAL_DAYS = 14;
 export function getCommissionRateForTier(tier: SubscriptionTier): number {
   return TIER_COMMISSION_RATES[tier];
 }
-// Default delivery radius (km) per tier when the business hasn't set a
-// custom value. Only Pro can override this via deliveryRadiusKm.
-export const TIER_DEFAULT_DELIVERY_RADIUS_KM: Record<SubscriptionTier, number> =
-  {
-    STARTER: 10,
-    GROWTH: 10,
-    PRO: 10,
-  };
-export const CUSTOM_DELIVERY_RADIUS_TIERS: SubscriptionTier[] = ["PRO"];
-export function canCustomizeDeliveryRadius(tier: SubscriptionTier): boolean {
-  return CUSTOM_DELIVERY_RADIUS_TIERS.includes(tier);
+// Delivery radius is optional for every plan. A business may set its own
+// radius; if it leaves it blank we only apply a generous platform-wide cap so
+// straight-line fees can't grow without bound. It is not a plan feature.
+export const PLATFORM_MAX_DELIVERY_RADIUS_KM = 35;
+export function canCustomizeDeliveryRadius(_tier?: SubscriptionTier): boolean {
+  return true;
 }
 export function getEffectiveDeliveryRadiusKm(
-  tier: SubscriptionTier,
+  _tier: SubscriptionTier,
   customRadiusKm: number | null,
 ): number {
-  if (canCustomizeDeliveryRadius(tier) && customRadiusKm != null) {
-    return customRadiusKm;
-  }
-  return TIER_DEFAULT_DELIVERY_RADIUS_KM[tier];
+  return customRadiusKm ?? PLATFORM_MAX_DELIVERY_RADIUS_KM;
 }
 // Staff account limits per tier. null = unlimited. Starter = owner + 1
 // staff account. Counts ALL StaffProfile rows (pending + active) so a

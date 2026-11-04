@@ -66,7 +66,6 @@ const TIER_COPY: Record<
       "Timed storefront promotions with a countdown",
       "Broadcast messages to your customers",
       "Multiple locations",
-      "Set your own delivery radius",
     ],
     note: `Pays for itself from about ${breakEven(PLAN_PRICE_NAIRA.PRO, TIER_COMMISSION_RATES.STARTER, TIER_COMMISSION_RATES.PRO)} a month in sales compared with Starter, before counting the extra customers Sponsored placement brings.`,
   },

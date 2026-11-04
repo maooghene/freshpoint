@@ -76,7 +76,7 @@ export async function createLocation(
     // actual current location count (never trusted from the client either).
     // A Starter/Growth owner hitting this action directly — e.g. via
     // devtools, bypassing a disabled "Add Location" button — gets rejected
-    // here, not just blocked by UI. Same pattern as canCustomizeDeliveryRadius
+    // here, not just blocked by UI. Same server-side pattern as other tier gates
     // in settings/actions.ts.
     const currentLocationCount = await prisma.location.count({
       where: { businessId: business.id },
