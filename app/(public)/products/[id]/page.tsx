@@ -141,12 +141,13 @@ export default function ProductPage() {
     }
   }, [effectiveStock]);
 
-  const handleAddToCart = () => {
-    if (!product || isOutOfStock) return;
+  /** Validates and adds the current selection to the cart. Returns false if it could not. */
+  const addCurrentItemToCart = (): boolean => {
+    if (!product || isOutOfStock) return false;
 
     if (hasVariants && !selectedVariant) {
       toast.error("Please select an option before adding to basket.");
-      return;
+      return false;
     }
 
     dispatch(
@@ -169,9 +170,19 @@ export default function ProductPage() {
       }),
     );
 
-    // 🚀 FIXED: No longer navigates to /cart — the customer stays on the
-    // product page and can keep browsing/adding items. A toast confirms
-    // the add and offers a direct link to the cart if they want to check out.
+    return true;
+  };
+
+  const handleBuyNow = () => {
+    if (!addCurrentItemToCart()) return;
+    router.push("/checkout/products");
+  };
+
+  const handleAddToCart = () => {
+    if (!product || !addCurrentItemToCart()) return;
+
+    // The customer stays on the product page and can keep browsing. The toast
+    // confirms the add and offers a direct jump to checkout (or the cart).
     toast.success(
       <div className="flex items-center justify-between gap-3">
         <span>
@@ -179,13 +190,22 @@ export default function ProductPage() {
           {selectedVariant ? ` (${variantLabel(selectedVariant)})` : ""} added
           to basket
         </span>
-        <button
-          type="button"
-          onClick={() => router.push("/cart")}
-          className="shrink-0 text-xs font-bold underline underline-offset-2"
-        >
-          View Cart
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/checkout/products")}
+            className="text-xs font-bold underline underline-offset-2"
+          >
+            Checkout
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/cart")}
+            className="text-xs font-semibold underline underline-offset-2 opacity-80"
+          >
+            View Cart
+          </button>
+        </div>
       </div>,
     );
 
@@ -360,15 +380,26 @@ export default function ProductPage() {
             </div>
           )}
 
-          <Button
-            onClick={handleAddToCart}
-            size="lg"
-            disabled={isOutOfStock || (hasVariants && !selectedVariant)}
-            className="w-full md:w-auto px-10 py-6 rounded-xl font-bold text-base shadow-md hover:shadow-lg transition-all duration-300 gap-2 cursor-pointer mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ShoppingCart className="size-5" />
-            {isOutOfStock ? "Out of Stock" : "Add item to Basket"}
-          </Button>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Button
+              onClick={handleBuyNow}
+              size="lg"
+              disabled={isOutOfStock || (hasVariants && !selectedVariant)}
+              className="w-full sm:w-auto px-10 py-6 rounded-xl font-bold text-base shadow-md hover:shadow-lg transition-all duration-300 gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isOutOfStock ? "Out of Stock" : "Buy now"}
+            </Button>
+            <Button
+              onClick={handleAddToCart}
+              size="lg"
+              variant="outline"
+              disabled={isOutOfStock || (hasVariants && !selectedVariant)}
+              className="w-full sm:w-auto px-8 py-6 rounded-xl font-bold text-base transition-all duration-300 gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ShoppingCart className="size-5" />
+              Add to basket
+            </Button>
+          </div>
         </div>
       </div>
     </div>
