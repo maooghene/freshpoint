@@ -75,6 +75,16 @@ export async function POST(
     // Tier-based staff account limit. Counts ALL StaffProfile rows
     // (pending + active) so a business can't dodge the cap by leaving
     // invites perpetually unaccepted.
+    if (business.subscriptionTier === "STARTER") {
+      return NextResponse.json(
+        {
+          error:
+            "Starter is a one-person plan. Upgrade to Growth to add team members.",
+          code: "STAFF_NOT_AVAILABLE",
+        },
+        { status: 403 },
+      );
+    }
     const staffLimit = getStaffLimitForTier(business.subscriptionTier);
     if (staffLimit !== null) {
       const currentStaffCount = await prisma.staffProfile.count({

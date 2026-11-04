@@ -66,6 +66,9 @@ export default function BusinessLayout({
             name: String(data.name || "FreshPoint Workspace"),
             image: data.image ? String(data.image) : null,
             status: data.status ? String(data.status) : "pending",
+            subscriptionTier: data.subscriptionTier
+              ? String(data.subscriptionTier)
+              : undefined,
           });
         }
       } catch (err) {
@@ -111,7 +114,18 @@ export default function BusinessLayout({
       href: `/business/${businessSlug}/add-service`,
       icon: PlusCircleIcon,
     },
-    { name: "Staff", href: `/business/${businessSlug}/staff`, icon: UsersIcon },
+    // Starter businesses are run by the owner alone, so there is no team area.
+    // Hidden until the plan is known (and for Starter) to avoid a flash.
+    ...(businessInfo?.subscriptionTier &&
+    businessInfo.subscriptionTier !== "STARTER"
+      ? [
+          {
+            name: "Staff",
+            href: `/business/${businessSlug}/staff`,
+            icon: UsersIcon,
+          },
+        ]
+      : []),
     {
       name: "Locations",
       href: `/business/${businessSlug}/locations`,

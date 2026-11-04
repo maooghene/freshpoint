@@ -247,10 +247,12 @@ export function SettingsForm({ business }: SettingsFormProps) {
         </form>
       </div>
       {/* 🎯 PLACED CLEANLY OUTSIDE FORM BLOCK SO SWITCH CHANGES MUTATE INDEPENDENTLY */}
-      <OwnerRosterToggle
-        businessId={business.id}
-        initialIsActive={business.initialOwnerActive}
-      />
+      {business.subscriptionTier !== "STARTER" && (
+        <OwnerRosterToggle
+          businessId={business.id}
+          initialIsActive={business.initialOwnerActive}
+        />
+      )}
     </div>
   );
 }

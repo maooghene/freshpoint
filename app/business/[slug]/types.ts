@@ -10,6 +10,7 @@ export interface BusinessInfo {
   image: string | null;
   status: string;
   id: string;
+  subscriptionTier?: string;
 }
 
 export interface NavigationItemShape {
