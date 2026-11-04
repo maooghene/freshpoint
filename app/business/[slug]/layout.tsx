@@ -138,8 +138,8 @@ export default function BusinessLayout({
       icon: SparklesIcon,
     },
     {
-      name: "Contact Support",
-      href: `/contact`,
+      name: "Help & Support",
+      href: `/business/${businessSlug}/support`,
       icon: HelpCircleIcon,
     },
   ];
