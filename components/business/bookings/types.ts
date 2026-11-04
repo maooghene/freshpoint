@@ -1,6 +1,6 @@
 // src/components/business/bookings/types.ts
 
-export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
 
 export interface Booking {
   id: string;

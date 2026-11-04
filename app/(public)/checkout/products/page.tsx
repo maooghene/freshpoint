@@ -1,6 +1,7 @@
 // app/(public)/checkout/products/page.tsx
 "use client";
 
+import { PaymentPolicyNotice } from "@/components/checkout/PaymentPolicyNotice";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
@@ -61,6 +62,7 @@ function ProductCheckoutContent() {
   } = useAppSelector((state) => state.cart);
 
   const [isDelivery, setIsDelivery] = useState<boolean>(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [address, setAddress] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
 
@@ -229,6 +231,13 @@ function ProductCheckoutContent() {
     }
 
     return (
+      <div className="space-y-3">
+        <PaymentPolicyNotice
+          kind="order"
+          accepted={termsAccepted}
+          onChange={setTermsAccepted}
+        />
+        {termsAccepted ? (
       <PaystackButton
         amount={absoluteFinalTotal}
         email={
@@ -243,6 +252,15 @@ function ProductCheckoutContent() {
         onSuccess={handleSuccess}
         onClose={() => {}}
       />
+        ) : (
+          <Button
+            disabled
+            className="w-full py-6 rounded-xl font-bold bg-muted text-muted-foreground opacity-60 cursor-not-allowed select-none"
+          >
+            Tick the box above to pay
+          </Button>
+        )}
+      </div>
     );
   }
 

@@ -13,6 +13,7 @@ export function BookingStatusBadge({ status }: StatusBadgeProps) {
     PENDING: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     COMPLETED: "bg-primary/10 text-primary",
     CANCELLED: "bg-destructive/10 text-destructive",
+    NO_SHOW: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   };
 
   const activeTheme = themes[status] || themes.PENDING;
@@ -22,7 +23,7 @@ export function BookingStatusBadge({ status }: StatusBadgeProps) {
       className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-bold px-2.5 py-0.5 rounded-full ${activeTheme}`}
     >
       <span className="text-[8px] leading-none shrink-0">●</span>
-      <span>{status}</span>
+      <span>{status.replace("_", " ")}</span>
     </span>
   );
 }

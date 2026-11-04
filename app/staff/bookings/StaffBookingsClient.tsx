@@ -127,6 +127,7 @@ export function StaffBookingsClient({
             <option value="PENDING">{"Pending"}</option>
             <option value="CONFIRMED">{"Confirmed"}</option>
             <option value="COMPLETED">{"Completed"}</option>
+            <option value="NO_SHOW">{"No show"}</option>
             <option value="CANCELLED">{"Cancelled"}</option>
           </select>
         </div>
@@ -216,6 +217,7 @@ export function StaffBookingsClient({
                     <option value="PENDING">Pending</option>
                     <option value="CONFIRMED">Confirmed</option>
                     <option value="COMPLETED">Completed</option>
+                    <option value="NO_SHOW">No show</option>
                     <option value="CANCELLED">Cancelled</option>
                   </select>
                   {updatingId === booking.id && (
