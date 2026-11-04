@@ -19,6 +19,7 @@ import {
   SparklesIcon,
   MapPinIcon,
   MegaphoneIcon,
+  TagIcon,
 } from "lucide-react";
 import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
@@ -125,6 +126,11 @@ export default function BusinessLayout({
       name: "Broadcast",
       href: `/business/${businessSlug}/broadcast`,
       icon: MegaphoneIcon,
+    },
+    {
+      name: "Promotions",
+      href: `/business/${businessSlug}/promotions`,
+      icon: TagIcon,
     },
     {
       name: "Subscription",

@@ -59,13 +59,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!parsed.ok) return parsed.response;
   const { title, message } = parsed.data;
 
-  // One public broadcast per 24 hours keeps the storefront from being spammed.
+  // One broadcast per 24 hours keeps customers from being spammed.
   const now = Date.now();
   const recent = await prisma.announcement.findFirst({
     where: {
       targetType: "BUSINESS",
       targetBusinessId: businessId,
-      isPublic: true,
       createdAt: { gt: new Date(now - BROADCAST_COOLDOWN_MS) },
     },
     orderBy: { createdAt: "desc" },
@@ -90,7 +89,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       severity: "INFO",
       targetType: "BUSINESS",
       targetBusinessId: businessId,
-      isPublic: true,
       startsAt: new Date(now),
       endsAt: new Date(now + BROADCAST_LIFETIME_MS),
       createdById: systemUser.id,
