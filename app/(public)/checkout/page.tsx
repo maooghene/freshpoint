@@ -10,6 +10,7 @@ import { CreditCard, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { TreatmentSummary } from "@/components/checkout/TreatmentSummary";
 import { TotalAmountCard } from "@/components/checkout/TotalAmountCard";
 import { PaymentSection } from "@/components/checkout/PaymentSection";
+import { PaymentPolicyNotice } from "@/components/checkout/PaymentPolicyNotice";
 import { CheckoutContactField } from "@/components/checkout/CheckoutContactField";
 import { isValidNigerianPhone } from "@/components/checkout/CheckoutContactField";
 
@@ -56,6 +57,7 @@ function CheckoutContent() {
   const [item, setItem] = useState<ItemDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [bookingFailure, setBookingFailure] =
     useState<BookingFailureState | null>(null);
@@ -237,7 +239,17 @@ function CheckoutContent() {
         </div>
       )}
 
-      {isContactValid ? (
+      {isContactValid && (
+        <div className="mb-4">
+          <PaymentPolicyNotice
+            kind="booking"
+            accepted={termsAccepted}
+            onChange={setTermsAccepted}
+          />
+        </div>
+      )}
+
+      {isContactValid && termsAccepted ? (
         <PaymentSection
           paying={paying}
           price={Number(item.price)}
@@ -260,7 +272,9 @@ function CheckoutContent() {
           disabled
           className="w-full py-6 rounded-xl font-bold bg-muted text-muted-foreground opacity-60 flex items-center justify-center gap-2 cursor-not-allowed select-none"
         >
-          Provide WhatsApp Contact to Pay
+          {isContactValid
+            ? "Tick the box above to pay"
+            : "Provide WhatsApp Contact to Pay"}
         </Button>
       )}
 

@@ -127,6 +127,7 @@ export default function BookingTable({
                           "PENDING",
                           "CONFIRMED",
                           "COMPLETED",
+                          "NO_SHOW",
                           "CANCELLED",
                         ] as BookingStatus[]
                       ).map((st) => (
@@ -136,7 +137,7 @@ export default function BookingTable({
                           onClick={() => void onUpdateStatus(booking.id, st)}
                           className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors text-left hover:bg-secondary/60 ${booking.status === st ? "text-primary bg-primary/5" : "text-muted-foreground"}`}
                         >
-                          {st.charAt(0) + st.slice(1).toLowerCase()}
+                          {(st.charAt(0) + st.slice(1).toLowerCase()).replace("_s", " s")}
                         </button>
                       ))}
                     </div>

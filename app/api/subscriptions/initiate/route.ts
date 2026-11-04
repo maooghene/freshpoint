@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
         email: true,
         slug: true,
         subscriptionTier: true,
+        isOnTrial: true,
         owner: { select: { email: true } },
       },
     });
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (business.subscriptionTier === tier) {
+    if (business.subscriptionTier === tier && !business.isOnTrial) {
       return NextResponse.json(
         { error: "This business is already on that plan." },
         { status: 400 },
@@ -73,7 +74,10 @@ export async function POST(req: NextRequest) {
     // Moving from a paid plan to a lower paid plan would need a staff and
     // location selection and would create a second subscription. Route it
     // through the Starter downgrade flow instead.
+    // (A trial has no Paystack subscription, so moving between paid plans is
+    // fine while on one.)
     if (
+      !business.isOnTrial &&
       business.subscriptionTier !== "STARTER" &&
       compareTierRank(tier, business.subscriptionTier) > 0
     ) {

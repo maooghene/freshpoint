@@ -5,9 +5,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { getStaffLimitForTier } from "@/lib/subscription-tiers";
-import { Resend } from "resend";
+import { sendMail, FROM_EMAIL } from "@/lib/mail";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(
   req: NextRequest,
@@ -138,8 +137,8 @@ export async function POST(
     const secureOnboardingLink = invitation.url;
 
     try {
-      await resend.emails.send({
-        from: "FreshPointTeam <onboarding@resend.dev>",
+      await sendMail({
+        from: FROM_EMAIL,
         to: cleanEmail,
         subject: `Join ${business.name} on Freshpoint!`,
         html: `
@@ -166,7 +165,7 @@ export async function POST(
         emailError instanceof Error
           ? emailError.message
           : "Network notification exception";
-      console.warn("Resend could not deliver invite email:", log);
+      console.warn("Could not deliver invite email:", log);
       // Do not fail the request — the invite link still works, email is best-effort
     }
 

@@ -1,0 +1,3 @@
+ALTER TABLE "Business"
+ADD COLUMN "isOnTrial" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "trialUsedAt" TIMESTAMP(3);

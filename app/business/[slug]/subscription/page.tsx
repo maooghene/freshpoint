@@ -5,10 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { SparklesIcon } from "lucide-react";
 import SubscriptionTierCard from "./SubscriptionTierCard";
-import {
-  TIER_COMMISSION_RATES,
-  TIER_DEFAULT_DELIVERY_RADIUS_KM,
-} from "@/lib/subscription-tiers";
+import { TIER_COMMISSION_RATES, TRIAL_DAYS } from "@/lib/subscription-tiers";
 import type { SubscriptionTier } from "@prisma/client";
 import { CalendarClockIcon } from "lucide-react";
 
@@ -20,44 +17,58 @@ interface PageProps {
 
 const TIER_ORDER: SubscriptionTier[] = ["STARTER", "GROWTH", "PRO"];
 
-// Fixed the syntax error by changing 'Record' to 'Record<'
+const PLAN_PRICE_NAIRA = { GROWTH: 10_000, PRO: 20_000 } as const;
+
+const pct = (tier: SubscriptionTier) =>
+  `${Math.round(TIER_COMMISSION_RATES[tier] * 100)}%`;
+
+// How much monthly sales through FreshPoint a plan needs to pay for itself
+// compared with the plan below it, from the commission it saves.
+function breakEven(price: number, rateBefore: number, rateAfter: number): string {
+  const sales = Math.round(price / (rateBefore - rateAfter) / 1000) * 1000;
+  return `₦${sales.toLocaleString("en-NG")}`;
+}
+
 const TIER_COPY: Record<
   SubscriptionTier,
-  { label: string; price: string; features: string[] }
+  { label: string; price: string; features: string[]; note?: string }
 > = {
   STARTER: {
     label: "Starter",
     price: "Free",
     features: [
+      `${pct("STARTER")} commission on bookings and orders`,
       "1 staff account (just you)",
       "Basic totals — orders & revenue",
       "Standard booking confirmation",
-      "Normal listing placement",
-      `${TIER_DEFAULT_DELIVERY_RADIUS_KM.STARTER}km fixed delivery radius`,
+      "Standard listing in Explore",
     ],
   },
   GROWTH: {
     label: "Growth",
-    price: "₦10,000/mo",
+    price: `₦${PLAN_PRICE_NAIRA.GROWTH.toLocaleString("en-NG")}/mo`,
     features: [
+      `${pct("GROWTH")} commission — keep more of every sale`,
       "Unlimited staff accounts",
       "Full analytics dashboard",
-      "Automated booking reminders",
-      "Higher placement in Explore results",
-      `${TIER_DEFAULT_DELIVERY_RADIUS_KM.GROWTH}km fixed delivery radius`,
+      "Automatic booking reminders by email — fewer no-shows",
+      "Listed above Starter shops in Explore",
     ],
+    note: `Pays for itself from about ${breakEven(PLAN_PRICE_NAIRA.GROWTH, TIER_COMMISSION_RATES.STARTER, TIER_COMMISSION_RATES.GROWTH)} a month in sales through FreshPoint, compared with Starter.`,
   },
   PRO: {
     label: "Pro",
-    price: "₦15,000/mo",
+    price: `₦${PLAN_PRICE_NAIRA.PRO.toLocaleString("en-NG")}/mo`,
     features: [
       "Everything in Growth",
+      `${pct("PRO")} commission — our lowest rate`,
       "Sponsored placement — shown first in Explore",
-      "Promotional broadcast messages",
       "Timed storefront promotions with a countdown",
-      "Customizable delivery radius — set your own reach",
-      "Lowest commission rate",
+      "Broadcast messages to your customers",
+      "Multiple locations",
+      "Set your own delivery radius",
     ],
+    note: `Pays for itself from about ${breakEven(PLAN_PRICE_NAIRA.PRO, TIER_COMMISSION_RATES.STARTER, TIER_COMMISSION_RATES.PRO)} a month in sales compared with Starter, before counting the extra customers Sponsored placement brings.`,
   },
 };
 
@@ -120,12 +131,36 @@ export default async function SubscriptionPage({ params }: PageProps) {
             <span className="font-bold text-foreground bg-muted border border-border/60 px-1.5 py-0.5 rounded-md text-xs font-mono">
               {business.slug}
             </span>
-            . You can switch anytime — no lock-in.
+            . You can switch anytime — no lock-in. Paid plans renew each month
+            by card.
           </p>
         </div>
       </div>
 
-      {business.subscriptionTier !== "STARTER" &&
+      {business.isOnTrial && business.subscriptionExpiresAt && (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3">
+          <CalendarClockIcon className="h-5 w-5 shrink-0 text-primary" />
+          <p className="text-sm text-muted-foreground">
+            You&apos;re on a free{" "}
+            <span className="font-semibold text-foreground">
+              {business.subscriptionTier}
+            </span>{" "}
+            trial until{" "}
+            <span className="font-semibold text-foreground">
+              {business.subscriptionExpiresAt.toLocaleDateString("en-NG", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+            . Subscribe before then to keep your plan; otherwise your business
+            moves back to Starter.
+          </p>
+        </div>
+      )}
+
+      {!business.isOnTrial &&
+        business.subscriptionTier !== "STARTER" &&
         business.subscriptionExpiresAt &&
         (() => {
           const isOverdue = business.subscriptionExpiresAt < new Date();
@@ -196,6 +231,12 @@ export default async function SubscriptionPage({ params }: PageProps) {
             commissionRate={TIER_COMMISSION_RATES[tier]}
             features={TIER_COPY[tier].features}
             isCurrent={business.subscriptionTier === tier}
+            isOnTrial={business.isOnTrial && business.subscriptionTier === tier}
+            trialAvailable={
+              business.subscriptionTier === "STARTER" && !business.trialUsedAt
+            }
+            trialDays={TRIAL_DAYS}
+            note={TIER_COPY[tier].note}
             staffOptions={business.staff.map(({ id, name }) => ({ id, name }))}
             locationOptions={business.locations.map(({ id, name, isPrimary }) => ({ id, name, isPrimary }))}
           />

@@ -5,6 +5,8 @@ export const TIER_COMMISSION_RATES: Record<SubscriptionTier, number> = {
   GROWTH: 0.07, // 7% reduced rate
   PRO: 0.05, // 5% lowest rate
 };
+// Free trial length for Growth and Pro. One trial per business, no card needed.
+export const TRIAL_DAYS = 14;
 export function getCommissionRateForTier(tier: SubscriptionTier): number {
   return TIER_COMMISSION_RATES[tier];
 }

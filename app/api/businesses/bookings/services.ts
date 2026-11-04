@@ -1,4 +1,5 @@
 // app/api/businesses/bookings/services.ts
+import { sendNoShowEmail } from "@/lib/booking-emails";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { prisma } from "@/lib/prisma";
 import { BookingStatus, Booking, User, BookingItem } from "@prisma/client";
@@ -149,10 +150,32 @@ export async function processBookingStatusUpdate(
     }
   }
 
+  if (status === "NO_SHOW") {
+    if (booking.status !== "CONFIRMED") {
+      return {
+        success: false,
+        status: 422,
+        error: "Only a confirmed appointment can be marked as a no-show.",
+      };
+    }
+    if (booking.startTime > new Date()) {
+      return {
+        success: false,
+        status: 422,
+        error: "This appointment has not started yet, so it cannot be a no-show.",
+      };
+    }
+  }
+
   await prisma.booking.update({
     where: { id: bookingId, businessId: booking.businessId },
     data: { status },
   });
+
+  // Tell the customer they missed it (and that the payment is non-refundable).
+  if (status === "NO_SHOW" && booking.status !== "NO_SHOW") {
+    await sendNoShowEmail(bookingId);
+  }
 
   return { success: true };
 }

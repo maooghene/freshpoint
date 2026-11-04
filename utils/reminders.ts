@@ -26,17 +26,20 @@ export async function queueBookingReminders(bookingId: string) {
       ? booking.business.reminderMilestonesHours
       : [48, 2];
 
-  const reminderData = hoursConfig.map((hours) => {
-    const scheduledTime = new Date(
-      booking.startTime.getTime() - hours * 60 * 60 * 1000,
-    );
-    return {
+  // Only queue reminders that are still in the future. A booking made 3 hours
+  // before it starts should not instantly get a "48 hours before" email too;
+  // the booking confirmation already covers that.
+  const nowMs = Date.now();
+  const reminderData = hoursConfig
+    .map((hours) => ({
       bookingId: booking.id,
       milestone: `${hours}_HOURS_BEFORE`,
-      scheduledFor: scheduledTime,
+      scheduledFor: new Date(
+        booking.startTime.getTime() - hours * 60 * 60 * 1000,
+      ),
       sentAt: null,
-    };
-  });
+    }))
+    .filter((reminder) => reminder.scheduledFor.getTime() > nowMs);
 
   await prisma.bookingReminderLog.deleteMany({
     where: { bookingId: booking.id, sentAt: null },

@@ -133,7 +133,20 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     };
   });
 
-  const sponsoredBusinesses = normalizedBusinesses.filter((b) => b.isSponsored);
+  // Sponsored shops take turns: the order is shuffled once a day (same for
+  // everyone that day) so no Pro shop is permanently first.
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const dailyRank = (id: string) => {
+    let h = 2166136261;
+    for (const ch of `${dayKey}:${id}`) {
+      h ^= ch.charCodeAt(0);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+  const sponsoredBusinesses = normalizedBusinesses
+    .filter((b) => b.isSponsored)
+    .sort((a, b) => dailyRank(a.id) - dailyRank(b.id));
   const regularBusinesses = normalizedBusinesses.filter((b) => !b.isSponsored);
 
   return (

@@ -7,8 +7,6 @@ import { verifyAdminSession } from "@/lib/admin";
 import { z } from "zod";
 
 export interface MasterConfigValues {
-  bookingCommissionPct: number;
-  productCommissionPct: number;
   minGlobalDeliveryFee: number;
   platformPayoutFloor: number;
   maintenanceModeActive: boolean;
@@ -22,10 +20,7 @@ export interface MasterConfigValues {
   globalAlertBannerText: string | null;
 }
 
-const pct = z.number().finite().min(0, "Commission must be 0-100.").max(100, "Commission must be 0-100.");
 const settingsSchema = z.object({
-  bookingCommissionPct: pct,
-  productCommissionPct: pct,
   minGlobalDeliveryFee: z.number().finite().min(0).max(1_000_000),
   platformPayoutFloor: z.number().finite().min(0).max(100_000_000),
   maintenanceModeActive: z.boolean(),
@@ -58,8 +53,6 @@ export async function getSystemSettings(): Promise<MasterConfigValues> {
   });
 
   return {
-    bookingCommissionPct: settings?.bookingCommissionPct ?? 8,
-    productCommissionPct: settings?.productCommissionPct ?? 5,
     minGlobalDeliveryFee: settings?.minGlobalDeliveryFee ?? 200,
     platformPayoutFloor: settings?.platformPayoutFloor ?? 2000,
     maintenanceModeActive: settings?.maintenanceModeActive ?? false,
