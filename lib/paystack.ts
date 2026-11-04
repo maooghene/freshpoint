@@ -225,7 +225,7 @@ export const SUBSCRIPTION_PLANS: Record<
   },
   PRO: {
     planCode: process.env.PAYSTACK_PRO_PLAN_CODE,
-    amountKobo: 1_500_000, // ₦15,000
+    amountKobo: 2_000_000, // ₦20,000
   },
 };
 
