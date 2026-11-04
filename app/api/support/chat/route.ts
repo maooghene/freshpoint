@@ -1,4 +1,5 @@
 // app/api/support/chat/route.ts
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody } from "@/lib/validation";
 import { NextResponse } from "next/server";
@@ -12,6 +13,14 @@ interface IncomingMessage {
 }
 
 export async function POST(req: Request) {
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.aiChat);
+    if (limited) return limited;
+  }
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.aiChatIp, { byIp: true });
+    if (limited) return limited;
+  }
   try {
     const chatParse = await parseJsonBody(
       req,

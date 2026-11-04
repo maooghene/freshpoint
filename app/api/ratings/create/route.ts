@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseValue, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -6,6 +7,10 @@ import prisma from "@/lib/prisma";
 
 // ✅ POST: Create a verified workspace rating and text review supporting direct BUSINESS_OVERALL overrides
 export async function POST(req: NextRequest) {
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.ratingCreate);
+    if (limited) return limited;
+  }
   try {
     const clerkUser = await currentUser();
     if (!clerkUser) {

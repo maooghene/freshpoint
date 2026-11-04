@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import { handleGetBookingHistory } from "./controllers/getHistory";
 import { handleCreateNewBooking } from "./controllers/createBooking";
@@ -15,5 +16,9 @@ export async function GET(): Promise<NextResponse> {
    POST: Create a Safe, Overlap-Validated Booking Slot Interceptor Pipeline
    ========================================================================= */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  {
+    const limited = await rateLimit(req, RATE_LIMITS.bookingCreate);
+    if (limited) return limited;
+  }
   return handleCreateNewBooking(req);
 }

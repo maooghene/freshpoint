@@ -6,6 +6,7 @@ import imagekit from "@/config/imageKit";
 import { UserRole } from "@prisma/client";
 import { analyzeBusinessIntentWithAI } from "./aiGate";
 import { RegisterErrors } from "./types";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { emailSchema, validateImageFile } from "@/lib/validation";
 
 export interface RegisterState {
@@ -24,6 +25,14 @@ export async function createBusiness(
     const { userId } = await auth();
     if (!userId) {
       return { success: false, message: "Unauthorized. Please log in." };
+    }
+
+    const limit = await checkRateLimit(RATE_LIMITS.registration, `u:${userId}`);
+    if (!limit.ok) {
+      return {
+        success: false,
+        message: "Too many registration attempts. Please try again later.",
+      };
     }
 
     const clerkUser = await currentUser();

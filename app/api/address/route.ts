@@ -1,6 +1,7 @@
 // app/api/address/route.ts
 export const dynamic = "force-dynamic";
 
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody, text, optionalText } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
@@ -9,6 +10,10 @@ import prisma from "@/lib/prisma";
 
 // ✅ POST: Create a new address for the logged-in user
 export async function POST(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.mutation);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = getAuth(request);
 

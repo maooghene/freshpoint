@@ -42,6 +42,11 @@ export async function GET(request: NextRequest) {
       where: { processedAt: { lt: webhookEventCutoff } },
     });
 
+    // Rate-limit counters only matter within their window; keep a day of slack.
+    await prisma.rateLimitBucket.deleteMany({
+      where: { resetAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    });
+
     return NextResponse.json(
       {
         success: true,

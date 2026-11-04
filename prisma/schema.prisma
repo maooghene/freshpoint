@@ -732,3 +732,13 @@ model Promotion {
 
   @@index([businessId, isActive, endsAt])
 }
+
+// Fixed-window request counters used by lib/rate-limit.ts. One row per
+// (rule, caller) pair; expired rows are swept by the purge-stale-data cron.
+model RateLimitBucket {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}

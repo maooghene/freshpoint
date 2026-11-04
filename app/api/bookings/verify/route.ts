@@ -1,3 +1,4 @@
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody, idSchema } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
@@ -6,6 +7,10 @@ import prisma from "@/lib/prisma";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 
 export async function POST(request: NextRequest) {
+  {
+    const limited = await rateLimit(request, RATE_LIMITS.payment);
+    if (limited) return limited;
+  }
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
