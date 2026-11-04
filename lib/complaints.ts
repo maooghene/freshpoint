@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { resend, FROM_EMAIL } from "@/lib/resend";
+import { sendMail, FROM_EMAIL } from "@/lib/mail";
 import {
   ComplaintCategory,
   ComplaintSeverity,
@@ -162,7 +162,7 @@ async function notifyComplaint(
     complaint.severity === "HIGH" ? "🔴 URGENT" : "⚠️ New Complaint";
 
   try {
-    await resend.emails.send({
+    await sendMail({
       from: FROM_EMAIL,
       to: uniqueRecipients,
       subject: `${subjectPrefix} — ${complaint.category.replace("_", " ")} (${complaint.user.firstName || "Customer"})`,
@@ -186,6 +186,6 @@ async function notifyComplaint(
       `,
     });
   } catch (err) {
-    console.error("Failed to send complaint email via Resend:", err);
+    console.error("Failed to send complaint email via SMTP:", err);
   }
 }

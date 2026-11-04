@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { resend, FROM_EMAIL } from "@/lib/resend";
+import { sendMail, FROM_EMAIL } from "@/lib/mail";
 import { escapeHtml } from "@/lib/validation";
 
 /**
@@ -38,7 +38,7 @@ export async function sendNoShowEmail(bookingId: string): Promise<void> {
     const shop = escapeHtml(business.name);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
 
-    await resend.emails.send({
+    await sendMail({
       from: FROM_EMAIL,
       to: user.email,
       subject: `You missed your appointment with ${business.name}`,

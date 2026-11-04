@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { sendMail, isMailConfigured, FROM_EMAIL } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { disablePaystackSubscription } from "@/lib/paystack";
 import { downgradeIfExpired } from "@/lib/subscription-service";
@@ -53,9 +53,7 @@ export async function GET(request: NextRequest) {
   let downgraded = 0;
   let emailsSent = 0;
   let failed = 0;
-  const resend = process.env.RESEND_API_KEY
-    ? new Resend(process.env.RESEND_API_KEY)
-    : null;
+  const mailReady = isMailConfigured();
 
   for (const business of expired) {
     try {
@@ -88,23 +86,22 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (resend && business.owner.email) {
-        const { error } = await resend.emails.send({
-          from:
-            process.env.RESEND_FROM_EMAIL ||
-            "FreshPoint <notifications@freshpoint.com>",
-          to: business.owner.email,
-          subject: business.isOnTrial
-            ? "Your FreshPoint free trial has ended"
-            : "Your FreshPoint paid plan has expired",
-          html: business.isOnTrial
-            ? `<p>Your free ${previousTier} trial for <strong>${escapeHtml(business.name)}</strong> has ended and the business is now on Starter. You can subscribe any time from the subscription page to get your plan back.</p>`
-            : `<p>Your ${previousTier} plan for <strong>${escapeHtml(business.name)}</strong> has ended. The business is now on Starter. You can choose a paid plan again from the subscription page.</p>`,
-        });
-        if (error) {
-          console.error("SUBSCRIPTION_EXPIRY_EMAIL_ERROR", error);
-        } else {
+      if (mailReady && business.owner.email) {
+        // The downgrade already succeeded; a mail failure must not count as one.
+        try {
+          await sendMail({
+            from: FROM_EMAIL,
+            to: business.owner.email,
+            subject: business.isOnTrial
+              ? "Your FreshPoint free trial has ended"
+              : "Your FreshPoint paid plan has expired",
+            html: business.isOnTrial
+              ? `<p>Your free ${previousTier} trial for <strong>${escapeHtml(business.name)}</strong> has ended and the business is now on Starter. You can subscribe any time from the subscription page to get your plan back.</p>`
+              : `<p>Your ${previousTier} plan for <strong>${escapeHtml(business.name)}</strong> has ended. The business is now on Starter. You can choose a paid plan again from the subscription page.</p>`,
+          });
           emailsSent++;
+        } catch (mailError) {
+          console.error("SUBSCRIPTION_EXPIRY_EMAIL_ERROR", mailError);
         }
       }
     } catch (error) {

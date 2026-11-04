@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hasBookingReminders } from "@/lib/subscription-tiers";
-import { resend, FROM_EMAIL } from "@/lib/resend";
+import { sendMail, FROM_EMAIL } from "@/lib/mail";
 import { escapeHtml } from "@/lib/validation";
 
 // Describes how far away the appointment really is when the email goes out.
@@ -107,34 +107,43 @@ export async function GET(request: Request) {
       const vendorName = escapeHtml(business.name);
       const horizonText = describeTimeUntil(booking.startTime, now);
 
+      // 2. Email the CUSTOMER. If this fails, put the reminder back in the
+      // queue so the next run retries it.
       try {
-        // 2. Dispatch email notification to the CUSTOMER
-        await resend.emails.send({
+        await sendMail({
           from: FROM_EMAIL,
           to: user.email,
           subject: `Reminder: Your booking with ${business.name} is ${horizonText}`,
           html: `<p>Hi ${clientName}, this is a friendly reminder that your upcoming appointment with <strong>${vendorName}</strong> is ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
+        emailsDispatched += 1;
+      } catch (emailError) {
+        console.error(
+          `Failed to email customer for reminder ${log.id}:`,
+          emailError,
+        );
+        await prisma.bookingReminderLog.update({
+          where: { id: log.id },
+          data: { sentAt: null },
+        });
+        continue;
+      }
 
-        // 3. Dispatch email notification to the BUSINESS OWNER
-        await resend.emails.send({
+      // 3. Email the BUSINESS. The customer already has theirs, so a failure
+      // here is logged but not retried (that would email the customer twice).
+      try {
+        await sendMail({
           from: FROM_EMAIL,
           to: business.email,
           subject: `Upcoming session: appointment with ${user.firstName ?? "a client"} ${horizonText}`,
           html: `<p>Hello ${vendorName}, your session with client <strong>${clientName}</strong> is scheduled for ${horizonText}, ${dateString} at ${timeString}.</p>`,
         });
-
-        emailsDispatched += 2;
+        emailsDispatched += 1;
       } catch (emailError) {
         console.error(
-          `Failed to dispatch email for log ID ${log.id}:`,
+          `Failed to email business for reminder ${log.id}:`,
           emailError,
         );
-        // Put it back in the queue so the next run retries it.
-        await prisma.bookingReminderLog.update({
-          where: { id: log.id },
-          data: { sentAt: null },
-        });
       }
     }
 

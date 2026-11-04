@@ -1,6 +1,6 @@
 // lib/notify-business.ts
 import { prisma } from "@/lib/prisma";
-import { resend, FROM_EMAIL } from "@/lib/resend";
+import { sendMail, FROM_EMAIL } from "@/lib/mail";
 import webpush from "web-push";
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
@@ -84,7 +84,7 @@ async function sendEmailToBusiness(
   const htmlWithLink = html.replace("__BUSINESS_SLUG__", business.slug);
 
   try {
-    await resend.emails.send({
+    await sendMail({
       from: FROM_EMAIL,
       to: business.email,
       subject,
@@ -92,7 +92,7 @@ async function sendEmailToBusiness(
     });
   } catch (err) {
     console.error(
-      "Failed to send business notification email via Resend:",
+      "Failed to send business notification email via SMTP:",
       err,
     );
   }
