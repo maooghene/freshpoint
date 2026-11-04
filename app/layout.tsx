@@ -1,15 +1,30 @@
 // app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "@/app/globals.css";
 import Providers from "@/components/Providers";
 import ToastProvider from "@/components/ToastProvider";
 import { ImpersonationStickyBanner } from "@/components/admin/ImpersonationStickyBanner";
+import PwaRegister from "@/components/pwa/PwaRegister";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 
 export const metadata: Metadata = {
   title: "FreshPoint | Wellness Platform",
   description:
     "Multi-tenant workspace Admin Staff for modern wellness businesses",
+  applicationName: "FreshPoint",
+  appleWebApp: {
+    capable: true,
+    title: "FreshPoint",
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4B2E83",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -57,6 +72,8 @@ export default function RootLayout({
             </div>
 
             <ToastProvider />
+            <PwaRegister />
+            <InstallPrompt />
           </Providers>
         </body>
       </html>
