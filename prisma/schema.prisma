@@ -91,6 +91,7 @@ model Business {
   staff             StaffProfile[]
   pushSubscriptions PushSubscription[]
   announcements Announcement[]
+  promotions    Promotion[]
   reminderMilestonesHours Int[]        @default([48, 2])
   locations         Location[]
 
@@ -713,4 +714,21 @@ enum CategoryScope {
   PRODUCT
   SERVICE
   BOTH
+}
+
+// A timed offer shown on a business's public storefront with a countdown.
+// At most one is active per business; it disappears at endsAt.
+model Promotion {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title      String
+  details    String?
+  startsAt   DateTime @default(now())
+  endsAt     DateTime
+  isActive   Boolean  @default(true)
+  createdById String
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, isActive, endsAt])
 }

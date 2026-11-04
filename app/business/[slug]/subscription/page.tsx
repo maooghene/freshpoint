@@ -54,6 +54,7 @@ const TIER_COPY: Record<
       "Everything in Growth",
       "Top featured placement",
       "Promotional broadcast messages",
+      "Timed storefront promotions with a countdown",
       "Customizable delivery radius — set your own reach",
       "Lowest commission rate",
     ],

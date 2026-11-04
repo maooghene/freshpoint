@@ -1,5 +1,6 @@
 "use client";
 
+import { PromoBanner } from "@/components/explore/PromoBanner";
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -40,10 +41,11 @@ interface BusinessProfileInfo {
   reviewCount?: number;
 }
 
-interface StorefrontBroadcast {
+interface StorefrontPromotion {
   id: string;
   title: string;
-  message: string;
+  details: string | null;
+  endsAt: string;
 }
 
 // Moved outside the component to fix the React Compiler skip
@@ -69,7 +71,7 @@ export default function BusinessProfile() {
   const [services, setServices] = useState<UnifiedItem[]>([]);
   const [products, setProducts] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [broadcast, setBroadcast] = useState<StorefrontBroadcast | null>(null);
+  const [promotion, setPromotion] = useState<StorefrontPromotion | null>(null);
 
   // First load shows the full-page spinner; subsequent polling refreshes
   // happen silently in the background so the grid doesn't flash/reset.
@@ -103,7 +105,7 @@ export default function BusinessProfile() {
         reviewCount: data.totalReviews || 0,
       });
 
-      setBroadcast(data.broadcast ?? null);
+      setPromotion(data.promotion ?? null);
 
       const allItems: UnifiedItem[] = data.items || [];
       setServices(allItems.filter((item) => item.type === "SERVICE"));
@@ -155,7 +157,7 @@ export default function BusinessProfile() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden pt-24 bg-background text-foreground">
+    <div className="relative min-h-screen overflow-hidden pt-6 bg-background text-foreground">
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)] bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)]" />
       </div>
@@ -168,18 +170,14 @@ export default function BusinessProfile() {
           <ArrowLeftIcon className="w-4 h-4" /> Back to Providers
         </button>
 
-        {broadcast && (
-          <div
-            role="status"
-            className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-5 py-4"
-          >
-            <p className="text-sm font-black tracking-tight">
-              {broadcast.title}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line">
-              {broadcast.message}
-            </p>
-          </div>
+        {promotion && (
+          <PromoBanner
+            key={promotion.id}
+            title={promotion.title}
+            details={promotion.details}
+            endsAt={promotion.endsAt}
+            onExpired={() => setPromotion(null)}
+          />
         )}
 
         <BusinessProfileHeader
