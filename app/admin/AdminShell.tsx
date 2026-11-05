@@ -1,22 +1,39 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { MenuIcon } from "lucide-react";
 import AdminSidebar from "./AdminSidebar";
 import AdminMobileDrawer from "./AdminMobileDrawer";
 
 export default function AdminShell({
   children,
+  openComplaintCount = 0,
 }: {
   children: React.ReactNode;
+  openComplaintCount?: number;
 }) {
+  const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+
+  // Re-fetch the server layout every minute so new complaints show up in the
+  // badge without a manual page reload.
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [router]);
 
   return (
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden">
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 w-full relative">
-        <AdminSidebar />
-        <AdminMobileDrawer isOpen={isMobileOpen} setIsOpen={setIsMobileOpen} />
+        <AdminSidebar openComplaintCount={openComplaintCount} />
+        <AdminMobileDrawer
+          isOpen={isMobileOpen}
+          setIsOpen={setIsMobileOpen}
+          openComplaintCount={openComplaintCount}
+        />
 
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           {/* Mobile Top Bar */}

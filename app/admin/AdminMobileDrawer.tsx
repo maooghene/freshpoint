@@ -39,11 +39,13 @@ const NAV_ITEMS = [
 interface AdminMobileDrawerProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  openComplaintCount?: number;
 }
 
 export default function AdminMobileDrawer({
   isOpen,
   setIsOpen,
+  openComplaintCount = 0,
 }: AdminMobileDrawerProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
@@ -107,6 +109,14 @@ export default function AdminMobileDrawer({
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="truncate text-xs">{item.name}</span>
+                {item.href === "/admin/complaints" && openComplaintCount > 0 && (
+                  <span
+                    className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-extrabold text-white"
+                    aria-label={`${openComplaintCount} open complaints`}
+                  >
+                    {openComplaintCount > 99 ? "99+" : openComplaintCount}
+                  </span>
+                )}
               </Link>
             );
           })}
