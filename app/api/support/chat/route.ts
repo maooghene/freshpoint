@@ -2,7 +2,7 @@
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { z } from "zod";
 import { parseJsonBody } from "@/lib/validation";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { classifyComplaint, createAndNotifyComplaint } from "@/lib/complaints";
@@ -11,6 +11,8 @@ interface IncomingMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
+
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   {
@@ -165,8 +167,15 @@ User Recent Bookings (ID/Time/Status): ${JSON.stringify(systemUser.bookings)}
       const latestUserMessage =
         [...messages].reverse().find((m) => m.role === "user")?.content || "";
 
-      classifyComplaint(latestUserMessage, dynamicUserDataContext)
-        .then(async (classification) => {
+      // Serverless functions are frozen once the response is sent, so a bare
+      // fire-and-forget promise can be dropped before the complaint is saved.
+      // after() keeps the work alive without making the customer wait.
+      after(async () => {
+        try {
+          const classification = await classifyComplaint(
+            latestUserMessage,
+            dynamicUserDataContext,
+          );
           if (!classification.isComplaint) return;
 
           const systemUser = await prisma.user.findUnique({
@@ -180,10 +189,10 @@ User Recent Bookings (ID/Time/Status): ${JSON.stringify(systemUser.bookings)}
             classification,
             rawMessage: latestUserMessage,
           });
-        })
-        .catch((err) =>
-          console.error("Complaint pipeline failed silently:", err),
-        );
+        } catch (err) {
+          console.error("Complaint pipeline failed:", err);
+        }
+      });
     }
 
     return NextResponse.json({ text: assistantText }, { status: 200 });
