@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { verifyAdminSession } from "@/lib/admin";
 import AdminShell from "./AdminShell";
+import { prisma } from "@/lib/prisma";
 import { AnnouncementsDisplay } from "@/components/announcements/AnnouncementsDisplay";
 
 interface AdminLayoutProps {
@@ -16,8 +17,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     redirect("/admin/errors/unauthorized");
   }
 
+  // Complaints still waiting for attention (anything not yet resolved).
+  const openComplaintCount = await prisma.complaint.count({
+    where: { status: { not: "RESOLVED" } },
+  });
+
   return (
-    <AdminShell>
+    <AdminShell openComplaintCount={openComplaintCount}>
       <AnnouncementsDisplay />
       {children}
     </AdminShell>

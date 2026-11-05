@@ -36,7 +36,11 @@ const NAV_ITEMS = [
   { name: "Audit Log", href: "/admin/audit-log", icon: ScrollText },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({
+  openComplaintCount = 0,
+}: {
+  openComplaintCount?: number;
+}) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -99,7 +103,7 @@ export default function AdminSidebar() {
               key={item.name}
               href={item.href}
               title={isCollapsed ? item.name : undefined}
-              className={`flex items-center gap-3 ${
+              className={`relative flex items-center gap-3 ${
                 isCollapsed ? "justify-center px-0 w-10 mx-auto" : "px-3.5"
               } rounded-xl py-2.5 text-sm font-bold transition-all ${
                 isActive
@@ -111,6 +115,18 @@ export default function AdminSidebar() {
               {!isCollapsed && (
                 <span className="truncate animate-in fade-in duration-200 text-xs">
                   {item.name}
+                </span>
+              )}
+              {item.href === "/admin/complaints" && openComplaintCount > 0 && (
+                <span
+                  className={`${
+                    isCollapsed
+                      ? "absolute -top-1 -right-1"
+                      : "ml-auto"
+                  } inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-extrabold text-white`}
+                  aria-label={`${openComplaintCount} open complaints`}
+                >
+                  {openComplaintCount > 99 ? "99+" : openComplaintCount}
                 </span>
               )}
             </Link>
