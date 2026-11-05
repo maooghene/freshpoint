@@ -11,9 +11,8 @@ import { IdentityFields } from "./IdentityFields";
 import { CapacityCategoryFields } from "./CapacityCategoryFields";
 import { DescriptionField } from "./DescriptionField";
 import { OwnerRosterToggle } from "./OwnerRosterToggle"; // 🎯 IMPORT TOGGLE
-import { Save, RotateCcw, Truck, Lock } from "lucide-react";
+import { Save, RotateCcw, Truck } from "lucide-react";
 import {
-  canCustomizeDeliveryRadius,
   getEffectiveDeliveryRadiusKm,
 } from "@/lib/subscription-tiers";
 
@@ -88,19 +87,10 @@ export function SettingsForm({ business }: SettingsFormProps) {
     }
   };
 
-  const canCustomizeRadius = canCustomizeDeliveryRadius(
-    business.subscriptionTier,
-  );
   const effectiveRadiusKm = getEffectiveDeliveryRadiusKm(
     business.subscriptionTier,
     business.deliveryRadiusKm,
   );
-
-  const handleLockedRadiusClick = () => {
-    toast.info(
-      `Your current plan allows deliveries within ${effectiveRadiusKm}km. Upgrade to Pro to expand your reach!`,
-    );
-  };
 
   return (
     <div className="w-full max-w-4xl space-y-6">
@@ -192,44 +182,26 @@ export function SettingsForm({ business }: SettingsFormProps) {
                 Delivery Radius (Km)
               </label>
 
-              {canCustomizeRadius ? (
-                <>
-                  <input
-                    id="deliveryRadiusKm"
-                    name="deliveryRadiusKm"
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    disabled={isPending}
-                    defaultValue={business.deliveryRadiusKm ?? ""}
-                    placeholder={`Default: ${effectiveRadiusKm}km`}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                  />
-                  {state.errors?.deliveryRadiusKm && (
-                    <p className="text-xs text-destructive mt-1 font-medium">
-                      {state.errors.deliveryRadiusKm[0]}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Leave blank to use the standard {effectiveRadiusKm}km
-                    radius.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleLockedRadiusClick}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-muted/50 text-sm text-muted-foreground flex items-center justify-between cursor-pointer hover:bg-muted transition-colors"
-                  >
-                    <span>{effectiveRadiusKm} km (Standard Plan Limit)</span>
-                    <Lock className="h-3.5 w-3.5 shrink-0" />
-                  </button>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Upgrade to Pro to customize your delivery radius.
-                  </p>
-                </>
+              <input
+                id="deliveryRadiusKm"
+                name="deliveryRadiusKm"
+                type="number"
+                step="0.1"
+                min="0.1"
+                disabled={isPending}
+                defaultValue={business.deliveryRadiusKm ?? ""}
+                placeholder={`No limit set (up to ${effectiveRadiusKm}km)`}
+                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+              />
+              {state.errors?.deliveryRadiusKm && (
+                <p className="text-xs text-destructive mt-1 font-medium">
+                  {state.errors.deliveryRadiusKm[0]}
+                </p>
               )}
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Optional. Leave blank to deliver anywhere within {effectiveRadiusKm}km;
+                customers farther away can still choose pickup.
+              </p>
             </div>
 
             <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -275,10 +247,12 @@ export function SettingsForm({ business }: SettingsFormProps) {
         </form>
       </div>
       {/* 🎯 PLACED CLEANLY OUTSIDE FORM BLOCK SO SWITCH CHANGES MUTATE INDEPENDENTLY */}
-      <OwnerRosterToggle
-        businessId={business.id}
-        initialIsActive={business.initialOwnerActive}
-      />
+      {business.subscriptionTier !== "STARTER" && (
+        <OwnerRosterToggle
+          businessId={business.id}
+          initialIsActive={business.initialOwnerActive}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 // Standardized named connection instance wrapper
@@ -55,6 +56,27 @@ export default async function StaffPageRoute({ params }: PageProps) {
     allowStaff: false,
   });
   if (!authorized) notFound();
+  // Starter is a one-person plan: the owner runs everything from this
+  // dashboard. Team accounts start at Growth.
+  if (business.subscriptionTier === "STARTER") {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-16 text-center space-y-4">
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+          Team accounts start on Growth
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          On Starter you run everything yourself from this dashboard. Upgrade to
+          Growth when you want to give a worker their own staff account.
+        </p>
+        <Link
+          href={`/business/${slug}/subscription`}
+          className="inline-flex h-10 items-center rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground"
+        >
+          View plans
+        </Link>
+      </div>
+    );
+  }
   // Safe JSON serialization to cleanly pass Date timestamps to Client Component trees
   const serializedBusiness = JSON.parse(JSON.stringify(business));
   return (

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { uploadToImageKit } from "@/lib/imagekit";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
-import { canCustomizeDeliveryRadius } from "@/lib/subscription-tiers";
 import { validateImageFile } from "@/lib/validation";
 
 const MAX_DELIVERY_FEE = 1_000_000;
@@ -98,25 +97,11 @@ export async function updateBusinessSettings(
       ? parseFloat(deliveryFeePerKmRaw.toString())
       : 0;
 
-    // Delivery radius: server-side tier guard. The submitted value is ONLY
-    // trusted if this business's own subscriptionTier (looked up above,
-    // not taken from the form) actually allows customization. A
-    // Starter/Growth owner submitting a modified value via devtools/raw
-    // POST gets silently ignored here, not just blocked by a disabled
-    // input — the disabled UI is a courtesy, not the real boundary.
-    const canCustomizeRadius = canCustomizeDeliveryRadius(
-      business.subscriptionTier,
-    );
+    // Delivery radius is optional for every plan. Blank = no custom limit.
     const deliveryRadiusKmRaw = formData.get("deliveryRadiusKm");
     let deliveryRadiusKm: number | null = null;
-
-    if (canCustomizeRadius) {
-      if (deliveryRadiusKmRaw && deliveryRadiusKmRaw.toString().trim() !== "") {
-        deliveryRadiusKm = parseFloat(deliveryRadiusKmRaw.toString());
-      } else {
-        // Blank = fall back to the tier default, not an error.
-        deliveryRadiusKm = null;
-      }
+    if (deliveryRadiusKmRaw && deliveryRadiusKmRaw.toString().trim() !== "") {
+      deliveryRadiusKm = parseFloat(deliveryRadiusKmRaw.toString());
     }
 
     const file = formData.get("imageFile") as File | null;
@@ -199,7 +184,7 @@ export async function updateBusinessSettings(
     // Only validate the radius value itself when this tier is even allowed
     // to set one — a Starter/Growth submission was already forced to null
     // above, so there's nothing here to validate for them.
-    if (canCustomizeRadius && deliveryRadiusKm !== null) {
+    if (deliveryRadiusKm !== null) {
       if (
         !Number.isFinite(deliveryRadiusKm) ||
         deliveryRadiusKm <= 0 ||

@@ -115,6 +115,7 @@ export async function GET(
       name: business.name,
       slug: business.slug,
       status: business.status || "pending",
+      subscriptionTier: business.subscriptionTier,
       description: business.description,
       image: resolveAbsoluteImageUrl(business.image),
       address: business.address,
