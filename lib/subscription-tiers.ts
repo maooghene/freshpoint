@@ -20,8 +20,11 @@ export function canCustomizeDeliveryRadius(_tier?: SubscriptionTier): boolean {
 export function getEffectiveDeliveryRadiusKm(
   _tier: SubscriptionTier,
   customRadiusKm: number | null,
+  platformMaxKm: number = PLATFORM_MAX_DELIVERY_RADIUS_KM,
 ): number {
-  return customRadiusKm ?? PLATFORM_MAX_DELIVERY_RADIUS_KM;
+  // A business may choose a smaller radius, never a larger one than the
+  // admin's platform-wide limit.
+  return Math.min(customRadiusKm ?? platformMaxKm, platformMaxKm);
 }
 // Staff account limits per tier. null = unlimited. Starter = owner + 1
 // staff account. Counts ALL StaffProfile rows (pending + active) so a

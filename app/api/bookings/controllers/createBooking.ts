@@ -11,6 +11,12 @@ import {
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { queueBookingReminders } from "@/utils/reminders";
 import { notifyBusinessNewBooking } from "@/lib/notify-business";
+import {
+  getPlatformRules,
+  countRecentBookings,
+  dailyBookingLimitMessage,
+  MAINTENANCE_MESSAGE,
+} from "@/lib/platform-rules";
 
 interface CreateBookingPayload {
   itemId: string;
@@ -122,6 +128,20 @@ export async function handleCreateNewBooking(
       return NextResponse.json(
         { error: "Identity profile missing from cluster" },
         { status: 400 },
+      );
+    }
+
+    const platformRules = await getPlatformRules();
+    if (platformRules.maintenanceModeActive) {
+      return NextResponse.json({ error: MAINTENANCE_MESSAGE }, { status: 503 });
+    }
+    if (
+      (await countRecentBookings(userRecord.id)) >=
+      platformRules.maxDailyBookingsPerUser
+    ) {
+      return NextResponse.json(
+        { error: dailyBookingLimitMessage(platformRules.maxDailyBookingsPerUser) },
+        { status: 429 },
       );
     }
 
