@@ -1,4 +1,5 @@
 // lib/notify-business.ts
+import { escapeHtml } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { sendMail, FROM_EMAIL } from "@/lib/mail";
 import webpush from "web-push";
@@ -137,8 +138,8 @@ export async function notifyBusinessNewOrder(params: {
     emailHtml: `
       <div style="font-family: sans-serif; max-width: 480px;">
         <h2 style="color:#111;">New Order Received</h2>
-        <p><strong>Order:</strong> ${orderCode}</p>
-        <p><strong>Customer:</strong> ${customerName}</p>
+        <p><strong>Order:</strong> ${escapeHtml(orderCode)}</p>
+        <p><strong>Customer:</strong> ${escapeHtml(customerName)}</p>
         <p><strong>Fulfillment:</strong> ${isDelivery ? "Home Delivery" : "Store Pickup"}</p>
         <p><strong>Total:</strong> ₦${totalAmount.toLocaleString()}</p>
         <p style="margin-top:20px;">
@@ -177,8 +178,8 @@ export async function notifyBusinessNewBooking(params: {
     emailHtml: `
       <div style="font-family: sans-serif; max-width: 480px;">
         <h2 style="color:#111;">New Booking Received</h2>
-        <p><strong>Voucher:</strong> ${queueCode}</p>
-        <p><strong>Customer:</strong> ${customerName}</p>
+        <p><strong>Voucher:</strong> ${escapeHtml(queueCode)}</p>
+        <p><strong>Customer:</strong> ${escapeHtml(customerName)}</p>
         <p><strong>Appointment:</strong> ${formattedTime}</p>
         <p><strong>Total:</strong> ₦${totalAmount.toLocaleString()}</p>
         <p style="margin-top:20px;">

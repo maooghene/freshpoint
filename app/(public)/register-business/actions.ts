@@ -8,6 +8,10 @@ import { analyzeBusinessIntentWithAI } from "./aiGate";
 import { RegisterErrors } from "./types";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { emailSchema, validateImageFile } from "@/lib/validation";
+import {
+  getPlatformRules,
+  MAINTENANCE_MESSAGE,
+} from "@/lib/platform-rules";
 
 export interface RegisterState {
   success: boolean;
@@ -58,6 +62,16 @@ export async function createBusiness(
       return {
         success: false,
         message: "User account records missing. Please refresh.",
+      };
+    }
+
+    const platformRules = await getPlatformRules();
+    if (platformRules.maintenanceModeActive || !platformRules.allowNewRegistrations) {
+      return {
+        success: false,
+        message: platformRules.maintenanceModeActive
+          ? MAINTENANCE_MESSAGE
+          : "New business registrations are paused right now. Please check back soon.",
       };
     }
 
@@ -188,8 +202,10 @@ export async function createBusiness(
           sittingCapacity,
           description: description || null,
           image: optimizedImageUrl,
-          status: "approved",
-          isActive: true,
+          // Admin setting: instant approval puts the business live straight
+          // away; otherwise it waits for review in Vendor Verification.
+          status: platformRules.enforceInstantApproval ? "approved" : "pending",
+          isActive: platformRules.enforceInstantApproval,
           ownerId: systemUser.id,
           categories,
           schedules: {

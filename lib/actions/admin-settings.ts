@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
 import { z } from "zod";
+import { clearPlatformRulesCache } from "@/lib/platform-rules";
 
 export interface MasterConfigValues {
   minGlobalDeliveryFee: number;
@@ -97,6 +98,7 @@ export async function updateSystemSettingsAction(
       create: { id: "singleton", ...safeValues },
     });
 
+    clearPlatformRulesCache();
     revalidatePath("/admin/settings");
     revalidatePath("/");
     return {

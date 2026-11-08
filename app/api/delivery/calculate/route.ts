@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
 import { getEffectiveDeliveryRadiusKm } from "@/lib/subscription-tiers";
+import { getPlatformRules } from "@/lib/platform-rules";
 
 interface DeliveryCalculateRequestBody {
   businessId: string;
@@ -150,9 +151,11 @@ export async function POST(req: NextRequest) {
 
     const roundedDistance = Number(distanceKm.toFixed(2));
 
+    const rules = await getPlatformRules();
     const effectiveRadiusKm = getEffectiveDeliveryRadiusKm(
       business.subscriptionTier,
       business.deliveryRadiusKm,
+      rules.maxDistanceLimitKm,
     );
 
     // Outside delivery zone: return a clear, structured "no" instead of
@@ -175,9 +178,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const deliveryFee =
+    const deliveryFee = Math.max(
       Number(business.baseDeliveryFee) +
-      roundedDistance * Number(business.deliveryFeePerKm);
+        roundedDistance * Number(business.deliveryFeePerKm),
+      rules.minGlobalDeliveryFee,
+    );
 
     return NextResponse.json({
       success: true,

@@ -7,6 +7,7 @@ import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { getCommissionRateForTier, getEffectiveDeliveryRadiusKm } from "@/lib/subscription-tiers";
+import { getPlatformRules, MAINTENANCE_MESSAGE } from "@/lib/platform-rules";
 import { calculateHaversineDistance, geocodeAddress } from "@/lib/geo";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { refundPaystackPayment } from "@/lib/paystack";
@@ -397,6 +398,14 @@ export async function POST(request: NextRequest) {
       );
     };
 
+    const platformRules = await getPlatformRules();
+    if (platformRules.maintenanceModeActive) {
+      return refundAndRecordOrder(
+        "Platform is in maintenance mode.",
+        `${MAINTENANCE_MESSAGE} ${REFUND_NOTICE}`,
+      );
+    }
+
     if (activeIsDelivery) {
       if (!activeAddress) {
         return refundAndRecordOrder(
@@ -422,6 +431,7 @@ export async function POST(request: NextRequest) {
       const radiusKm = getEffectiveDeliveryRadiusKm(
         business.subscriptionTier,
         business.deliveryRadiusKm,
+        platformRules.maxDistanceLimitKm,
       );
       if (distanceKm > radiusKm) {
         return refundAndRecordOrder(
@@ -430,8 +440,11 @@ export async function POST(request: NextRequest) {
         );
       }
       activeFee = Math.round(
-        Number(business.baseDeliveryFee) +
-          Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
+        Math.max(
+          Number(business.baseDeliveryFee) +
+            Number(distanceKm.toFixed(2)) * Number(business.deliveryFeePerKm),
+          platformRules.minGlobalDeliveryFee,
+        ),
       );
     }
 

@@ -7,6 +7,7 @@ import ToastProvider from "@/components/ToastProvider";
 import { ImpersonationStickyBanner } from "@/components/admin/ImpersonationStickyBanner";
 import PwaRegister from "@/components/pwa/PwaRegister";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
+import MaintenanceNotice from "@/components/MaintenanceNotice";
 
 export const metadata: Metadata = {
   title: "FreshPoint | Wellness Platform",
@@ -74,6 +75,7 @@ export default function RootLayout({
             <ToastProvider />
             <PwaRegister />
             <InstallPrompt />
+            <MaintenanceNotice />
           </Providers>
         </body>
       </html>

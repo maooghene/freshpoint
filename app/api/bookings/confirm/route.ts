@@ -8,6 +8,12 @@ import prisma from "@/lib/prisma";
 import { calculateFees } from "@/lib/fees";
 import { BookingStatus } from "@prisma/client";
 import { getPaystackTransaction, refundPaystackPayment } from "@/lib/paystack";
+import {
+  getPlatformRules,
+  countRecentBookings,
+  dailyBookingLimitMessage,
+  MAINTENANCE_MESSAGE,
+} from "@/lib/platform-rules";
 import { isStaffOffDuty, generateUniqueQueueCode } from "./helpers";
 import { queueBookingReminders } from "@/utils/reminders";
 import { getCommissionRateForTier } from "@/lib/subscription-tiers";
@@ -199,6 +205,26 @@ export async function POST(request: NextRequest) {
         { status },
       );
     };
+
+    // Admin rules from Global Settings. The checkout screen warns first; this
+    // is the backstop, and it refunds because the payment is already captured.
+    const platformRules = await getPlatformRules();
+    if (platformRules.maintenanceModeActive) {
+      return rejectWithRefund(
+        "platform in maintenance mode",
+        MAINTENANCE_MESSAGE,
+        503,
+      );
+    }
+    if (
+      (await countRecentBookings(user.id)) >= platformRules.maxDailyBookingsPerUser
+    ) {
+      return rejectWithRefund(
+        "daily booking limit reached",
+        dailyBookingLimitMessage(platformRules.maxDailyBookingsPerUser),
+        429,
+      );
+    }
 
     // Single fetch — includes schedules for hours-check AND the fields we
     // need for commission calculation (commissionRate, subscriptionTier).

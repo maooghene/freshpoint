@@ -20,6 +20,8 @@ function generateSlug(name: string): string {
 }
 
 // ✅ POST: Process onboarding application forms and create a new business tenant space
+import { getPlatformRules, MAINTENANCE_MESSAGE } from "@/lib/platform-rules";
+
 export async function POST(request: NextRequest) {
   {
     const limited = await rateLimit(request, RATE_LIMITS.upload);
@@ -32,6 +34,18 @@ export async function POST(request: NextRequest) {
 
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const platformRules = await getPlatformRules();
+    if (platformRules.maintenanceModeActive || !platformRules.allowNewRegistrations) {
+      return NextResponse.json(
+        {
+          error: platformRules.maintenanceModeActive
+            ? MAINTENANCE_MESSAGE
+            : "New business registrations are paused right now. Please check back soon.",
+        },
+        { status: 503 },
+      );
     }
 
     // Resolve or build internal sequential database user context log mapping
