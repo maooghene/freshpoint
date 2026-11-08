@@ -21,7 +21,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
+import { DashboardBrand } from "@/components/dashboard/DashboardBrand";
 
 // Keeping your exact routes and data structures intact
 const NAV_ITEMS = [
@@ -76,20 +76,11 @@ export default function AdminSidebar({
       {/* Header */}
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
-          {isCollapsed ? (
-            <div className="shrink-0 flex items-center justify-center w-9 h-9">
-              <FreshpointLogo size={40} />
-            </div>
-          ) : (
-            <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1.5">
-              <div className="shrink-0 flex items-center w-full">
-                <FreshpointLogo size={40} />
-              </div>
-              <span className="truncate text-[10px] text-muted-foreground leading-none font-medium pl-1">
-                Main Office Hub
-              </span>
-            </div>
-          )}
+          <DashboardBrand
+            collapsed={isCollapsed}
+            subtitle="Admin"
+            caption="Main Office Hub"
+          />
         </div>
       </div>
 

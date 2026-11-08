@@ -29,7 +29,7 @@ export default async function StaffOrdersPage() {
   });
 
   return (
-    <main className="min-h-screen bg-background pt-8 pb-12 px-4 sm:px-6 lg:px-8 font-sans w-full max-w-7xl mx-auto min-w-0">
+    <main className="min-h-dvh bg-background pt-8 pb-12 px-4 sm:px-6 lg:px-8 font-sans w-full max-w-7xl mx-auto min-w-0">
       <div className="flex flex-col gap-1 border-b border-border pb-6 mb-8 min-w-0">
         <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground truncate">
           {"Store Orders Pipeline"}

@@ -97,7 +97,7 @@ export default async function VendorSettingsPage({ params }: PageProps) {
   };
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl min-h-screen text-foreground transition-colors duration-200">
+    <main className="container mx-auto px-4 py-8 max-w-4xl min-h-dvh text-foreground transition-colors duration-200">
       <div className="mb-8 flex items-center gap-4 border-b border-border/40 pb-6">
         <div className="rounded-xl bg-muted border border-border p-3 shrink-0 flex items-center justify-center">
           <Building2 className="h-6 w-6 text-muted-foreground" />

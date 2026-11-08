@@ -38,7 +38,7 @@ export default async function StaffLayout({ children }: StaffLayoutProps) {
   const staff = userProfile.staffProfile;
 
   return (
-    <div className="relative min-h-screen bg-background flex w-full font-sans antialiased overflow-x-hidden">
+    <div className="relative min-h-dvh bg-background flex w-full font-sans antialiased overflow-x-hidden">
       {/* 
         🔓 FAIL-SAFE MOUNT ENVELOPE:
         Wipes out local exit override tokens the second they are back on duty,
@@ -61,7 +61,7 @@ export default async function StaffLayout({ children }: StaffLayoutProps) {
         pt-16 handles small screen header clearance, shifting cleanly to lg:pt-0 
         when the layout engine rolls over onto wide desktop viewports.
       */}
-      <div className="flex-1 w-full min-w-0 pt-16 lg:pt-0 lg:pl-64 flex flex-col">
+      <div className="flex-1 w-full min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top))] lg:pt-0 lg:pl-64 flex flex-col">
         <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 min-w-0">
           {children}
         </div>

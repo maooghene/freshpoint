@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { XIcon, Sun, Moon, ArrowRightIcon } from "lucide-react";
-import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
+import { DashboardBrand } from "@/components/dashboard/DashboardBrand";
 import { NavigationItemShape, BusinessInfo } from "./types";
 
 interface MobileDrawerProps {
@@ -36,27 +36,20 @@ export default function MobileDrawer({
     <>
       {/* Sidebar Mobile Drawer Container - Fixed to a clean, ultra-slim responsive layout width matching the staff drawer specs */}
       <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[58vw] sm:w-64 transform bg-card shadow-2xl transition-transform duration-300 ease-in-out border-r border-border flex flex-col ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 h-dvh w-[85vw] max-w-xs pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] transform bg-card shadow-2xl transition-transform duration-300 ease-in-out border-r border-border flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Top Header Area */}
         <div className="flex items-center justify-between border-b border-border px-4 py-4 shrink-0 min-w-0 gap-2">
-          <div className="flex min-w-0 items-center gap-2 flex-1">
-            <div className="flex min-w-0 flex-col gap-1 flex-1">
-              <FreshpointLogo size={24} />
-              <span className="truncate text-[10px] font-bold text-muted-foreground tracking-wide uppercase mt-0.5 max-w-[40vw] sm:max-w-[180px]">
-                {businessInfo?.name || "FreshPoint"}
-              </span>
-            </div>
-          </div>
+          <DashboardBrand subtitle={businessInfo?.name || "FreshPoint"} />
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="shrink-0 rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-muted"
             aria-label="Close navigation panel"
           >
-            <XIcon className="h-3.5 w-3.5" />
+            <XIcon className="h-5 w-5" />
           </button>
         </div>
 
