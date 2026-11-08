@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileTopBar } from "@/components/dashboard/MobileTopBar";
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { usePathname, useParams, useRouter } from "next/navigation";
@@ -168,7 +169,7 @@ export default function BusinessLayout({
     businessInfo?.status?.trim().toLowerCase() === "verified";
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background overflow-hidden">
+    <div className="h-dvh w-full flex flex-col bg-background overflow-hidden">
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 w-full relative">
         {/* Isolated Desktop Sidebar Fragment */}
         <DesktopSidebar
@@ -195,22 +196,11 @@ export default function BusinessLayout({
 
         {/* Viewport content layout frame lanes */}
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          {/* Mobile Top Bar */}
-          <div className="flex lg:hidden items-center justify-between px-4 py-3 border-b border-border bg-card shrink-0 min-w-0 w-full h-14">
-            <button
-              type="button"
-              onClick={() => setIsMobileOpen(true)}
-              className="p-2 border border-border rounded-xl bg-secondary/50 text-foreground cursor-pointer shrink-0"
-            >
-              <MenuIcon className="w-5 h-5" />
-            </button>
-            <div className="min-w-0 flex-1 px-4 text-center">
-              <span className="font-bold text-sm text-foreground truncate block">
-                {businessInfo?.name || "Workspace"}
-              </span>
-            </div>
-            <div className="w-9 h-9 shrink-0" />
-          </div>
+          <MobileTopBar
+            onOpenMenu={() => setIsMobileOpen(true)}
+            subtitle={businessInfo?.name || "Workspace"}
+            menuLabel="Open business menu"
+          />
 
           <main className="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto bg-background/40 custom-scrollbar">
             <div className="w-full max-w-7xl mx-auto animate-in fade-in duration-200">

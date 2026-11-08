@@ -10,7 +10,7 @@ import {
   ChevronRightIcon,
   LogOut,
 } from "lucide-react";
-import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
+import { DashboardBrand } from "@/components/dashboard/DashboardBrand";
 import { NavigationItemShape, BusinessInfo } from "./types";
 
 interface DesktopSidebarProps {
@@ -49,17 +49,10 @@ export default function DesktopSidebar({
       <div className="flex flex-col gap-2 border-b border-border p-4 pb-3 shrink-0 min-w-0">
         <div className="flex items-center gap-2 min-w-0 w-full justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-center lg:justify-start">
-            {isCollapsed ? (
-              <FreshpointLogo size={24} />
-            ) : (
-              <div className="min-w-0 flex-1 flex flex-col animate-in fade-in duration-200 gap-1.5">
-                <FreshpointLogo size={24} />
-                {/* Fixed the business name text to a sleek, professional micro-typography scale */}
-                <span className="truncate text-[10px] font-bold text-muted-foreground tracking-wide uppercase leading-none mt-0.5">
-                  {businessInfo?.name || "FreshpointBiz"}
-                </span>
-              </div>
-            )}
+            <DashboardBrand
+              collapsed={isCollapsed}
+              subtitle={businessInfo?.name || "FreshpointBiz"}
+            />
           </div>
         </div>
         {!isCollapsed && (

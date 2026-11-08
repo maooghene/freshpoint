@@ -108,7 +108,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-5xl mx-auto h-[calc(100vh-4rem)] flex flex-col bg-background overflow-hidden"
+      className="w-full max-w-5xl mx-auto h-[calc(100dvh-4rem)] flex flex-col bg-background overflow-hidden"
     >
       {/* SCROLLABLE SETTINGS CONTENT */}
       <div

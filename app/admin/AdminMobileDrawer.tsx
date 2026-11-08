@@ -21,7 +21,7 @@ import {
   Megaphone,
   ScrollText,
 } from "lucide-react";
-import { FreshpointLogo } from "@/components/icons/FreshpointLogo";
+import { DashboardBrand } from "@/components/dashboard/DashboardBrand";
 
 // Matches your master sidebar layout items with simple English labels
 const NAV_ITEMS = [
@@ -70,23 +70,16 @@ export default function AdminMobileDrawer({
 
       {/* Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col border-r border-border bg-card transition-transform duration-300 lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[85vw] max-w-xs flex-col pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] border-r border-border bg-card transition-transform duration-300 lg:hidden ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between gap-2 border-b border-border p-4 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="min-w-0 flex flex-col gap-1">
-              <FreshpointLogo size={35} />
-              <span className="truncate text-[10px] text-muted-foreground leading-none">
-                Main Office Hub
-              </span>
-            </div>
-          </div>
+          <DashboardBrand subtitle="Admin" caption="Main Office Hub" />
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="p-2 rounded-xl border border-border bg-secondary/50 text-foreground shrink-0 cursor-pointer"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary/50 text-foreground shrink-0 cursor-pointer"
           >
             <XIcon className="w-5 h-5" />
           </button>
@@ -101,7 +94,7 @@ export default function AdminMobileDrawer({
                 key={item.name}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 px-3.5 rounded-xl py-2.5 text-sm font-bold transition-all ${
+                className={`flex items-center gap-3 px-3.5 rounded-xl min-h-11 py-2.5 text-sm font-bold transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10"
                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"

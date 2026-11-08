@@ -68,7 +68,7 @@ export default async function BusinessSupportPage({ params }: PageProps) {
   const linkBase = `/business/${business.slug}`;
 
   return (
-    <main className="container mx-auto min-h-screen max-w-5xl px-4 py-8 text-foreground transition-colors duration-200">
+    <main className="container mx-auto min-h-dvh max-w-5xl px-4 py-8 text-foreground transition-colors duration-200">
       <div className="mb-8 flex items-center gap-4 border-b border-border/40 pb-6">
         <div className="flex shrink-0 items-center justify-center rounded-xl border border-border bg-muted p-3">
           <HelpCircleIcon className="h-6 w-6 text-muted-foreground" />
