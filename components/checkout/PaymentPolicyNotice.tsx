@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 
 interface PaymentPolicyNoticeProps {
@@ -57,7 +58,14 @@ export function PaymentPolicyNotice({
           onChange={(e) => onChange(e.target.checked)}
           className="mt-0.5 size-4 shrink-0 accent-primary"
         />
-        <span>I understand that payments are final and non-refundable.</span>
+        <span>
+          I understand that payments are final and non-refundable, and I agree
+          to the{" "}
+          <Link href="/terms" target="_blank" className="underline">
+            Terms
+          </Link>
+          .
+        </span>
       </label>
     </div>
   );

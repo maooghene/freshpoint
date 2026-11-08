@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 import { Sparkles } from "lucide-react";
 
@@ -66,9 +67,9 @@ function Footer() {
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-foreground transition-colors">
+                <Link href="/contact" className="hover:text-foreground transition-colors">
                   Contact Us
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
@@ -85,14 +86,14 @@ function Footer() {
             </h4>
             <ul className="space-y-1.5 font-medium text-muted-foreground">
               <li>
-                <a href="#" className="hover:text-foreground transition-colors">
+                <Link href="/privacy" className="hover:text-foreground transition-colors">
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-foreground transition-colors">
+                <Link href="/terms" className="hover:text-foreground transition-colors">
                   Terms of Service
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
