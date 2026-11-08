@@ -18,6 +18,6 @@ export async function GET() {
     sent: true,
     note: Sentry.getClient()?.getOptions().dsn
       ? "Test error sent. Check your Sentry issues."
-      : "No Sentry DSN is set, so nothing was sent. Add SENTRY_DSN in Vercel.",
+      : "No Sentry DSN is set, so nothing was sent. Add SENTRY_DSN in your hosting environment variables.",
   });
 }

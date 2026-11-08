@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 // Error monitoring (browser). Does nothing until NEXT_PUBLIC_SENTRY_DSN is set.
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV,
+  environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NEXT_PUBLIC_APP_ENV || process.env.NODE_ENV,
   tracesSampleRate: 0.1,
   // Send as little personal data as possible: no user info, cookies, headers,
   // request bodies, query strings or database values.

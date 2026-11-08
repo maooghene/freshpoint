@@ -27,9 +27,11 @@ export interface RateLimitResult {
   retryAfterSec: number;
 }
 
-/** Best-effort client IP from the proxy headers Vercel sets. */
+/** Best-effort client IP from the proxy headers the host sets (Netlify or Vercel). */
 export function getClientIp(headers: Headers): string {
-  const forwarded = headers.get("x-vercel-forwarded-for") ?? headers.get("x-forwarded-for");
+  const forwarded = headers.get("x-nf-client-connection-ip") ??
+    headers.get("x-vercel-forwarded-for") ??
+    headers.get("x-forwarded-for");
   const first = forwarded?.split(",")[0]?.trim();
   return first || headers.get("x-real-ip")?.trim() || "unknown";
 }

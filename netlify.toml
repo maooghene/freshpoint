@@ -1,0 +1,6 @@
+# Netlify build settings. Ignored by other hosts.
+[build]
+  command = "npm run build" # runs prisma generate, then next build
+
+[build.environment]
+  NODE_VERSION = "22"
