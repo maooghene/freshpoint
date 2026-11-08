@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import {
   PackageSearch,
@@ -57,7 +58,7 @@ export function StaffOrdersClient({ initialOrders }: StaffOrdersClientProps) {
       );
     } catch (error) {
       console.error("Order workflow transition failure node error:", error);
-      alert(
+      toast.error(
         "Error handling pipeline change action request verification mismatch.",
       );
     } finally {

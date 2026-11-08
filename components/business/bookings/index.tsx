@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Loading from "@/components/Loading";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Booking, BookingStatus } from "./types";
 import BookingTable from "./BookingTable";
 import { X, QrCode, Mail } from "lucide-react";

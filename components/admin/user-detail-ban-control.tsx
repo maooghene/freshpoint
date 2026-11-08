@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { toggleCustomerBanAction } from "@/lib/actions/admin-complaints";
 import { Button } from "@/components/ui/button";
 import { Ban, ShieldCheck } from "lucide-react";

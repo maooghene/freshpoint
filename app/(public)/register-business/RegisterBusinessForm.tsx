@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { createBusiness, type RegisterState } from "./actions";
 import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Sparkles, Loader2, RefreshCw, XCircle } from "lucide-react";
 
 import { BasicInfoFields } from "./BasicInfoFields";

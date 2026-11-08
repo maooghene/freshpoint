@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { FormEvent, useState } from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
 import {
@@ -64,16 +65,21 @@ export default function QuestionForm({
         .catch(() => ({}));
 
       if (!response.ok) {
-        setError(
+        const message =
           response.status === 429
             ? "You've sent a few questions already. Please wait a bit before sending another."
-            : data.error || "We couldn't send your question. Please try again.",
-        );
+            : data.error || "We couldn't send your question. Please try again.";
+        setError(message);
+        toast.error(message);
         return;
       }
+      toast.success("Question sent. We'll get back to you soon.");
       setSent(true);
     } catch {
-      setError("We couldn't reach the server. Check your connection and try again.");
+      const message =
+        "We couldn't reach the server. Check your connection and try again.";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsSending(false);
     }

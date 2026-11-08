@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import { toggleOwnerRosterStatus } from "./toggleAction";
 import { Users, ShieldAlert, Loader2, Sparkles, Building } from "lucide-react";
@@ -25,7 +26,7 @@ export function OwnerRosterToggle({
     if (result.success) {
       setIsActive(result.isActive ?? false);
     } else {
-      alert(
+      toast.error(
         result.error ||
           "Failed to update profile parameter state status definitions.",
       );

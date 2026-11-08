@@ -1,5 +1,6 @@
 // app/(public)/checkout/page.tsx
 "use client";
+import { toast } from "@/lib/toast";
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -106,7 +107,7 @@ function CheckoutContent() {
 
   const handlePaymentSuccess = async (reference: string) => {
     if (!userId) {
-      alert("Please log in to complete your transaction.");
+      toast.warning("Please log in to complete your transaction.");
       return;
     }
 

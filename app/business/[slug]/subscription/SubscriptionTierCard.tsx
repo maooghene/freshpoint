@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import { useState } from "react";
 import { CheckIcon, Loader2 } from "lucide-react";
@@ -65,7 +66,7 @@ export default function SubscriptionTierCard({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Could not start subscription checkout.");
+        toast.error(data.error || "Could not start subscription checkout.");
         setIsPending(false);
         return;
       }
@@ -74,7 +75,7 @@ export default function SubscriptionTierCard({
       return;
     } catch (err) {
       console.error("SUBSCRIPTION_ACTION_ERROR:", err);
-      alert("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
       setIsPending(false);
     }
   };
@@ -90,14 +91,14 @@ export default function SubscriptionTierCard({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || "Could not start your free trial.");
+        toast.error(data.error || "Could not start your free trial.");
         setIsPending(false);
         return;
       }
       window.location.reload();
     } catch (err) {
       console.error("SUBSCRIPTION_TRIAL_ERROR:", err);
-      alert("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
       setIsPending(false);
     }
   };
@@ -113,10 +114,10 @@ export default function SubscriptionTierCard({
           locationIds: keptLocationIds,
         });
         if (!result.success) {
-          alert(result.error || "Downgrade failed. Please try again.");
+          toast.error(result.error || "Downgrade failed. Please try again.");
         } else {
           setShowDowngradeChoices(false);
-          alert(
+          toast.success(
             timing === "now"
               ? "Your plan has been changed to Starter."
               : "Done. Your paid plan stays active until it expires, then moves to Starter.",
@@ -131,7 +132,7 @@ export default function SubscriptionTierCard({
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          alert(data.error || "Could not start subscription checkout.");
+          toast.error(data.error || "Could not start subscription checkout.");
           setIsPending(false);
           return;
         }
@@ -144,7 +145,7 @@ export default function SubscriptionTierCard({
       }
     } catch (err) {
       console.error("SUBSCRIPTION_ACTION_ERROR:", err);
-      alert("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     }
 
     setIsPending(false);

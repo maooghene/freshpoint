@@ -7,7 +7,7 @@ import { PolicyTimingFields } from "./PolicyTimingFields";
 import { PolicyRegionFields } from "./PolicyRegionFields";
 import { PolicyAlertFields } from "./PolicyAlertFields";
 import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Save, RotateCcw } from "lucide-react";
 
 interface PolicyFormProps {

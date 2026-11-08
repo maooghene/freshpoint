@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { useAppDispatch } from "@/lib/store";
 import { addItemToCart } from "@/lib/features/cartSlice";
 import { Button } from "@/components/ui/button";

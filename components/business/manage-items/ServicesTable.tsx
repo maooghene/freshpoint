@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 // 💡 FIXED: Removed Badge from lucide-react to prevent icon attribute collisions
 import { Sparkles, Clock } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 // 💡 FIXED: Imported your true custom UI Badge component cleanly
 import { Badge } from "@/components/ui/badge";
 import { ServiceItem } from "./types";

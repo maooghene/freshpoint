@@ -7,7 +7,7 @@ import {
   updateComplaintStatusAction,
   toggleCustomerBanAction,
 } from "@/lib/actions/admin-complaints";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import {
   Card,
   CardContent,

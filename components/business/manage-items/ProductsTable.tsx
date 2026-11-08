@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { PackageIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { ProductItem } from "./types";
 import { ItemActions } from "./ItemActions";

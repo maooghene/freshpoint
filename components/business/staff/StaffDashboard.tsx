@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import InviteStaffForm from "./InviteStaffForm";
 import StaffMemberRow from "./StaffMemberRow";
 import StaffScheduleEditor from "./StaffScheduleEditor";

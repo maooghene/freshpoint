@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import {
   CalendarCheck2,
@@ -67,7 +68,7 @@ export function StaffBookingsClient({
         "Booking dispatch process pipeline exception error:",
         error,
       );
-      alert(
+      toast.error(
         "Error processing the appointment modification request state logic.",
       );
     } finally {

@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { useState } from "react";
 import {
   X,
@@ -49,9 +50,13 @@ export default function BookingDetailsModal({
       });
       if (res.ok) {
         setIsVerified(true);
+        toast.success("Booking verified.");
+      } else {
+        toast.error("Could not verify this booking. Please try again.");
       }
     } catch (err) {
       console.error("Verification adjustment exception caught:", err);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

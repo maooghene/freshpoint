@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { StarIcon, PenLineIcon, Loader2, XIcon } from "lucide-react";
@@ -59,6 +60,7 @@ export default function BusinessReviewForm({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Submission failed.");
 
+      toast.success("Thank you! Your review has been published.");
       setSubmissionMessage(
         "Thank you! Your hospitality review has been published.",
       );
@@ -67,9 +69,10 @@ export default function BusinessReviewForm({
         onSuccess();
       }, 1200);
     } catch (err: unknown) {
-      setSubmissionMessage(
-        err instanceof Error ? err.message : "An unexpected error occurred.",
-      );
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred.";
+      toast.error(message);
+      setSubmissionMessage(message);
     } finally {
       setSubmitting(false);
     }

@@ -3,7 +3,7 @@
 
 import { useTransition } from "react";
 import { startImpersonationAction } from "@/lib/actions/admin-impersonate";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { UserCheck } from "lucide-react";
 
 interface ImpersonateButtonProps {

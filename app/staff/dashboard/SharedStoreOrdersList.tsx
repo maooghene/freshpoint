@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ShoppingBag, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { ClientOrderDataShape } from "./StaffDashboardClient";
 
 interface OrdersListProps {
