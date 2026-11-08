@@ -13,6 +13,7 @@ import { ImageAndCategoryFields } from "./ImageAndCategoryFields";
 import { FormContactFields } from "@/components/checkout/FormContactFields";
 import { FormLocationCapacityFields } from "@/components/checkout/FormLocationCapacityFields";
 import { FormDescriptionField } from "@/components/checkout/FormDescriptionField";
+import { PendingApproval } from "./PendingApproval";
 
 interface CategoryOption {
   label: string;
@@ -60,7 +61,9 @@ export function RegisterBusinessForm({
 
   React.useEffect(() => {
     if (state.message && !state.isRejectedByFilter) {
-      if (state.success && state.finalizedSlug) {
+      if (state.success && state.approved === false) {
+        toast.info("Registration received. We'll review your store shortly.");
+      } else if (state.success && state.finalizedSlug) {
         toast.success("Workspace launched and approved automatically!");
         router.push(`/business/${state.finalizedSlug}`);
       } else if (state.success) {
@@ -72,6 +75,11 @@ export function RegisterBusinessForm({
       }
     }
   }, [state, router]);
+
+  // Instant approval is off: show the waiting screen, not the dashboard.
+  if (state.success && state.approved === false) {
+    return <PendingApproval />;
+  }
 
   if (!state.success && state.isRejectedByFilter) {
     return (

@@ -19,6 +19,8 @@ export interface RegisterState {
   isRejectedByFilter?: boolean;
   errors?: RegisterErrors;
   finalizedSlug?: string; // Explicit source of truth for the client
+  /** False when the store must wait for admin review before going live. */
+  approved?: boolean;
 }
 
 export async function createBusiness(
@@ -275,8 +277,11 @@ export async function createBusiness(
 
     return {
       success: true,
-      message: "Registration completed successfully.",
+      message: platformRules.enforceInstantApproval
+        ? "Registration completed successfully."
+        : "Registration received. Your store is waiting for approval.",
       finalizedSlug: slug,
+      approved: platformRules.enforceInstantApproval,
     };
   } catch (error: unknown) {
     console.error("REGISTER_BUSINESS_ERROR:", error);
