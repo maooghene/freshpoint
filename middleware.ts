@@ -14,6 +14,11 @@ const isPublicRoute = createRouteMatcher([
   "/book(.*)",
   "/bookings/success(.*)",
   "/contact(.*)",
+  "/terms",
+  "/privacy",
+  // Read-only status used by the maintenance notice and Pay buttons; the
+  // handler checks the session itself.
+  "/api/platform/(.*)",
   "/api/user/sync(.*)",
   "/api/explore(.*)",
   "/api/businesses", // Exact bare route
