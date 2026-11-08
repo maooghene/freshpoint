@@ -4,6 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { RegisterBusinessForm } from "./RegisterBusinessForm";
 import { RedirectFeedback } from "./RedirectFeedback";
+import { PendingApproval } from "./PendingApproval";
 import { getBusinessCategories } from "@/lib/actions/admin-categories"; // ADDED
 
 export default async function RegisterBusinessPage(): Promise<React.JSX.Element> {
@@ -61,7 +62,7 @@ export default async function RegisterBusinessPage(): Promise<React.JSX.Element>
 
   let existingBusiness = await prisma.business.findFirst({
     where: { ownerId: systemUser.id },
-    select: { slug: true },
+    select: { slug: true, status: true },
   });
 
   if (!existingBusiness) {
@@ -73,13 +74,19 @@ export default async function RegisterBusinessPage(): Promise<React.JSX.Element>
       const updatedBusiness = await prisma.business.update({
         where: { id: orphanedBusiness.id },
         data: { ownerId: systemUser.id },
-        select: { slug: true },
+        select: { slug: true, status: true },
       });
       existingBusiness = updatedBusiness;
     }
   }
 
   if (existingBusiness && existingBusiness.slug) {
+    // A store still waiting for review (or suspended) must not open the
+    // dashboard; show the waiting screen instead.
+    if (existingBusiness.status === "pending") return <PendingApproval />;
+    if (existingBusiness.status === "suspended") {
+      return <PendingApproval variant="suspended" />;
+    }
     return <RedirectFeedback slug={existingBusiness.slug} />;
   }
 
