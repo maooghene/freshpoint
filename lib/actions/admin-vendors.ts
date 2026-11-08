@@ -1,6 +1,8 @@
 // lib/actions/admin-vendors.ts
 "use server";
 
+import { after } from "next/server";
+import { sendStoreStatusEmail } from "@/lib/store-emails";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin";
@@ -78,10 +80,25 @@ export async function updateVendorStatusAction(
   }
 
   try {
+    const previous = await prisma.business.findUnique({
+      where: { id: input.data.businessId },
+      select: { status: true },
+    });
+
     await prisma.business.update({
       where: { id: input.data.businessId },
       data: { status: input.data.status, isActive: input.data.isActive },
     });
+
+    // Tell the owner when their store is approved or suspended (only on a real
+    // change, so re-saving the same status does not send duplicates).
+    if (
+      previous?.status !== input.data.status &&
+      (input.data.status === "approved" || input.data.status === "suspended")
+    ) {
+      const newStatus = input.data.status;
+      after(() => sendStoreStatusEmail(input.data.businessId, newStatus));
+    }
 
     await logAdminAction({
       action: "UPDATE_VENDOR_STATUS",
