@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -48,9 +49,12 @@ export default function PromotionManager({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setStatus(data.error || "Could not start the promotion.");
+        const message = data.error || "Could not start the promotion.";
+        setStatus(message);
+        toast.error(message);
         return;
       }
+      toast.success("Promotion started. Customers can see it now.");
       router.refresh();
     } finally {
       setBusy(false);
@@ -61,8 +65,12 @@ export default function PromotionManager({
     if (!window.confirm("End this promotion now? Customers will stop seeing it.")) return;
     setBusy(true);
     try {
-      await fetch(`/api/businesses/${businessId}/promotion`, { method: "DELETE" });
+      const res = await fetch(`/api/businesses/${businessId}/promotion`, { method: "DELETE" });
+      if (res.ok) toast.success("Promotion ended.");
+      else toast.error("Could not end the promotion. Please try again.");
       router.refresh();
+    } catch {
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }

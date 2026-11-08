@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { ScheduleItem, DAYS } from "./types";

@@ -11,7 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { RegisterState } from "./actions";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 
 interface FormLocationCapacityFieldsProps {
   isPending: boolean;

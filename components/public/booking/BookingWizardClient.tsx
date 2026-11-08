@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, ClockIcon, MapPinIcon, Calendar, Info } from "lucide-react";
@@ -77,19 +78,19 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
 
   const handleAddToBasket = () => {
     if (!selectedDate) {
-      alert("Please choose a day on the calendar first.");
+      toast.warning("Please choose a day on the calendar first.");
       return;
     }
 
     if (isSelectedSpecialistOffDuty) {
-      alert(
+      toast.warning(
         "This professional is scheduled to be off duty on this day. You cannot proceed to checkout with this selection.",
       );
       return;
     }
 
     if (!selectedSlot) {
-      alert("Please pick an available time slot before clicking checkout.");
+      toast.warning("Please pick an available time slot before clicking checkout.");
       return;
     }
 

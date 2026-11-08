@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Save, Loader2 } from "lucide-react";
 import { updateStaffPersonalSettings } from "./actions";
 import { normalizeToE164 } from "@/lib/telecom-helpers";

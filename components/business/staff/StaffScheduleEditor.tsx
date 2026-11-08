@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { XIcon, SaveIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StaffMember, StaffSchedule } from "./types";

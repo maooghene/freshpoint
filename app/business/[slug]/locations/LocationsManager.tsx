@@ -5,7 +5,7 @@ import { useActionState, useRef, useState } from "react";
 import type { SubscriptionTier } from "@prisma/client";
 import { createLocation, type LocationActionState } from "./actions";
 import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { MapPin, Lock, Plus, Crosshair, Star } from "lucide-react";
 import { canAddLocation } from "@/lib/subscription-tiers";
 

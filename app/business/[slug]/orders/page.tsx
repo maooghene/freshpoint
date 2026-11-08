@@ -10,7 +10,7 @@ import {
   Loader2,
   RefreshCwIcon,
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { OrderStatusStats } from "@/components/business/orders/OrderStatusStats";
 import { BusinessOrderCard } from "@/components/business/orders/BusinessOrderCard";
 

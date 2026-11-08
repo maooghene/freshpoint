@@ -9,7 +9,7 @@ import {
   searchPlatformUsers,
 } from "@/lib/actions/admin-users";
 import { toggleCustomerBanAction } from "@/lib/actions/admin-complaints";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import {
   Table,
   TableBody,

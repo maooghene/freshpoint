@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 
 interface PushNotificationToggleProps {
   businessId: string;

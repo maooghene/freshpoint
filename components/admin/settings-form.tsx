@@ -1,5 +1,6 @@
 // components/admin/settings-form.tsx
 "use client";
+import { toast } from "@/lib/toast";
 
 import { useTransition, useState, useEffect } from "react";
 import {
@@ -53,35 +54,54 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
+    // Only the open tab's fields exist in the form, so anything from a tab
+    // that is not showing falls back to the value already saved. Without this
+    // saving from one tab sent empty numbers for the others and failed.
+    const num = (name: string, fallback: number, int = false): number => {
+      const raw = formData.get(name);
+      if (raw === null || raw === "") return fallback;
+      const parsed = int ? parseInt(raw as string, 10) : parseFloat(raw as string);
+      return Number.isNaN(parsed) ? fallback : parsed;
+    };
+
     const payload: MasterConfigValues = {
-      minGlobalDeliveryFee: parseFloat(
-        formData.get("minGlobalDeliveryFee") as string,
+      minGlobalDeliveryFee: num(
+        "minGlobalDeliveryFee",
+        initialSettings.minGlobalDeliveryFee,
       ),
-      platformPayoutFloor: parseFloat(
-        formData.get("platformPayoutFloor") as string,
+      platformPayoutFloor: num(
+        "platformPayoutFloor",
+        initialSettings.platformPayoutFloor,
       ),
       maintenanceModeActive: maintenanceMode,
       allowNewRegistrations: allowRegistrations,
       enforceInstantApproval: instantApproval,
-      maxDailyBookingsPerUser: parseInt(
-        formData.get("maxDailyBookingsPerUser") as string,
-        10,
+      maxDailyBookingsPerUser: num(
+        "maxDailyBookingsPerUser",
+        initialSettings.maxDailyBookingsPerUser,
+        true,
       ),
-      maxDistanceLimitKm: parseFloat(
-        formData.get("maxDistanceLimitKm") as string,
+      maxDistanceLimitKm: num(
+        "maxDistanceLimitKm",
+        initialSettings.maxDistanceLimitKm,
       ),
-      payoutHoldingPeriodDays: parseInt(
-        formData.get("payoutHoldingPeriodDays") as string,
-        10,
+      payoutHoldingPeriodDays: num(
+        "payoutHoldingPeriodDays",
+        initialSettings.payoutHoldingPeriodDays,
+        true,
       ),
-      globalAlertBannerText:
-        (formData.get("globalAlertBannerText") as string) || null,
-      absorbPaystackFees: formData.get("absorbPaystackFees") === "true",
+      globalAlertBannerText: formData.has("globalAlertBannerText")
+        ? ((formData.get("globalAlertBannerText") as string) || null)
+        : initialSettings.globalAlertBannerText,
+      absorbPaystackFees: formData.has("absorbPaystackFees")
+        ? formData.get("absorbPaystackFees") === "true"
+        : initialSettings.absorbPaystackFees,
     };
 
     startTransition(async () => {
       const response = await updateSystemSettingsAction(payload);
-      alert(response.message);
+      if (response.success) toast.success(response.message);
+      else toast.error(response.message);
     });
   };
 

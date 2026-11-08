@@ -11,7 +11,7 @@ import {
   LogIn,
   ShieldAlert,
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 
 export default function StaffSignInFormClient(): React.JSX.Element {
   const router = useRouter();

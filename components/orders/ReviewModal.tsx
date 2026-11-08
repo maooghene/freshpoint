@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { Star, X, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 
 interface ReviewModalProps {
   isOpen: boolean;

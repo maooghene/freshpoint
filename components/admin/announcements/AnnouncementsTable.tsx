@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import * as React from "react";
 import {
   toggleAnnouncementActiveAction,
@@ -38,6 +39,9 @@ export function AnnouncementsTable({
     setPendingId(id);
     try {
       await toggleAnnouncementActiveAction(id);
+      toast.success("Announcement updated.");
+    } catch {
+      toast.error("Could not update the announcement.");
     } finally {
       setPendingId(null);
     }
@@ -48,6 +52,9 @@ export function AnnouncementsTable({
     setPendingId(id);
     try {
       await deleteAnnouncementAction(id);
+      toast.success("Announcement deleted.");
+    } catch {
+      toast.error("Could not delete the announcement.");
     } finally {
       setPendingId(null);
     }

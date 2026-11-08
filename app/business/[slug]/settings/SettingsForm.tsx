@@ -5,7 +5,7 @@ import { useActionState, useRef } from "react";
 import type { SubscriptionTier } from "@prisma/client";
 import { updateBusinessSettings } from "./actions";
 import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import SettingsImageZone from "./SettingsImageZone";
 import { IdentityFields } from "./IdentityFields";
 import { CapacityCategoryFields } from "./CapacityCategoryFields";

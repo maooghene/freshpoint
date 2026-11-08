@@ -17,7 +17,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import {
   MoreHorizontal,
   ShieldCheck,

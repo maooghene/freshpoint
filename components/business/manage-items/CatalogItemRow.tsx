@@ -8,7 +8,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { ProductItem, ServiceItem } from "./types";
 import { ItemActions } from "./ItemActions";

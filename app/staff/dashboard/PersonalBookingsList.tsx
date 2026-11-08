@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CalendarX, Check, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { ClientBookingDataShape } from "./StaffDashboardClient";
 
 interface ListProps {
