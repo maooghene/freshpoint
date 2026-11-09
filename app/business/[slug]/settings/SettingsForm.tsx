@@ -123,6 +123,12 @@ export function SettingsForm({ business, categoryOptions }: SettingsFormProps) {
         </div>
 
         <form ref={formRef} action={formAction} className="space-y-6">
+          <IdentityFields
+            business={business}
+            isPending={isPending}
+            errors={state.errors}
+          />
+
           <CapacityCategoryFields
             business={business}
             isPending={isPending}
