@@ -162,7 +162,7 @@ export default function BusinessProfile() {
         <div className="absolute inset-0 bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)] bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)]" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full">
         <button
           onClick={() => router.push("/explore")}
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground mb-6"
@@ -193,10 +193,10 @@ export default function BusinessProfile() {
         />
 
         {/* 💡 FIXED: Layman-friendly fallback displays if services or products collection array evaluates empty */}
-        <div className="space-y-16 mt-12">
+        <div className="space-y-10 sm:space-y-16 mt-8 sm:mt-12">
           {/* TREATMENT SERVICES RENDERING ROW */}
           <div className="space-y-6">
-            <h2 className="text-2xl font-black tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
               Available Treatments & Services
             </h2>
             {services.length > 0 ? (
@@ -217,7 +217,7 @@ export default function BusinessProfile() {
 
           {/* RETAIL PRODUCTS RENDERING ROW */}
           <div className="space-y-6">
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
               <ShoppingBagIcon className="w-5 h-5 text-primary" /> Available
               Products
             </h2>

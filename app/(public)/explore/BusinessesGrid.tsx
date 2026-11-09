@@ -3,8 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPinIcon, ImageIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { MapPinIcon, ImageIcon, BadgeCheck } from "lucide-react";
 
 export interface GridItem {
   id: string;
@@ -18,72 +17,80 @@ export interface GridItem {
   isSponsored: boolean;
 }
 
+/**
+ * Glovo-style vendor cards: image first, rounded, with the name and a single
+ * muted info line underneath. One column on phones so each shop gets a big,
+ * easy-to-tap picture; two on tablets, more on desktop.
+ */
 export default function BusinessesGrid({
   businesses,
 }: {
   businesses: GridItem[];
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 min-[560px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6 sm:gap-x-5 sm:gap-y-8">
       {businesses.map((business: GridItem) => {
-        const isApproved =
-          business.status?.trim().toLowerCase() === "approved" ||
-          business.status?.trim().toLowerCase() === "verified";
+        const status = business.status?.trim().toLowerCase();
+        const isApproved = status === "approved" || status === "verified";
 
         return (
           <Link
             key={business.id}
             href={`/explore/${business.slug}`}
-            className="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden shadow-2xs hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+            className="group flex flex-col gap-2.5 rounded-2xl active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            {/* Image Layer */}
-            <div className="relative aspect-video w-full bg-muted border-b border-border overflow-hidden">
+            {/* Image */}
+            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-muted">
               {business.image ? (
                 <Image
                   src={business.image}
                   alt={business.name}
                   fill
-                  sizes="(max-w-7xl) 100vw"
+                  sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 560px) 50vw, 100vw"
                   className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  priority={false}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-centerbg-muted">
+                <div className="w-full h-full flex items-center justify-center">
                   <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
                 </div>
               )}
+
+              {/* Soft bottom fade so the pills stay readable on any photo */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/35 to-transparent" />
+
+              {business.isSponsored && (
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-amber-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-950 shadow-sm">
+                  Sponsored
+                </span>
+              )}
+
+              <span className="absolute bottom-2.5 left-2.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-bold capitalize text-foreground shadow-sm">
+                {business.category.toLowerCase()}
+              </span>
             </div>
 
-            {/* Info Layer */}
-            <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 justify-between min-w-0">
-                  <h2 className="font-black text-foreground text-base tracking-tight group-hover:text-primary transition-colors truncate flex-1">
-                    {business.name}
-                  </h2>
-                  {isApproved && (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-bold text-[9px] px-1.5 py-0.5 rounded shrink-0">
-                      {"✓ Verified"}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-2 font-medium leading-relaxed">
-                  {business.description ||
-                    "Premium service treatment and product provider."}
-                </p>
+            {/* Info */}
+            <div className="min-w-0 space-y-0.5 px-0.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2 className="truncate text-base font-extrabold leading-tight text-foreground group-hover:text-primary transition-colors">
+                  {business.name}
+                </h2>
+                {isApproved && (
+                  <BadgeCheck
+                    className="h-4 w-4 shrink-0 text-emerald-500"
+                    aria-label="Verified"
+                  />
+                )}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-border/60 gap-4">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold truncate flex-1 min-w-0">
-                  <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span className="truncate">
-                    {business.address || "Nigeria"}
-                  </span>
-                </div>
+              <p className="line-clamp-1 text-[13px] font-medium text-muted-foreground">
+                {business.description ||
+                  "Services and products from a trusted local provider."}
+              </p>
 
-                <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 px-2.5 py-0.5 rounded-md border border-primary/10 capitalize">
-                  {business.category.toLowerCase()}
-                </span>
+              <div className="flex items-center gap-1 pt-0.5 text-xs font-semibold text-muted-foreground min-w-0">
+                <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="truncate">{business.address || "Nigeria"}</span>
               </div>
             </div>
           </Link>
