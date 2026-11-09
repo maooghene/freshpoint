@@ -75,7 +75,21 @@ export function SettingsForm({ business, categoryOptions }: SettingsFormProps) {
       if (state.success) {
         toast.success(state.message);
       } else {
-        toast.error(state.message);
+        // Say WHICH field is wrong, not just "Validation failed", because the
+        // red message under the field can be far down this long page.
+        const firstProblem = Object.values(state.errors ?? {}).find(
+          (list) => Array.isArray(list) && list.length > 0,
+        )?.[0];
+        toast.error(
+          firstProblem ? `${state.message} ${firstProblem}` : state.message,
+        );
+        if (firstProblem) {
+          requestAnimationFrame(() => {
+            formRef.current
+              ?.querySelector(".text-destructive")
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        }
       }
     }
   }, [state]);
