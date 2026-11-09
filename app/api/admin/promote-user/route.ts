@@ -3,6 +3,7 @@ import { parseJsonBody, idSchema } from "@/lib/validation";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import authAdmin from "@/lib/authAdmin";
+import { logAdminAction } from "@/lib/actions/admin-audit";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@prisma/client";
 
@@ -26,6 +27,14 @@ export async function POST(request: NextRequest) {
     const elevatedUser = await prisma.user.update({
       where: { id: targetUserId },
       data: { role: UserRole.ADMIN },
+    });
+
+    // Granting admin is the most powerful change there is, so it is recorded.
+    await logAdminAction({
+      action: "PROMOTE_USER_TO_ADMIN",
+      targetType: "User",
+      targetId: targetUserId,
+      targetLabel: elevatedUser.email,
     });
 
     return NextResponse.json({
