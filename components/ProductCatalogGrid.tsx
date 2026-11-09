@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { ShoppingBagIcon, ChevronDown, ChevronUp, Box } from "lucide-react";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
-import { PriceTag } from "@/components/PriceTag";
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -24,36 +23,13 @@ interface ProductCatalogGridProps {
   products: ProductItem[];
 }
 
-function StockBadge({ stock }: { stock: number | null }) {
-  if (stock === null || isNaN(stock)) return null;
-
-  if (stock <= 0) {
-    return (
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-500">
-        Out of Stock
-      </span>
-    );
-  }
-
-  if (stock <= LOW_STOCK_THRESHOLD) {
-    return (
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
-        Only {stock} left
-      </span>
-    );
-  }
-
-  return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-      In Stock
-    </span>
-  );
-}
-
+/**
+ * Jumia-style product tiles: square picture with a red "-20%" badge, two-line
+ * name, bold price with the old price struck through, and a stock hint.
+ * Two columns on phones; the whole tile is the tap target.
+ */
 export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
   const router = useRouter();
-
-  // Added the opening parenthesis right here:
   const [expandedReviews, setExpandedReviews] = useState<
     Record<string, boolean>
   >({});
@@ -63,10 +39,7 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
     e: React.MouseEvent<HTMLButtonElement>,
   ) => {
     e.stopPropagation();
-    setExpandedReviews((prev: Record<string, boolean>) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setExpandedReviews((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   if (products.length === 0) {
@@ -84,74 +57,103 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {products.map((product: ProductItem) => {
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4 items-start">
+      {products.map((product) => {
         const isReviewsOpen = !!expandedReviews[product.id];
+        const outOfStock = product.stock !== null && product.stock <= 0;
+        const lowStock =
+          product.stock !== null &&
+          product.stock > 0 &&
+          product.stock <= LOW_STOCK_THRESHOLD;
+        const discount =
+          typeof product.originalPrice === "number" &&
+          product.originalPrice > product.price
+            ? Math.round(
+                ((product.originalPrice - product.price) /
+                  product.originalPrice) *
+                  100,
+              )
+            : null;
 
         return (
           <div
             key={product.id}
+            role="link"
+            tabIndex={0}
             onClick={() => router.push(`/products/${product.id}`)}
-            className="cursor-pointer flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-2xs hover:shadow-md hover:border-primary/20 transition-all duration-200 h-fit"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") router.push(`/products/${product.id}`);
+            }}
+            className="group cursor-pointer flex flex-col overflow-hidden rounded-xl border border-border bg-card active:scale-[0.985] transition-all duration-150 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <div className="relative aspect-[4/3] w-full bg-muted border-b border-border/40 overflow-hidden flex items-center justify-center">
+            <div className="relative aspect-square w-full overflow-hidden bg-muted">
               <ImageWithFallback
                 src={product.image}
                 alt={product.name}
                 icon={Box}
-                label="Wellness Item"
-                sizes="(max-w-7xl) 50vw"
+                label="Product"
+                sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
+                className={`object-cover group-hover:scale-105 transition-transform duration-300 ${
+                  outOfStock ? "opacity-50 grayscale" : ""
+                }`}
               />
+              {discount !== null && !outOfStock && (
+                <span className="absolute right-1.5 top-1.5 rounded-md bg-destructive px-1.5 py-0.5 text-[11px] font-black text-white shadow-sm">
+                  -{discount}%
+                </span>
+              )}
+              {outOfStock && (
+                <span className="absolute inset-x-0 bottom-0 bg-black/70 py-1 text-center text-[11px] font-bold uppercase tracking-wide text-white">
+                  Out of stock
+                </span>
+              )}
             </div>
 
-            <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-              <div className="space-y-0.5 min-w-0">
-                <h3 className="font-bold text-foreground text-sm tracking-tight truncate">
-                  {product.name}
-                </h3>
-                <p className="text-[11px] text-muted-foreground line-clamp-1 font-medium leading-normal">
-                  {product.description ||
-                    "No description available for this product."}
-                </p>
-              </div>
+            <div className="flex flex-1 flex-col gap-1 p-2.5 sm:p-3">
+              <h3 className="line-clamp-2 min-h-[2.4em] text-[13px] font-medium leading-snug text-foreground">
+                {product.name}
+              </h3>
 
-              <div className="border-t border-b border-border/40 py-1">
-                <button
-                  type="button"
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) =>
-                    toggleReviewsExpansion(product.id, e)
-                  }
-                  className="flex items-center justify-between w-full text-[10px] font-bold text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <span>Feedback</span>
-                  {isReviewsOpen ? (
-                    <ChevronUp className="w-3 h-3" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3" />
-                  )}
-                </button>
-
-                {isReviewsOpen && (
-                  <div
-                    className="mt-1 transition-all duration-200"
-                    onClick={(e: React.MouseEvent<HTMLDivElement>) =>
-                      e.stopPropagation()
-                    }
-                  >
-                    <BusinessReviewList itemId={product.id} />
-                  </div>
+              <div className="flex flex-col">
+                <span className="text-[15px] font-black leading-tight text-foreground sm:text-base">
+                  ₦{product.price.toLocaleString()}
+                </span>
+                {discount !== null && (
+                  <span className="text-xs font-medium text-muted-foreground line-through">
+                    ₦{product.originalPrice?.toLocaleString()}
+                  </span>
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-0.5">
-                <p className="font-black text-primary text-sm">
-                  <PriceTag
-                    price={product.price}
-                    originalPrice={product.originalPrice}
-                  />
-                </p>
-                <StockBadge stock={product.stock} />
-              </div>
+              {lowStock && (
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                  Only {product.stock} left
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={(e) => toggleReviewsExpansion(product.id, e)}
+                className="mt-1 flex w-full items-center justify-between border-t border-border/50 pt-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <span>Reviews</span>
+                {isReviewsOpen ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+
+              {isReviewsOpen && (
+                <div
+                  className="cursor-default"
+                  onClick={(e: React.MouseEvent<HTMLDivElement>) =>
+                    e.stopPropagation()
+                  }
+                >
+                  <BusinessReviewList itemId={product.id} />
+                </div>
+              )}
             </div>
           </div>
         );

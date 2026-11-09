@@ -150,20 +150,20 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   const regularBusinesses = normalizedBusinesses.filter((b) => !b.isSponsored);
 
   return (
-    <div className="relative min-h-screen pt-8 pb-32 bg-background text-foreground overflow-hidden">
+    <div className="relative min-h-screen pt-5 sm:pt-8 pb-24 sm:pb-32 bg-background text-foreground overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 w-full space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full space-y-6 sm:space-y-10">
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <Badge className="bg-primary/10 text-primary border-primary/20 font-bold px-3">
             <SparklesIcon className="w-3 h-3 mr-1" /> Discover Providers
           </Badge>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
             Explore Providers & Products
           </h1>
-          <p className="text-muted-foreground font-medium text-sm md:text-baseleading-relaxed">
+          <p className="text-muted-foreground font-medium text-sm md:text-base leading-relaxed">
             Browse verified marketplace workspaces near you. Book treatments and
             order products instantly.
           </p>
@@ -195,7 +195,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         </ScrollableChips>
 
         {normalizedBusinesses.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-borderrounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
+          <div className="text-center py-24 border border-dashed border-border rounded-2xl bg-muted/20 max-w-xl mx-auto space-y-3">
             <Store className="mx-auto w-10 h-10 text-muted-foreground/30 animate-pulse" />
             <h3 className="text-base font-bold text-foreground">
               {searchQuery || selectedCategory
@@ -216,7 +216,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-12">
+          <div className="space-y-8 sm:space-y-12">
             {sponsoredBusinesses.length > 0 && (
               <section aria-labelledby="sponsored-heading" className="space-y-4">
                 <h2
