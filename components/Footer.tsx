@@ -1,116 +1,131 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
-import { Sparkles } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
+
+// A deep indigo band that looks the same in light and dark mode, so the page
+// ends on a solid, branded block instead of fading into the background.
+const linkClass =
+  "flex min-h-10 items-center text-sm text-white/70 transition-colors hover:text-white active:text-white";
+
+const headingClass = "text-xs font-semibold uppercase tracking-widest text-white/45";
 
 function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    // 🌟 FIXED: Balanced padding (pt-8 pb-4) brings back professional content columns while staying lightweight
-    <footer className="w-full border-t border-border/50 bg-muted/20 px-6 pt-8 pb-4 mt-auto">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Upper Frame: Clean Multi-Column Info Matrix */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-xs">
-          {/* Corporate Context Column */}
-          <div className="col-span-2 md:col-span-1 space-y-2">
-            <div className="flex items-center gap-1.5 text-primary font-sans font-bold text-sm tracking-tight">
-              <Sparkles className="size-4 shrink-0" />
-              <span>Freshpoint</span>
-            </div>
-            <p className="text-muted-foreground font-medium leading-relaxed">
-              Multi-tenant Admin Stafffor modern wellness businesses. Manage
-              appointments, staff schedules, and retail items effortlessly.
+    <footer className="mt-auto w-full bg-[#1a1030] text-[#F6F2E8]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        {/* Call to action */}
+        <div className="flex flex-col gap-5 border-b border-white/10 py-9 sm:py-12 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl space-y-1.5">
+            <h3 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+              Run a service business?
+            </h3>
+            <p className="text-sm leading-relaxed text-white/65 sm:text-base">
+              Take bookings, manage staff and sell products from one place.
             </p>
           </div>
-
-          {/* Product Nav Grid Node */}
-          <div className="space-y-2">
-            <h4 className="font-bold text-foreground tracking-wide uppercase text-[10px] text-primary/80">
-              Product
-            </h4>
-            <ul className="space-y-1.5 font-medium text-muted-foreground">
-              <li>
-                <a
-                  href="#how-it-works"
-                  className="hover:text-foreground transition-colors"
-                >
-                  How it Works
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#for-owners"
-                  className="hover:text-foreground transition-colors"
-                >
-                  For Providers
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-foreground transition-colors">
-                  Pricing Plans
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Customer Operations Grid Node */}
-          <div className="space-y-2">
-            <h4 className="font-bold text-foreground tracking-wide uppercase text-[10px] text-primary/80">
-              Support
-            </h4>
-            <ul className="space-y-1.5 font-medium text-muted-foreground">
-              <li>
-                <a href="#" className="hover:text-foreground transition-colors">
-                  Help Center
-                </a>
-              </li>
-              <li>
-                <Link href="/contact" className="hover:text-foreground transition-colors">
-                  Contact Us
-                </Link>
-              </li>
-              <li>
-                <a href="#" className="hover:text-foreground transition-colors">
-                  System Status
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Compliance Info Grid Node */}
-          <div className="space-y-2">
-            <h4 className="font-bold text-foreground tracking-wide uppercase text-[10px] text-primary/80">
-              Legal
-            </h4>
-            <ul className="space-y-1.5 font-medium text-muted-foreground">
-              <li>
-                <Link href="/privacy" className="hover:text-foreground transition-colors">
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="hover:text-foreground transition-colors">
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <a href="#" className="hover:text-foreground transition-colors">
-                  Data Security
-                </a>
-              </li>
-            </ul>
+          <div className="flex flex-col gap-2.5 sm:flex-row">
+            <Link
+              href="/register-business"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#F6F2E8] px-6 text-sm font-bold text-[#1a1030] transition-transform active:scale-95 hover:bg-white"
+            >
+              Register your business
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/explore"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-white/25 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 active:bg-white/10"
+            >
+              Explore providers
+            </Link>
           </div>
         </div>
 
-        {/* Lower Frame: Clean Baseline Row Wrapper */}
-        <div className="border-t border-border/40 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground/60">
+        {/* Links */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-9 py-9 sm:py-12 md:grid-cols-[1.6fr_1fr_1fr]">
+          <div className="col-span-2 space-y-3 md:col-span-1">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2.5"
+              aria-label="FreshPoint home"
+            >
+              <Image
+                src="/freshpoint-mark.svg"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8"
+              />
+              <span className="text-lg font-black tracking-tight">
+                FreshPoint
+              </span>
+            </Link>
+            <p className="max-w-xs text-sm leading-relaxed text-white/65">
+              Book services and order products from trusted providers near you.
+            </p>
+          </div>
+
+          <nav aria-label="Platform" className="space-y-2">
+            <h4 className={headingClass}>Platform</h4>
+            <ul>
+              <li>
+                <Link href="/explore" className={linkClass}>
+                  Explore providers
+                </Link>
+              </li>
+              <li>
+                <Link href="/#how-it-works" className={linkClass}>
+                  How it works
+                </Link>
+              </li>
+              <li>
+                <Link href="/#for-owners" className={linkClass}>
+                  For providers
+                </Link>
+              </li>
+              <li>
+                <Link href="/register-business" className={linkClass}>
+                  Register your business
+                </Link>
+              </li>
+            </ul>
+          </nav>
+
+          <nav aria-label="Support and legal" className="space-y-2">
+            <h4 className={headingClass}>Support</h4>
+            <ul>
+              <li>
+                <Link href="/contact" className={linkClass}>
+                  Contact us
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className={linkClass}>
+                  Privacy policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className={linkClass}>
+                  Terms of service
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="flex flex-col gap-2 border-t border-white/10 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            {"\u00A9"} {currentYear} Freshpoint. Connecting providers,
-            specialists, and clients seamlessly.
+            {"©"} {currentYear} FreshPoint. All rights reserved.
           </p>
-          <p className="font-mono text-[10px]">v1.2.0 • Secured Transactions</p>
+          <p className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Payments secured by Paystack
+          </p>
         </div>
       </div>
     </footer>
