@@ -6,7 +6,12 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useAppSelector, useAppDispatch } from "@/lib/store";
-import { clearCart, CartItem } from "@/lib/features/cartSlice";
+import {
+  clearCart,
+  refreshCartPrices,
+  CartItem,
+} from "@/lib/features/cartSlice";
+import { toast } from "@/lib/toast";
 import { Loader2, AlertTriangleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
@@ -110,11 +115,43 @@ function ProductCheckoutContent() {
         }
 
         const data: {
-          items: { itemId: string; stock: number; exists: boolean }[];
+          items: {
+            itemId: string;
+            stock: number;
+            exists: boolean;
+            price: number | null;
+          }[];
         } = await stockRes.json();
         const stockByItemId = new Map(
           data.items.map((entry) => [entry.itemId, entry]),
         );
+
+        // A sale may have started or ended since these items were added.
+        const priceUpdates = (items as CartItem[])
+          .map((cartItem) => ({
+            itemId: cartItem.itemId,
+            current: stockByItemId.get(cartItem.itemId)?.price ?? null,
+            old: cartItem.price,
+            variant: cartItem.variantId,
+          }))
+          .filter(
+            (u) =>
+              !u.variant &&
+              typeof u.current === "number" &&
+              Math.abs(u.current - u.old) > 0.009,
+          );
+        if (priceUpdates.length > 0 && !cancelled) {
+          dispatch(
+            refreshCartPrices(
+              priceUpdates.map((u) => ({
+                itemId: u.itemId,
+                price: u.current as number,
+              })),
+            ),
+          );
+          toast.info("Some prices changed, so we updated your total.");
+          return; // the cart change re-runs this check with fresh prices
+        }
 
         const issues: StockIssue[] = [];
         for (const cartItem of items as CartItem[]) {

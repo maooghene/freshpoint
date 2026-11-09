@@ -1,5 +1,6 @@
 "use client";
 
+import { PriceTag } from "@/components/PriceTag";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -26,6 +27,7 @@ interface FreshpointItemProduct {
   name: string;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   image: string | null;
   businessId: string;
   stock: number | null;
@@ -277,7 +279,12 @@ export default function ProductPage() {
               {product.name}
             </h1>
             <p className="text-2xl font-black text-primary">
-              ₦{effectivePrice.toLocaleString()}
+              <PriceTag
+                price={effectivePrice}
+                originalPrice={
+                  selectedVariant?.price != null ? null : product?.originalPrice
+                }
+              />
             </p>
           </div>
 

@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Item" ADD COLUMN "salePrice" DOUBLE PRECISION,
+ADD COLUMN "saleStartsAt" TIMESTAMP(3),
+ADD COLUMN "saleEndsAt" TIMESTAMP(3);

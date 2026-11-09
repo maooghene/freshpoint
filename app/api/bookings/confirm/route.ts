@@ -25,6 +25,7 @@ import {
 import { validateServingCapacity } from "@/lib/booking-validator";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { notifyBusinessNewBooking } from "@/lib/notify-business";
+import { getEffectivePrice, SALE_END_GRACE_MS } from "@/lib/pricing";
 
 interface PaystackWebhookData {
   status: string;
@@ -235,7 +236,14 @@ export async function POST(request: NextRequest) {
 
     const item = await prisma.item.findUnique({
       where: { id: resolvedItemId },
-      select: { price: true, duration: true, businessId: true },
+      select: {
+        price: true,
+        salePrice: true,
+        saleStartsAt: true,
+        saleEndsAt: true,
+        duration: true,
+        businessId: true,
+      },
     });
     if (!item) {
       return rejectWithRefund(
@@ -317,9 +325,10 @@ export async function POST(request: NextRequest) {
     }
 
     const servicePrice = payment.amount / 100;
-    if (Math.abs(servicePrice - item.price) > 0.01) {
+    const expectedPrice = getEffectivePrice(item, new Date(), SALE_END_GRACE_MS);
+    if (Math.abs(servicePrice - expectedPrice) > 0.01) {
       return rejectWithRefund(
-        `amount mismatch: charged ${servicePrice}, service price ${item.price}`,
+        `amount mismatch: charged ${servicePrice}, service price ${expectedPrice}`,
         "Payment amount does not match the service price",
         400,
       );

@@ -14,12 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { PriceTag } from "@/components/PriceTag";
 
 interface ServiceItem {
   id: string;
   name: string;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   duration: number | null;
   image: string | null;
 }
@@ -108,7 +110,10 @@ export function ServiceCatalogGrid({ services }: ServiceCatalogGridProps) {
 
               <div className="flex items-center justify-between pt-1">
                 <p className="font-black text-foreground text-sm">
-                  ₦{service.price.toLocaleString()}
+                  <PriceTag
+                    price={service.price}
+                    originalPrice={service.originalPrice}
+                  />
                 </p>
                 {service.duration && (
                   <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground font-semibold">

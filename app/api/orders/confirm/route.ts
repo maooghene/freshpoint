@@ -17,6 +17,11 @@ import {
   CheckoutPayloadItem,
 } from "./utils";
 import { getPaystackTransaction } from "./services";
+import {
+  getEffectivePrice,
+  SALE_END_GRACE_MS,
+  type SaleFields,
+} from "@/lib/pricing";
 import { notifyBusinessNewOrder } from "@/lib/notify-business";
 
 /**
@@ -94,8 +99,10 @@ const PRICE_TOLERANCE_NAIRA = 1;
  * feature is built. Centralizing it here means the override only needs to
  * be wired in ONE place, not every call site that reads a price.
  */
-function getEffectiveItemPrice(item: { price: number }): number {
-  return item.price;
+function getEffectiveItemPrice(item: SaleFields): number {
+  // Grace keeps a customer who started paying just before a sale ended from
+  // being refunded over the price they were shown.
+  return getEffectivePrice(item, new Date(), SALE_END_GRACE_MS);
 }
 
 export async function POST(request: NextRequest) {
@@ -487,7 +494,16 @@ export async function POST(request: NextRequest) {
         for (const [itemId, requestedQty] of quantityByItem) {
           const item = await tx.item.findUnique({
             where: { id: itemId },
-            select: { price: true, stock: true, type: true, name: true, businessId: true },
+            select: {
+              price: true,
+              salePrice: true,
+              saleStartsAt: true,
+              saleEndsAt: true,
+              stock: true,
+              type: true,
+              name: true,
+              businessId: true,
+            },
           });
 
           if (!item) {

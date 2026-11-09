@@ -29,6 +29,7 @@ export default function BusinessManageItems({
     toggleStatus,
     handleDelete,
     handleEditSubmit,
+    applySale,
     locationOverrides,
     loadingOverrides,
     savingOverrides,
@@ -63,6 +64,8 @@ export default function BusinessManageItems({
       {selectedItem && (
         <EditItemModal
           item={selectedItem}
+          businessSlug={businessSlug}
+          onSaleChange={applySale}
           form={form}
           onChange={setForm}
           onSubmit={handleEditSubmit}

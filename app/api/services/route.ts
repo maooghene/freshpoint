@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
 import { ItemType } from "@prisma/client"; // Safe type-safe enum directly from Prisma
+import { withSalePricing } from "@/lib/pricing";
 
 // ✅ GET: Fetch all active scheduling treatments and services across verified businesses
 export async function GET() {
@@ -33,7 +34,9 @@ export async function GET() {
     });
 
     // ✅ Filter out treatments belonging to currently suspended or unapproved businesses
-    const filteredServices = services.filter((s) => s.business?.isActive);
+    const filteredServices = services
+      .filter((s) => s.business?.isActive)
+      .map((s) => withSalePricing(s));
 
     return NextResponse.json({ services: filteredServices }, { status: 200 });
   } catch (error: unknown) {

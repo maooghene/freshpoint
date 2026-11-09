@@ -266,6 +266,11 @@ model Item {
   name        String
   description String?
   price       Float
+  // Optional timed sale. While now is inside [saleStartsAt, saleEndsAt) the
+  // item is charged at salePrice instead of price. Resolved in lib/pricing.ts.
+  salePrice    Float?
+  saleStartsAt DateTime?
+  saleEndsAt   DateTime?
   stock       Int?          @default(0)
   sku         String?
   costPrice   Float?

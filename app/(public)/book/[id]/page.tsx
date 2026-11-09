@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { withSalePricing } from "@/lib/pricing";
 import BookingWizardClient from "@/components/public/booking/BookingWizardClient";
 
 interface PageProps {
@@ -35,7 +36,9 @@ export default async function BookingWizardPage({ params }: PageProps) {
       <div className="max-w-5xl mx-auto px-6 w-full">
         <BookingWizardClient
           item={
-            item as unknown as Parameters<typeof BookingWizardClient>[0]["item"]
+            withSalePricing(item) as unknown as Parameters<
+              typeof BookingWizardClient
+            >[0]["item"]
           }
         />
       </div>

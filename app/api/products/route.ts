@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma"; // FIXED: Central default Prisma v7 instance import
 import { ItemType } from "@prisma/client"; // Safe type-safe enum directly from Prisma
+import { withSalePricing } from "@/lib/pricing";
 
 // ✅ GET: Fetch all active retail products listed across verified business spaces
 export async function GET() {
@@ -26,7 +27,9 @@ export async function GET() {
     });
 
     // Securely filter on the backend to only display stock from verified, active workspaces
-    const filtered = products.filter((p) => p.business?.isActive);
+    const filtered = products
+      .filter((p) => p.business?.isActive)
+      .map((p) => withSalePricing(p));
 
     return NextResponse.json({ products: filtered });
   } catch (error: unknown) {

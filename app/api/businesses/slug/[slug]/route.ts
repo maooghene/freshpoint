@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveAbsoluteImageUrl } from "@/lib/resolve-image-url";
 import { hasPromotionalBroadcasts } from "@/lib/subscription-tiers";
+import { getEffectivePrice, isSaleActive } from "@/lib/pricing";
 interface DatabaseItemPayload {
   id: string;
   name: string;
   description: string | null;
   price: number;
+  salePrice?: number | null;
+  saleStartsAt?: Date | null;
+  saleEndsAt?: Date | null;
   type: string;
   image: string | null;
   duration: number | null;
@@ -70,7 +74,8 @@ export async function GET(
       id: item.id,
       name: item.name,
       description: item.description,
-      price: Number(item.price),
+      price: Number(getEffectivePrice(item)),
+      originalPrice: isSaleActive(item) ? Number(item.price) : null,
       type: item.type ? item.type.toUpperCase().trim() : "SERVICE",
       image: resolveAbsoluteImageUrl(item.image),
       duration: item.duration,
