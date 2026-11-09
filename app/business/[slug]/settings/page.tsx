@@ -2,6 +2,7 @@ import * as React from "react";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { getBusinessCategories } from "@/lib/actions/admin-categories";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { SettingsForm } from "./SettingsForm";
 import { BookingPolicyForm } from "./BookingPolicyForm";
@@ -65,6 +66,10 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     ? ownerProfileRow.isActive
     : true;
 
+  const categoryOptions = (await getBusinessCategories())
+    .filter((c) => c.isActive)
+    .map((c) => ({ label: c.label, value: c.value }));
+
   const serializedBusinessForForm = {
     id: business.id,
     name: business.name,
@@ -118,7 +123,10 @@ export default async function VendorSettingsPage({ params }: PageProps) {
       </div>
 
       <div className="grid gap-6">
-        <SettingsForm business={serializedBusinessForForm} />
+        <SettingsForm
+          business={serializedBusinessForForm}
+          categoryOptions={categoryOptions}
+        />
         <BookingPolicyForm business={serializedPoliciesForForm} />
       </div>
     </main>

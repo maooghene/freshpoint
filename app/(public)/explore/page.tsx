@@ -67,13 +67,11 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     },
   ];
 
-  if (selectedCategory) {
-    baseConditions.push({
-      categories: {
-        hasSome: [selectedCategory],
-      },
-    });
-  }
+  // The category filter uses only a business's MAIN category (the first one
+  // saved), so a salon that also sells jewelry is found under Salon, not
+  // Jewelry. Postgres can't filter on an array position, so this narrows in
+  // application code after the query (see below). A business is still found
+  // by what it sells through the search box.
 
   if (searchQuery) {
     baseConditions.push({
@@ -81,6 +79,14 @@ export default async function ExplorePage({ searchParams }: PageProps) {
         { name: { contains: searchQuery, mode: "insensitive" } },
         { description: { contains: searchQuery, mode: "insensitive" } },
         { slug: { contains: searchQuery, mode: "insensitive" } },
+        {
+          items: {
+            some: {
+              isActive: true,
+              name: { contains: searchQuery, mode: "insensitive" },
+            },
+          },
+        },
       ],
     });
   }
@@ -105,7 +111,11 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   // original createdAt-desc order within each tier group. Done in
   // application code since ranking by an enum's "importance" rather than
   // its literal value isn't expressible in a single Prisma orderBy clause.
-  const sortedBusinesses = [...businesses].sort((a, b) =>
+  const matchingBusinesses = selectedCategory
+    ? businesses.filter((b) => b.categories[0] === selectedCategory)
+    : businesses;
+
+  const sortedBusinesses = [...matchingBusinesses].sort((a, b) =>
     compareTierRank(
       a.subscriptionTier as SubscriptionTier,
       b.subscriptionTier as SubscriptionTier,
