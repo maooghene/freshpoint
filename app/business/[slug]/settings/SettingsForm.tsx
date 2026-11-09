@@ -52,9 +52,10 @@ interface BusinessData {
 
 interface SettingsFormProps {
   business: BusinessData;
+  categoryOptions: { label: string; value: string }[];
 }
 
-export function SettingsForm({ business }: SettingsFormProps) {
+export function SettingsForm({ business, categoryOptions }: SettingsFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const boundAction = updateBusinessSettings.bind(
@@ -111,6 +112,7 @@ export function SettingsForm({ business }: SettingsFormProps) {
           <CapacityCategoryFields
             business={business}
             isPending={isPending}
+            categoryOptions={categoryOptions}
             errors={state.errors}
           />
 

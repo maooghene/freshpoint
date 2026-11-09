@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Tags } from "lucide-react";
+import { Users } from "lucide-react";
+import { CategoryPicker, type CategoryOption } from "@/components/CategoryPicker";
 
 interface CapacityCategoryFieldsProps {
   business: {
@@ -11,14 +12,17 @@ interface CapacityCategoryFieldsProps {
     categories: string[];
   };
   isPending: boolean;
+  categoryOptions: CategoryOption[];
   errors?: {
     sittingCapacity?: string[];
+    categories?: string[];
   };
 }
 
 export function CapacityCategoryFields({
   business,
   isPending,
+  categoryOptions,
   errors,
 }: CapacityCategoryFieldsProps) {
   return (
@@ -47,21 +51,13 @@ export function CapacityCategoryFields({
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label
-          htmlFor="categories"
-          className="flex items-center gap-2 text-foreground/90 font-medium"
-        >
-          <Tags className="h-4 w-4 text-muted-foreground/80" /> Categories
-        </Label>
-        <Input
-          id="categories"
-          name="categories"
-          type="text"
-          defaultValue={business.categories.join(", ")}
-          placeholder="Barber, Salon"
+      <div className="sm:col-span-2">
+        <CategoryPicker
+          options={categoryOptions}
+          initial={business.categories}
           disabled={isPending}
-          className="bg-background"
+          error={errors?.categories?.[0]}
+          format="comma"
         />
       </div>
     </div>
