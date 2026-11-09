@@ -95,6 +95,17 @@ async function handleInitialSubscriptionCharge(data: PaystackChargeEventData) {
     return;
   }
 
+  // The metadata on a charge can be set by anyone who starts a Paystack
+  // payment from the browser with our public key, so it proves nothing about
+  // what was paid. Only upgrade when the amount actually paid covers the plan.
+  const expectedKobo = SUBSCRIPTION_PLANS[tier].amountKobo;
+  if (typeof data.amount !== "number" || data.amount < expectedKobo) {
+    console.warn(
+      `🚨 [FreshPoint Webhook] Upgrade to ${tier} for business ${businessId} ignored: paid ${data.amount} kobo, plan costs ${expectedKobo}.`,
+    );
+    return;
+  }
+
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: { paystackSubscriptionCode: true, paystackEmailToken: true },

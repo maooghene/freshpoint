@@ -125,13 +125,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "Missing or incomplete payment metadata",
-          debug: {
-            resolvedUserId,
-            resolvedItemId,
-            resolvedBusinessId,
-            resolvedDate,
-            resolvedTime,
-          },
         },
         { status: 400 },
       );
