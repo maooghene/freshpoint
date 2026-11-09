@@ -9,10 +9,13 @@ import {
   ProductVariant,
   LocationOverrideRow,
 } from "./types";
+import { SaleSection, type SaleFieldsPatch } from "./SaleSection";
 import { ProductVariantsManager } from "@/components/business/add-items/ProductVariantsManager";
 
 export function EditItemModal({
   item,
+  businessSlug,
+  onSaleChange,
   form,
   onChange,
   onSubmit,
@@ -25,6 +28,8 @@ export function EditItemModal({
   onSaveOverrides,
 }: {
   item: ServiceItem | ProductItem;
+  businessSlug: string;
+  onSaleChange: (itemId: string, sale: SaleFieldsPatch) => void;
   form: EditForm;
   onChange: (updated: EditForm) => void;
   onSubmit: () => void;
@@ -235,6 +240,13 @@ export function EditItemModal({
               Save Changes
             </button>
           </div>
+
+          {/* SALE PRICE — saves on its own, separate from the form above */}
+          <SaleSection
+            item={item}
+            businessSlug={businessSlug}
+            onChange={onSaleChange}
+          />
 
           {/* LOCATION PRICING — separate save action from the base item
               form above, since it writes to a different endpoint. Only

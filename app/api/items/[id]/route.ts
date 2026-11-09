@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { withSalePricing } from "@/lib/pricing";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -63,7 +64,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     console.log("✅ Inventory item fetched successfully:", item.name);
-    return NextResponse.json(item, { status: 200 });
+    return NextResponse.json(withSalePricing(item), { status: 200 });
   } catch (error: unknown) {
     console.error("🔥 INDIVIDUAL_ITEM_SPEC_GET_ERROR:", error);
 

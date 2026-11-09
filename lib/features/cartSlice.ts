@@ -206,6 +206,26 @@ const cartSlice = createSlice({
       });
     },
 
+    // Re-price lines after the server reported different current prices
+    // (a sale started or ended since the item was added).
+    refreshCartPrices: (
+      state,
+      action: PayloadAction<{ itemId: string; price: number }[]>,
+    ) => {
+      const priceByItem = new Map(
+        action.payload.map((p) => [p.itemId, p.price]),
+      );
+      for (const line of state.items) {
+        const next = priceByItem.get(line.itemId);
+        // Variant lines keep their own override price; only plain lines follow the item price.
+        if (typeof next === "number" && !line.variantId) line.price = next;
+      }
+      state.totalAmount = state.items.reduce(
+        (sum, line) => sum + line.price * line.quantity,
+        0,
+      );
+    },
+
     clearCart: (state) => {
       state.items = [];
       state.businessId = null;
@@ -228,6 +248,7 @@ export const {
   updateItemQuantity,
   removeItemFromCart,
   updateCartLiveStock,
+  refreshCartPrices,
   clearCart,
 } = cartSlice.actions;
 export default cartSlice.reducer;

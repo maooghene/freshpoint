@@ -1,5 +1,6 @@
 "use client";
 
+import { PriceTag } from "@/components/PriceTag";
 import { toast } from "@/lib/toast";
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -28,6 +29,7 @@ interface ItemDetails {
   name: string;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   duration: number | null;
   image: string | null;
   type: string;
@@ -164,7 +166,10 @@ export default function BookingWizardClient({ item }: { item: ItemDetails }) {
             Rate Cost
           </p>
           <p className="text-2xl font-black text-foreground">
-            ₦{Number(item.price).toLocaleString()}
+            <PriceTag
+              price={Number(item.price)}
+              originalPrice={item.originalPrice}
+            />
           </p>
         </div>
       </div>

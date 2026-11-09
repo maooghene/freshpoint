@@ -10,6 +10,7 @@ import {
 } from "@/lib/booking-rules";
 import { runSerializableWithRetry } from "@/lib/with-serializable-retry";
 import { queueBookingReminders } from "@/utils/reminders";
+import { getEffectivePrice } from "@/lib/pricing";
 import { notifyBusinessNewBooking } from "@/lib/notify-business";
 import {
   getPlatformRules,
@@ -146,8 +147,9 @@ export async function handleCreateNewBooking(
     }
 
     const generatedPassCode = `FP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const calculatedCommissionFee = serviceItem.price * 0.08;
-    const computedProviderPayout = serviceItem.price - calculatedCommissionFee;
+    const chargedPrice = getEffectivePrice(serviceItem);
+    const calculatedCommissionFee = chargedPrice * 0.08;
+    const computedProviderPayout = chargedPrice - calculatedCommissionFee;
 
     // Capacity check + booking creation happen atomically at SERIALIZABLE isolation —
     // Postgres itself guarantees two concurrent requests can't both succeed for the
@@ -176,7 +178,7 @@ export async function handleCreateNewBooking(
             staffId: check.assignedStaffId,
             startTime: appointmentStart,
             endTime: appointmentEnd,
-            totalAmount: serviceItem.price,
+            totalAmount: chargedPrice,
             freshpointFee: calculatedCommissionFee,
             providerPayout: computedProviderPayout,
             status: BookingStatus.PENDING,
@@ -184,7 +186,7 @@ export async function handleCreateNewBooking(
             items: {
               create: {
                 itemId: serviceItem.id,
-                price: serviceItem.price,
+                price: chargedPrice,
               },
             },
           },
@@ -202,7 +204,7 @@ export async function handleCreateNewBooking(
         bookingId: newBooking.id,
         customerName:
           `${userRecord.firstName || "A customer"} ${userRecord.lastName || ""}`.trim(),
-        totalAmount: serviceItem.price,
+        totalAmount: chargedPrice,
         startTime: newBooking.startTime,
       }).catch((err: unknown) => console.error("Booking notify failed:", err));
 

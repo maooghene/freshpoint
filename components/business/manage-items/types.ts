@@ -5,6 +5,9 @@ export interface BaseItem {
   name: string;
   description: string | null;
   price: number;
+  salePrice?: number | null;
+  saleStartsAt?: string | null;
+  saleEndsAt?: string | null;
   image: string | null;
   isActive: boolean;
   createdAt: string;

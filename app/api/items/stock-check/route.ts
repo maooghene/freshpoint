@@ -1,6 +1,7 @@
 // app/api/items/stock-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getEffectivePrice } from "@/lib/pricing";
 
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get("ids");
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
         id: true,
         stock: true,
         type: true,
+        price: true,
+        salePrice: true,
+        saleStartsAt: true,
+        saleEndsAt: true,
       },
     });
 
@@ -48,6 +53,9 @@ export async function GET(req: NextRequest) {
         stock: item ? item.stock : 0,
         type: item ? item.type : null,
         exists: Boolean(item),
+        // What the item costs right now, so a cart holding an old price
+        // (a sale that has since ended or started) can be corrected.
+        price: item ? getEffectivePrice(item) : null,
       };
     });
 

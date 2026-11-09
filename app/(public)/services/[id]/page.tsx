@@ -1,5 +1,6 @@
 "use client";
 
+import { PriceTag } from "@/components/PriceTag";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,6 +13,7 @@ interface UnifiedItem {
   name: string;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   type: "SERVICE" | "PRODUCT";
   image: string | null;
   duration: number | null;
@@ -158,7 +160,10 @@ export default function ServicePage() {
               {service.name}
             </h1>
             <p className="text-xl font-black text-primary">
-              ₦{service.price.toLocaleString()}
+              <PriceTag
+                price={service.price}
+                originalPrice={service.originalPrice}
+              />
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed font-medium">
               {service.description ||

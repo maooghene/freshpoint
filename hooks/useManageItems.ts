@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/toast";
 import { useAuth, useUser } from "@clerk/nextjs";
 import axios from "axios";
 import {
@@ -164,6 +164,22 @@ export function useManageItems(businessSlug: string) {
     }
   };
 
+  // Reflect a sale started/ended from the modal in the lists and the open item.
+  const applySale = (
+    itemId: string,
+    sale: Pick<BaseItem, "salePrice" | "saleStartsAt" | "saleEndsAt">,
+  ) => {
+    setServices((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, ...sale } : i)),
+    );
+    setProducts((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, ...sale } : i)),
+    );
+    setSelectedItem((prev) =>
+      prev && prev.id === itemId ? { ...prev, ...sale } : prev,
+    );
+  };
+
   const handleDelete = async (id: string, type: "SERVICE" | "PRODUCT") => {
     try {
       const token = await getToken();
@@ -307,6 +323,7 @@ export function useManageItems(businessSlug: string) {
     toggleStatus,
     handleDelete,
     handleEditSubmit,
+    applySale,
     locationOverrides,
     loadingOverrides,
     savingOverrides,

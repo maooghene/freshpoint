@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingBagIcon, ChevronDown, ChevronUp, Box } from "lucide-react";
 import { BusinessReviewList } from "@/components/BusinessReviewList";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { PriceTag } from "@/components/PriceTag";
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -14,6 +15,7 @@ interface ProductItem {
   name: string;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   stock: number | null;
   image: string | null;
 }
@@ -143,7 +145,10 @@ export function ProductCatalogGrid({ products }: ProductCatalogGridProps) {
 
               <div className="flex items-center justify-between pt-0.5">
                 <p className="font-black text-primary text-sm">
-                  ₦{product.price.toLocaleString()}
+                  <PriceTag
+                    price={product.price}
+                    originalPrice={product.originalPrice}
+                  />
                 </p>
                 <StockBadge stock={product.stock} />
               </div>

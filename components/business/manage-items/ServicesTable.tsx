@@ -9,6 +9,7 @@ import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { ServiceItem } from "./types";
 import { ItemActions } from "./ItemActions";
+import { isSaleActive } from "@/lib/pricing";
 
 interface ServicesTableProps {
   services: ServiceItem[];
@@ -101,6 +102,11 @@ export function ServicesTable({
                 <td className="px-6 py-4 font-black text-primary/90 text-base tracking-wide whitespace-nowrap">
                   {currency}
                   {service.price.toLocaleString()}
+                  {isSaleActive(service) && (
+                    <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold text-destructive align-middle">
+                      SALE ₦{service.salePrice?.toLocaleString()}
+                    </span>
+                  )}
                 </td>
 
                 {/* EMERALD TOGGLE LIGHT COLUMN */}

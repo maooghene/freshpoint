@@ -1,5 +1,6 @@
 "use client";
 
+import { isSaleActive } from "@/lib/pricing";
 import * as React from "react";
 import Image from "next/image";
 import { PackageIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
@@ -92,6 +93,11 @@ function ProductRow({
         <td className="px-6 py-4 font-black text-primary/90 text-base tracking-wide whitespace-nowrap">
           {currency}
           {product.price.toLocaleString()}
+          {isSaleActive(product) && (
+            <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold text-destructive align-middle">
+              SALE ₦{product.salePrice?.toLocaleString()}
+            </span>
+          )}
         </td>
 
         {/* INDICATOR LIGHT CELL */}
