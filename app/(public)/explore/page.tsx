@@ -67,12 +67,6 @@ export default async function ExplorePage({ searchParams }: PageProps) {
     },
   ];
 
-  // The category filter uses only a business's MAIN category (the first one
-  // saved), so a salon that also sells jewelry is found under Salon, not
-  // Jewelry. Postgres can't filter on an array position, so this narrows in
-  // application code after the query (see below). A business is still found
-  // by what it sells through the search box.
-
   if (searchQuery) {
     baseConditions.push({
       OR: [
@@ -111,16 +105,27 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   // original createdAt-desc order within each tier group. Done in
   // application code since ranking by an enum's "importance" rather than
   // its literal value isn't expressible in a single Prisma orderBy clause.
+  // A business is listed under its main category (the first one saved) and
+  // also under any "also offers" extras. When a category is selected, shops
+  // whose MAIN category it is come first, then shops that also offer it, each
+  // group keeping the tier ranking.
+  const isMain = (b: { categories: string[] }) =>
+    b.categories[0] === selectedCategory;
   const matchingBusinesses = selectedCategory
-    ? businesses.filter((b) => b.categories[0] === selectedCategory)
+    ? businesses.filter((b) => b.categories.includes(selectedCategory))
     : businesses;
 
-  const sortedBusinesses = [...matchingBusinesses].sort((a, b) =>
-    compareTierRank(
-      a.subscriptionTier as SubscriptionTier,
-      b.subscriptionTier as SubscriptionTier,
-    ),
+  const sortedBusinesses = [...matchingBusinesses].sort(
+    (a, b) =>
+      (selectedCategory ? Number(isMain(b)) - Number(isMain(a)) : 0) ||
+      compareTierRank(
+        a.subscriptionTier as SubscriptionTier,
+        b.subscriptionTier as SubscriptionTier,
+      ),
   );
+
+  const selectedCategoryLabel =
+    activeCategories.find((c) => c.value === selectedCategory)?.label ?? null;
 
   const normalizedBusinesses: GridItem[] = sortedBusinesses.map((b) => {
     const validCategories = Array.isArray(b.categories)
@@ -139,6 +144,10 @@ export default async function ExplorePage({ searchParams }: PageProps) {
       address: b.address,
       status: b.status,
       category: displayedCategory,
+      // Set when the shop is listed here only because it also offers this
+      // category, so the card can say why it appears.
+      alsoOffers:
+        selectedCategory && !isMain(b) ? selectedCategoryLabel : null,
       isSponsored: isSponsoredTier(b.subscriptionTier as SubscriptionTier),
     };
   });
@@ -156,7 +165,11 @@ export default async function ExplorePage({ searchParams }: PageProps) {
   };
   const sponsoredBusinesses = normalizedBusinesses
     .filter((b) => b.isSponsored)
-    .sort((a, b) => dailyRank(a.id) - dailyRank(b.id));
+    .sort(
+      (a, b) =>
+        Number(a.alsoOffers !== null) - Number(b.alsoOffers !== null) ||
+        dailyRank(a.id) - dailyRank(b.id),
+    );
   const regularBusinesses = normalizedBusinesses.filter((b) => !b.isSponsored);
 
   return (

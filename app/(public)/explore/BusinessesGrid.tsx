@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPinIcon, ImageIcon, BadgeCheck } from "lucide-react";
+import { MapPinIcon, ImageIcon, BadgeCheck, Tag } from "lucide-react";
 
 export interface GridItem {
   id: string;
@@ -14,6 +14,8 @@ export interface GridItem {
   address: string | null;
   status: string | null;
   category: string;
+  /** Category label this shop is listed under only as an extra, else null. */
+  alsoOffers?: string | null;
   isSponsored: boolean;
 }
 
@@ -87,6 +89,13 @@ export default function BusinessesGrid({
                 {business.description ||
                   "Services and products from a trusted local provider."}
               </p>
+
+              {business.alsoOffers && (
+                <p className="flex items-center gap-1 text-xs font-bold text-primary">
+                  <Tag className="h-3 w-3 shrink-0" />
+                  Also offers {business.alsoOffers}
+                </p>
+              )}
 
               <div className="flex items-center gap-1 pt-0.5 text-xs font-semibold text-muted-foreground min-w-0">
                 <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
