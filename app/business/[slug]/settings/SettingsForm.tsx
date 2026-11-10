@@ -10,6 +10,7 @@ import SettingsImageZone from "./SettingsImageZone";
 import { IdentityFields } from "./IdentityFields";
 import { CapacityCategoryFields } from "./CapacityCategoryFields";
 import { DescriptionField } from "./DescriptionField";
+import { ShopLocationField } from "./ShopLocationField";
 import { OwnerRosterToggle } from "./OwnerRosterToggle"; // 🎯 IMPORT TOGGLE
 import { Save, RotateCcw, Truck } from "lucide-react";
 import {
@@ -41,6 +42,8 @@ interface BusinessData {
   address: string;
   sittingCapacity: number;
   categories: string[];
+  latitude: number;
+  longitude: number;
   description: string | null;
   image: string | null;
   baseDeliveryFee: number;
@@ -134,6 +137,12 @@ export function SettingsForm({ business, categoryOptions }: SettingsFormProps) {
             isPending={isPending}
             categoryOptions={categoryOptions}
             errors={state.errors}
+          />
+
+          <ShopLocationField
+            latitude={business.latitude}
+            longitude={business.longitude}
+            isPending={isPending}
           />
 
           <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">

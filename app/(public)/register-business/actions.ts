@@ -1,5 +1,6 @@
 "use server";
 
+import { parseCoordinates } from "@/lib/coordinates";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import imagekit from "@/config/imageKit";
@@ -99,17 +100,10 @@ export async function createBusiness(
     // The shop's GPS position, captured in the form. Delivery distance and
     // fees are measured from it. Missing or out-of-range values are ignored
     // (the business then keeps the schema default) rather than blocking signup.
-    const latRaw = formData.get("latitude")?.toString().trim() ?? "";
-    const lngRaw = formData.get("longitude")?.toString().trim() ?? "";
-    const parsedLat = latRaw === "" ? NaN : Number(latRaw);
-    const parsedLng = lngRaw === "" ? NaN : Number(lngRaw);
-    const coordinates =
-      Number.isFinite(parsedLat) &&
-      Number.isFinite(parsedLng) &&
-      Math.abs(parsedLat) <= 90 &&
-      Math.abs(parsedLng) <= 180
-        ? { latitude: parsedLat, longitude: parsedLng }
-        : null;
+    const coordinates = parseCoordinates(
+      formData.get("latitude"),
+      formData.get("longitude"),
+    );
 
     const errors: RegisterErrors = {};
     if (name.length < 2 || name.length > 120)
