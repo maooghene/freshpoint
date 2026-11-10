@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { parseCoordinates } from "@/lib/coordinates";
 import { uploadToImageKit } from "@/lib/imagekit";
 import { authorizeBusinessAccess } from "@/lib/authorize-business-access";
 import { validateImageFile } from "@/lib/validation";
@@ -212,12 +213,19 @@ export async function updateBusinessSettings(
       }
     }
 
+    // Only changes the position when the form sent a valid pair.
+    const coordinates = parseCoordinates(
+      formData.get("latitude"),
+      formData.get("longitude"),
+    );
+
     await prisma.business.update({
       where: { id: businessId },
       data: {
         name,
         phone,
         address,
+        ...(coordinates ?? {}),
         sittingCapacity,
         categories,
         description,

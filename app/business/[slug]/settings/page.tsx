@@ -78,6 +78,8 @@ export default async function VendorSettingsPage({ params }: PageProps) {
     address: business.address,
     sittingCapacity: business.sittingCapacity,
     categories: business.categories,
+    latitude: business.latitude,
+    longitude: business.longitude,
     description: business.description,
     image: business.image ?? null,
     baseDeliveryFee: business.baseDeliveryFee ?? 0,
