@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/validation";
 import { NextResponse, after } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import * as Sentry from "@sentry/nextjs";
 import { classifyComplaint, createAndNotifyComplaint } from "@/lib/complaints";
 
 interface IncomingMessage {
@@ -116,7 +117,11 @@ User Recent Bookings (ID/Time/Status): ${JSON.stringify(systemUser.bookings)}
     CURRENT LIVE USER CONTEXT:
     ${dynamicUserDataContext}
     
-    Current Date/Time: Monday, July 13, 2026 (Timezone: WAT UTC+1).`;
+    Current Date/Time: ${new Date().toLocaleString("en-GB", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: "Africa/Lagos",
+    })} (Timezone: WAT UTC+1).`;
 
     const compiledMessages = [
       { role: "system", content: systemPrompt },
@@ -128,9 +133,11 @@ User Recent Bookings (ID/Time/Status): ${JSON.stringify(systemUser.bookings)}
 
     const HF_MODEL = process.env.HF_MODEL || "deepseek-ai/DeepSeek-V3:fastest";
 
-    const response = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
-      {
+    // One attempt, plus one retry for a network error, timeout or a
+    // temporary provider problem (429/5xx). Each attempt gives up after 25s so
+    // the customer is never left waiting on a hung connection.
+    const callModel = () =>
+      fetch("https://router.huggingface.co/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -142,13 +149,47 @@ User Recent Bookings (ID/Time/Status): ${JSON.stringify(systemUser.bookings)}
           max_tokens: 300,
           temperature: 0.2,
         }),
-      },
-    );
+        signal: AbortSignal.timeout(25_000),
+      });
 
-    if (!response.ok) {
-      const errorResponse = await response.text();
-      console.error("Hugging Face Detailed Endpoint Error:", errorResponse);
-      throw new Error(`Inference interface returned code: ${response.status}`);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await callModel();
+        if (response.ok || ![429, 500, 502, 503, 504].includes(response.status)) {
+          break;
+        }
+      } catch (networkError) {
+        console.error("[support-chat] model request failed:", networkError);
+        response = null;
+      }
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
+    }
+
+    if (!response || !response.ok) {
+      const status = response?.status ?? 0;
+      const detail = response ? (await response.text()).slice(0, 500) : "no response";
+      console.error(
+        `[support-chat] Hugging Face failed (model ${HF_MODEL}, status ${status}):`,
+        detail,
+      );
+      Sentry.captureMessage(`Support chat model failed (status ${status})`, {
+        level: "error",
+        tags: { area: "support-chat", status: String(status) },
+        extra: { model: HF_MODEL, detail },
+      });
+
+      // 401/402/403 mean the provider account itself is the problem (bad key,
+      // no credits, no access). A retry will not help, so say so honestly.
+      const providerProblem = [401, 402, 403].includes(status);
+      return NextResponse.json(
+        {
+          text: providerProblem
+            ? "Our AI assistant is temporarily unavailable. Please send us a message on the Contact page and our team will reply by email."
+            : "We are currently experiencing a slight connection delay with our support systems. Please resend your request in a moment.",
+        },
+        { status: 200 },
+      );
     }
 
     interface OpenAIChatResponse {

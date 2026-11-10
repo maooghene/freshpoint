@@ -1,15 +1,19 @@
 "use client";
 
-import { MessageSquareDot } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { SupportIcon } from "@/components/icons/SupportIcon";
 
 interface ChatToggleButtonProps {
+  /** Show the "Ask FreshPoint" label (desktop hover only; phones get the icon alone). */
   showLabel: boolean;
   onOpen: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
 
+/**
+ * Small round launcher. It never opens the chat by itself: the panel opens
+ * only when the customer taps it.
+ */
 export function ChatToggleButton({
   showLabel,
   onOpen,
@@ -17,30 +21,29 @@ export function ChatToggleButton({
   onMouseLeave,
 }: ChatToggleButtonProps) {
   return (
-    <Button
+    <button
+      type="button"
       onClick={onOpen}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      aria-label="Open FreshPoint Support chat"
-      className="group relative flex items-center h-14 rounded-full overflow-hidden bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl pl-[6px] transition-all duration-500 ease-out active:scale-95"
-      style={{ paddingRight: showLabel ? "1.25rem" : "6px" }}
+      aria-label="Open FreshPoint support chat"
+      className="group relative flex h-12 items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/20 ring-1 ring-black/5 transition-all duration-300 ease-out active:scale-90 sm:h-14 cursor-pointer"
+      style={{ paddingRight: showLabel ? "1.1rem" : 0 }}
     >
-      <span className="h-11 w-11 rounded-full bg-primary-foreground/10 flex items-center justify-center shrink-0 border border-primary-foreground/5">
-        <MessageSquareDot
-          className="h-5 w-5 text-primary-foreground"
-          aria-hidden="true"
-        />
+      <span className="relative flex h-12 w-12 shrink-0 items-center justify-center sm:h-14 sm:w-14">
+        <SupportIcon className="h-6 w-6 sm:h-7 sm:w-7" />
+        <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-primary" />
       </span>
       <span
-        className="grid transition-[grid-template-columns] duration-500 ease-out"
+        className="grid transition-[grid-template-columns] duration-300 ease-out"
         style={{ gridTemplateColumns: showLabel ? "1fr" : "0fr" }}
       >
         <span className="overflow-hidden whitespace-nowrap">
-          <span className="text-sm font-bold tracking-wide pl-3 inline-flex items-center text-primary-foreground">
+          <span className="inline-flex items-center pl-0.5 text-sm font-bold tracking-wide">
             Ask FreshPoint
           </span>
         </span>
       </span>
-    </Button>
+    </button>
   );
 }

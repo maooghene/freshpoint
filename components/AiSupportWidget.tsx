@@ -91,13 +91,13 @@ export function AiSupportWidget() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 font-sans select-none antialiased"
+      className="fixed right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 font-sans select-none antialiased sm:right-4 sm:bottom-4"
       role="region"
       aria-label="FreshPoint AI Support"
     >
       {!isOpen ? (
         <ChatToggleButton
-          showLabel={expanded || !isHoverCapable}
+          showLabel={isHoverCapable && expanded}
           onOpen={() => setIsOpen(true)}
           onMouseEnter={() => {
             if (collapseTimerRef.current)
@@ -110,7 +110,7 @@ export function AiSupportWidget() {
         />
       ) : (
         /* Opaque Global Token Container — Perfectly Adapts to Light/Dark Mode Variables */
-        <div className="w-[calc(100vw-32px)] sm:w-[360px] md:w-[400px] h-[75vh] max-h-[500px] bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+        <div className="w-[min(20rem,calc(100vw-1.5rem))] sm:w-[22rem] md:w-96 h-[min(52dvh,24rem)] sm:h-[min(70dvh,30rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           <ChatHeader onClose={() => setIsOpen(false)} />
           <ChatMessages
             messages={messages}
