@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FreshpointLogo } from "./icons/FreshpointLogo";
+import { SupportIcon } from "./icons/SupportIcon";
 
 interface ChatHeaderProps {
   onClose: () => void;
@@ -10,22 +10,11 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ onClose }: ChatHeaderProps) {
   return (
-    <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-3">
-        {/* 🌟 FIXED: Removed overflow-hidden from this wrapper to let the badge ring expand outward freely */}
-        <div className="relative flex items-center justify-center h-11 w-11 rounded-xl bg-card border border-border">
-          {/* Explicitly isolate your internal branding graphic with custom bounding styles if clipping is needed */}
-          <div className="w-full h-full rounded-xl overflow-hidden flex items-center justify-center">
-            <FreshpointLogo variant="mark" size={44} />
-          </div>
-
-          {/* 🌟 HIGH VISIBILITY STATUS BADGE: Shifted color to vibrant Emerald with a responsive scaling pulse aura */}
-          <span className="absolute bottom-[-2px] right-[-2px] flex h-3 w-3">
-            {/* Expanding ping aura for amplified peripheral layout visibility */}
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ring-2 ring-card" />
-            {/* Bounded core center nodule */}
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-card" />
-          </span>
+    <div className="bg-card border-b border-border pl-3 pr-1.5 py-2 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-2.5">
+        <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <SupportIcon className="h-5 w-5" />
+          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-card" />
         </div>
         <div>
           <h4 className="text-sm font-bold tracking-wide text-foreground">
@@ -41,7 +30,7 @@ export function ChatHeader({ onClose }: ChatHeaderProps) {
         onClick={onClose}
         variant="ghost"
         aria-label="Close Chat"
-        className="h-11 w-11 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90"
+        className="h-10 w-10 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90"
       >
         <X className="h-5 w-5" />
       </Button>
