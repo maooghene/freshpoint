@@ -244,6 +244,13 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    if (Number.isNaN(parsedData.costPrice) || Number.isNaN(parsedData.weight)) {
+      return NextResponse.json(
+        { error: "Cost price and weight must be valid, non-negative numbers." },
+        { status: 400 },
+      );
+    }
+
     const existing = await verifyItemTenantOwnership(parsedData.id, businessId);
     if (!existing) {
       return NextResponse.json(
@@ -309,6 +316,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
           stock: adjustedStock,
           categoryId: parsedData.categoryId,
           image: imageUrlString,
+          // Only touch these when the form actually sent them.
+          ...(parsedData.sku !== undefined && { sku: parsedData.sku }),
+          ...(parsedData.costPrice !== undefined && {
+            costPrice: parsedData.costPrice,
+          }),
+          ...(parsedData.weight !== undefined && { weight: parsedData.weight }),
         },
       });
 

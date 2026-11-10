@@ -11,6 +11,10 @@ export interface ParsedItemFormData {
   duration: number | null;
   stock: number | null;
   categoryId: string | null;
+  /** undefined = not sent (leave as is); null = sent empty (clear); NaN = invalid. */
+  sku: string | null | undefined;
+  costPrice: number | null | undefined;
+  weight: number | null | undefined;
 }
 
 /**
@@ -26,6 +30,19 @@ function clampInt(
   const parsed = parseInt(raw || String(fallback), 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+/** Optional non-negative number: undefined when not sent, null when blank, NaN when invalid. */
+function optionalNumber(
+  formData: FormData,
+  key: string,
+  max: number,
+): number | null | undefined {
+  if (!formData.has(key)) return undefined;
+  const raw = ((formData.get(key) as string | null) ?? "").trim();
+  if (raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= max ? n : NaN;
 }
 
 export async function parseItemFormData(
@@ -71,6 +88,11 @@ export async function parseItemFormData(
     duration,
     stock,
     categoryId,
+    sku: formData.has("sku")
+      ? ((formData.get("sku") as string) || "").trim().slice(0, 64) || null
+      : undefined,
+    costPrice: optionalNumber(formData, "costPrice", 100_000_000),
+    weight: optionalNumber(formData, "weight", 100_000),
   };
 }
 

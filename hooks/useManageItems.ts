@@ -221,9 +221,10 @@ export function useManageItems(businessSlug: string) {
         fd.append("duration", form.duration);
       if (selectedItem.type === "PRODUCT") {
         if (form.stock) fd.append("stock", form.stock);
-        if (form.sku) fd.append("sku", form.sku.trim());
-        if (form.costPrice) fd.append("costPrice", form.costPrice);
-        if (form.weight) fd.append("weight", form.weight);
+        // Always sent, so a vendor can also clear them (blank = remove).
+        fd.append("sku", form.sku.trim());
+        fd.append("costPrice", form.costPrice);
+        fd.append("weight", form.weight);
       }
 
       const { data } = await axios.put<UpdatedItemResponse>(
